@@ -33,31 +33,34 @@ More on the CLI at [skills](https://github.com/vercel-labs/skills).
 
 Manually written with personal preferences and best practices.
 
-| Skill | Description |
-| ----- | ----------- |
-| TBD   | Coming soon |
+| Skill                         | Description                                                   |
+| ----------------------------- | ------------------------------------------------------------- |
+| [isentinel](skills/isentinel) | isentinel's opinionated preferences for roblox-ts development |
 
 ### Generated from documentation
 
 Generated from official docs.
 
-| Skill                         | Description                            | Source                                                        |
-| ----------------------------- | -------------------------------------- | ------------------------------------------------------------- |
-| [jecs](skills/jecs)           | Entity Component System for Roblox     | [Ukendio/jecs](https://github.com/Ukendio/jecs)               |
-| [pnpm](skills/pnpm)           | Fast, disk-efficient package manager   | [pnpm/pnpm.io](https://github.com/pnpm/pnpm.io)               |
-| [roblox-ts](skills/robloxTs)  | TypeScript to Roblox Lua transpiler    | [roblox-ts/roblox-ts](https://github.com/roblox-ts/roblox-ts) |
-| [tsdown](skills/tsdown)       | TypeScript bundler powered by Rolldown | [rolldown/tsdown](https://github.com/rolldown/tsdown)         |
-| [vitepress](skills/vitepress) | Static site generator powered by Vite  | [vuejs/vitepress](https://github.com/vuejs/vitepress)         |
-| [vitest](skills/vitest)       | Unit testing framework powered by Vite | [vitest-dev/vitest](https://github.com/vitest-dev/vitest)     |
+| Skill                             | Description                                   | Source                                                        |
+| --------------------------------- | --------------------------------------------- | ------------------------------------------------------------- |
+| [jecs](skills/jecs)               | Entity Component System for Roblox            | [Ukendio/jecs](https://github.com/Ukendio/jecs)               |
+| [pnpm](skills/pnpm)               | Fast, disk-efficient package manager          | [pnpm/pnpm.io](https://github.com/pnpm/pnpm.io)               |
+| [roblox-ts](skills/robloxTs)      | TypeScript to Roblox Lua transpiler           | [roblox-ts/roblox-ts](https://github.com/roblox-ts/roblox-ts) |
+| [superpowers](skills/superpowers) | Agent workflow skills (customized for Roblox) | [obra/superpowers](https://github.com/obra/superpowers)       |
+| [tsdown](skills/tsdown)           | TypeScript bundler powered by Rolldown        | [rolldown/tsdown](https://github.com/rolldown/tsdown)         |
+| [vitepress](skills/vitepress)     | Static site generator powered by Vite         | [vuejs/vitepress](https://github.com/vuejs/vitepress)         |
+| [vitest](skills/vitest)           | Unit testing framework powered by Vite        | [vitest-dev/vitest](https://github.com/vitest-dev/vitest)     |
 
 ### Vendored
 
 Synced from external repos that maintain their own skills.
 
-| Skill                         | Description                          | Source                                                  |
-| ----------------------------- | ------------------------------------ | ------------------------------------------------------- |
-| [humanizer](skills/humanizer) | Remove AI writing patterns from text | [blader/humanizer](https://github.com/blader/humanizer) |
-| [turborepo](skills/turborepo) | High-performance build system        | [vercel/turborepo](https://github.com/vercel/turborepo) |
+| Skill                                   | Description                          | Source                                                  |
+| --------------------------------------- | ------------------------------------ | ------------------------------------------------------- |
+| [humanizer](skills/humanizer)           | Remove AI writing patterns from text | [blader/humanizer](https://github.com/blader/humanizer) |
+| [turborepo](skills/turborepo)           | High-performance build system        | [vercel/turborepo](https://github.com/vercel/turborepo) |
+| [writing-plans](skills/writing-plans)   | How to write implementation plans    | [obra/superpowers](https://github.com/obra/superpowers) |
+| [writing-skills](skills/writing-skills) | How to write agent skills            | [obra/superpowers](https://github.com/obra/superpowers) |
 
 ## Usage
 
