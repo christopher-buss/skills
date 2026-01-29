@@ -1,0 +1,12 @@
+[env]
+_.path = [ '{{config_root}}/node_modules/.bin' ]
+_.file = { path = ".env", redact = true }
+
+[hooks]
+postinstall = "npx corepack enable"
+
+[settings]
+experimental = true
+
+[tools]
+node = { version = "lts", postinstall = "corepack enable" }
