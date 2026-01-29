@@ -1,0 +1,21 @@
+[submodule "sources/pnpm"]
+	path = sources/pnpm
+	url = https://github.com/pnpm/pnpm.io
+[submodule "sources/jecs"]
+	path = sources/jecs
+	url = https://github.com/Ukendio/jecs
+[submodule "vendor/humanizer"]
+	path = vendor/humanizer
+	url = https://github.com/blader/humanizer
+[submodule "sources/robloxTs"]
+	path = sources/robloxTs
+	url = https://github.com/roblox-ts/roblox-ts
+[submodule "vendor/superpowers"]
+	path = vendor/superpowers
+	url = https://github.com/obra/superpowers
+[submodule "sources/superpowers"]
+	path = sources/superpowers
+	url = https://github.com/obra/superpowers
+[submodule "sources/jest"]
+	path = sources/jest
+	url = https://github.com/Roblox/jest-roblox

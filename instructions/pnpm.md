@@ -1,0 +1,1 @@
+- Prefer puting pnpm-specific config under `pnpm-workspace.yaml`

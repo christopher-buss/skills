@@ -1,0 +1,6 @@
+{
+	"extends": "@isentinel/tsconfig/typescript",
+	"compilerOptions": {
+		"allowImportingTsExtensions": true
+	}
+}

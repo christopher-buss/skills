@@ -1,0 +1,35 @@
+{
+	"private": true,
+	"description": "Curated skills and configurations for AI-assisted development",
+	"keywords": ["roblox", "ai", "claude", "skills"],
+	"author": "Christopher Buss <christopher.buss@pm.me> (https://github.com/christopher-buss)",
+	"type": "module",
+	"scripts": {
+		"lint": "eslint --cache .",
+		"prepare": "simple-git-hooks && git submodule update --init --recursive",
+		"start": "node scripts/cli.ts"
+	},
+	"simple-git-hooks": {
+		"pre-commit": "pnpm lint-staged"
+	},
+	"lint-staged": {
+		"*.{js,ts,mjs,mts}": "eslint --fix"
+	},
+	"devDependencies": {
+		"@clack/prompts": "catalog:",
+		"@isentinel/eslint-config": "catalog:",
+		"@isentinel/tsconfig": "catalog:",
+		"@types/node": "catalog:",
+		"eslint": "catalog:",
+		"eslint-plugin-n": "catalog:",
+		"eslint-plugin-pnpm": "catalog:",
+		"jiti": "catalog:",
+		"lint-staged": "catalog:",
+		"simple-git-hooks": "catalog:",
+		"typescript": "catalog:"
+	},
+	"packageManager": "pnpm@10.28.2+sha512.41872f037ad22f7348e3b1debbaf7e867cfd448f2726d9cf74c08f19507c31d2c8e7a11525b983febc2df640b5438dee6023ebb1f84ed43cc2d654d2bc326264",
+	"engines": {
+		"node": ">=22.16.0"
+	}
+}
