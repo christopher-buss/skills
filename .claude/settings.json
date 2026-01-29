@@ -1,0 +1,26 @@
+{
+	"permissions": {
+		"allow": [
+			"Bash(gh:*)",
+			"Bash(gh pr:*)",
+			"Bash(gh pr create:*)",
+			"Bash(gh pr view:*)",
+			"Bash(gh run list:*)",
+			"Bash(gh run view:*)",
+			"Glob",
+			"Grep",
+			"LS",
+			"Read",
+			"Read(*)",
+			"TodoWrite",
+			"WebFetch",
+			"WebSearch"
+		],
+		"additionalDirectories": [],
+		"ask": [],
+		"defaultMode": "plan",
+		"deny": [],
+		"includeCoAuthoredBy": true
+	},
+	"outputStyle": "XP Programmer"
+}
