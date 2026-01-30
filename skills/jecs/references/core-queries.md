@@ -167,9 +167,11 @@ function physicsSystem(dt: number): void {
 
 ```ts
 function findFirstTarget(): Entity | undefined {
+	// eslint-disable-next-line no-unreachable-loop -- Intended to return first match
 	for (const [entity] of world.query(Target).with(Active)) {
 		return entity;
 	}
+
 	return undefined;
 }
 ```
