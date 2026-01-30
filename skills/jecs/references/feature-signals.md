@@ -1,14 +1,16 @@
 ---
 name: feature-signals
-description:
-    Use when subscribing to component changes with multiple listeners via
-    added/changed/removed signals in jecs
+description: |
+    Use when external systems need to observe component changes in jecs.
+    Supports multiple listeners and disconnect. For component
+    constructors/destructors, use hooks instead.
 ---
 
 # Jecs Signals
 
-Signals allow multiple listeners for component lifecycle events. Unlike hooks,
-you can have many subscribers and disconnect them.
+Signals are **event subscriptions** for external observers. Unlike hooks (which
+are constructors/destructors), signals support multiple listeners and can be
+disconnected.
 
 ## Signal Types
 
@@ -67,34 +69,6 @@ world.added(Owns, (entity, id, value) => {
 });
 ```
 
-## Networking Example
-
-Common pattern for replication:
-
-```ts
-type Storage = Record<number, unknown>;
-
-const Networked = world.component();
-const storages = new Map<Entity, Storage>();
-
-for (const component of world.each(Networked)) {
-	const storage: Storage = {};
-	storages.set(component, storage);
-
-	world.added(component, (entity, _, value) => {
-		storage[entity] = value;
-	});
-
-	world.changed(component, (entity, _, value) => {
-		storage[entity] = value;
-	});
-
-	world.removed(component, (entity) => {
-		storage[entity] = "REMOVED";
-	});
-}
-```
-
 ## Removed Signal
 
 The `removed` signal receives a `deleted` flag like hooks.
@@ -113,28 +87,45 @@ world.removed(Health, (entity, id, deleted) => {
 
 ## Signals vs Hooks
 
-| Feature                 | Hooks                        | Signals                 |
-| ----------------------- | ---------------------------- | ----------------------- |
-| Listeners per component | 1                            | Multiple                |
-| Disconnect support      | No                           | Yes                     |
-| When to use             | Core behavior                | External observers      |
-| Set via                 | `world.set(comp, OnAdd, fn)` | `world.added(comp, fn)` |
+**Signals are event subscriptions.** External systems observe component changes.
 
-**Use hooks for:** Enforcing invariants, core component behavior **Use signals
-for:** UI updates, networking, audio, multiple systems reacting to same change
+**Hooks are constructors/destructors.** They define how a component itself
+initializes and cleans up.
+
+| Feature       | Signals                 | Hooks                        |
+| ------------- | ----------------------- | ---------------------------- |
+| Mental model  | Event subscription      | Constructor/Destructor       |
+| Belongs to    | External observers      | The component itself         |
+| Per component | Multiple                | One (intentional)            |
+| Disconnect    | Yes                     | No                           |
+| Set via       | `world.added(comp, fn)` | `world.set(comp, OnAdd, fn)` |
+
+**Use signals when:** "Other systems need to know about this component"
+
+- UI updates when Health changes
+- Networking replicates component state
+- Audio plays sound on damage
+
+**Use hooks when:** "This component always does X on add/remove"
+
+- Model destroys its Instance on removal
+- Transform syncs to a BasePart on change
+
+Signals can do everything hooks do. Use signals by default. Use hooks when you
+need the slight performance gain and know you'll only ever have one listener.
 
 ## Quick Reference
 
 ```ts
 // Subscribe
-const dc1 = world.added(Component, fn);
-const dc2 = world.changed(Component, fn);
-const dc3 = world.removed(Component, fn);
+const disconnect1 = world.added(Component, fn);
+const disconnect2 = world.changed(Component, fn);
+const disconnect3 = world.removed(Component, fn);
 
 // Unsubscribe
-dc1();
-dc2();
-dc3();
+disconnect1();
+disconnect2();
+disconnect3();
 ```
 
 <!--

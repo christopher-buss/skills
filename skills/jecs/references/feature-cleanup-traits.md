@@ -1,6 +1,6 @@
 ---
 name: feature-cleanup-traits
-description:
+description: |
     Use when configuring automatic cleanup behavior for component/entity
     deletion in jecs
 ---
@@ -29,15 +29,17 @@ deleted.
 Apply traits as pairs on components:
 
 ```ts
-import { Delete, OnDelete, OnDeleteTarget, pair, Remove } from "@rbxts/jecs";
+import Jecs, { Delete, OnDelete, pair, Remove } from "@rbxts/jecs";
+
+const world = Jecs.world();
 
 // (OnDelete, Remove) - Default behavior
-const Tag = ecs.entity();
-ecs.add(Tag, pair(OnDelete, Remove));
+const Tag = world.entity();
+world.add(Tag, pair(OnDelete, Remove));
 
 // (OnDelete, Delete) - Cascade deletion
-const Critical = ecs.entity();
-ecs.add(Critical, pair(OnDelete, Delete));
+const Critical = world.entity();
+world.add(Critical, pair(OnDelete, Delete));
 ```
 
 ## OnDelete Behaviors
@@ -47,15 +49,15 @@ ecs.add(Critical, pair(OnDelete, Delete));
 When component deleted, remove it from all entities.
 
 ```ts
-const Buff = ecs.entity();
-ecs.add(Buff, pair(OnDelete, Remove));
+const Buff = world.entity();
+world.add(Buff, pair(OnDelete, Remove));
 
-const entity = ecs.entity();
-ecs.add(entity, Buff);
+const entityId = world.entity();
+world.add(entityId, Buff);
 
-ecs.delete(Buff);
-ecs.has(entity, Buff); // false (removed)
-ecs.contains(entity); // true (still exists)
+world.delete(Buff);
+world.has(entityId, Buff); // false (removed)
+world.contains(entityId); // true (still exists)
 ```
 
 ### OnDelete + Delete
@@ -63,14 +65,14 @@ ecs.contains(entity); // true (still exists)
 When component deleted, delete all entities that have it.
 
 ```ts
-const Temporary = ecs.entity();
-ecs.add(Temporary, pair(OnDelete, Delete));
+const Temporary = world.entity();
+world.add(Temporary, pair(OnDelete, Delete));
 
-const entity = ecs.entity();
-ecs.add(entity, Temporary);
+const entityId = world.entity();
+world.add(entityId, Temporary);
 
-ecs.delete(Temporary);
-ecs.contains(entity); // false (deleted)
+world.delete(Temporary);
+world.contains(entityId); // false (deleted)
 ```
 
 ## OnDeleteTarget Behaviors
@@ -82,16 +84,16 @@ For relationships - trigger when target entity is deleted.
 Remove relationship when target deleted.
 
 ```ts
-const OwnedBy = ecs.component();
-ecs.add(OwnedBy, pair(OnDeleteTarget, Remove));
+const OwnedBy = world.component();
+world.add(OwnedBy, pair(OnDeleteTarget, Remove));
 
-const loot = ecs.entity();
-const player = ecs.entity();
-ecs.add(loot, pair(OwnedBy, player));
+const loot = world.entity();
+const player = world.entity();
+world.add(loot, pair(OwnedBy, player));
 
-ecs.delete(player);
-ecs.has(loot, pair(OwnedBy, player)); // false
-ecs.contains(loot); // true (loot still exists)
+world.delete(player);
+world.has(loot, pair(OwnedBy, player)); // false
+world.contains(loot); // true (loot still exists)
 ```
 
 ### OnDeleteTarget + Delete (Hierarchy)
@@ -100,48 +102,51 @@ Delete entities when their relationship target is deleted.
 
 ```ts
 // ChildOf has this built-in
-const CustomChildOf = ecs.component();
-ecs.add(CustomChildOf, pair(OnDeleteTarget, Delete));
+const CustomChildOf = world.component();
+world.add(CustomChildOf, pair(OnDeleteTarget, Delete));
 
-const parent = ecs.entity();
-const child = ecs.entity();
-ecs.add(child, pair(CustomChildOf, parent));
+const parent = world.entity();
+const child = world.entity();
+world.add(child, pair(CustomChildOf, parent));
 
-ecs.delete(parent);
-ecs.contains(child); // false (cascaded)
+world.delete(parent);
+world.contains(child); // false (cascaded)
 ```
 
 **Note:** `ChildOf` has this trait built-in.
 
-## Built-in Traits
+## Built-in Cleanup Traits
 
-| Component | Traits                                  |
-| --------- | --------------------------------------- |
-| `ChildOf` | `(OnDeleteTarget, Delete)`, `Exclusive` |
+| Component | Cleanup Trait              |
+| --------- | -------------------------- |
+| `ChildOf` | `(OnDeleteTarget, Delete)` |
+
+`ChildOf` also has the `Exclusive` trait (one parent only) - see
+[feature-pairs](feature-pairs.md#exclusive-relationships).
 
 ## Common Patterns
 
 **Faction membership:**
 
 ```ts
-const MemberOf = ecs.component();
-ecs.add(MemberOf, pair(OnDeleteTarget, Remove));
+const MemberOf = world.component();
+world.add(MemberOf, pair(OnDeleteTarget, Remove));
 // Deleting faction removes membership, keeps entities
 ```
 
 **Scene hierarchy:**
 
 ```ts
-const InScene = ecs.component();
-ecs.add(InScene, pair(OnDeleteTarget, Delete));
+const InScene = world.component();
+world.add(InScene, pair(OnDeleteTarget, Delete));
 // Deleting scene deletes all entities in it
 ```
 
 **Equipment slots:**
 
 ```ts
-const EquippedBy = ecs.component();
-ecs.add(EquippedBy, pair(OnDeleteTarget, Remove));
+const EquippedBy = world.component();
+world.add(EquippedBy, pair(OnDeleteTarget, Remove));
 // Player deletion removes equipment reference, keeps items
 ```
 

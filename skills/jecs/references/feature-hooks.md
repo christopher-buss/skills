@@ -1,14 +1,14 @@
 ---
 name: feature-hooks
-description:
-    Use when reacting to component add/change/remove with OnAdd, OnChange,
-    OnRemove hooks in jecs
+description: |
+    Use when defining component constructors/destructors with OnAdd, OnChange,
+    OnRemove hooks in jecs. For external observers, use signals instead.
 ---
 
 # Jecs Component Hooks
 
-Hooks define behavior when components are added, changed, or removed. One hook
-per type per component.
+Hooks are **constructors and destructors** for components. They define how a
+component initializes and cleans up. One hook per type per component, by design.
 
 ## Hook Types
 
@@ -17,6 +17,16 @@ per type per component.
 | `OnAdd`    | Component added with value          | `(entity, id, data) => void`     |
 | `OnChange` | Existing component value changes    | `(entity, id, data) => void`     |
 | `OnRemove` | Component removed or entity deleted | `(entity, id, deleted?) => void` |
+
+### The `id` Parameter
+
+The `id` parameter is the full component ID that triggered the hook:
+
+- **Regular components:** Same as the component you registered on
+- **Pairs/relationships:** The full pair (e.g., `pair(ChildOf, parent)`)
+
+For pairs, use `pair_second(world, id)` to extract the target entity. See
+[Hooks for Pairs](#hooks-for-pairs) for examples.
 
 ## Setting Up Hooks
 
@@ -79,6 +89,12 @@ world.set(entity, Health, 100); // OnAdd (not OnChange)
 world.set(entity, Health, 50); // OnChange fires
 ```
 
+**Prefer `world.changed()` instead.** OnChange doesn't fit the
+constructor/destructor model - observing mutations is typically an external
+concern. Signals (`world.changed`) use hooks internally but allow multiple
+listeners and disconnect. Using OnChange directly blocks signals from working on
+that component.
+
 ## OnRemove
 
 Fires when component is removed OR entity is deleted.
@@ -97,7 +113,7 @@ world.set(Health, OnRemove, (entity, id, deleted) => {
 });
 ```
 
-**The `deleted` flag:**
+i **The `deleted` flag:**
 
 - `true`: Entity being deleted (all components removed)
 - `undefined`: Single component removed normally
@@ -178,12 +194,32 @@ world.set(Position, OnChange, (entity, id, position) => {
 
 ## Hooks vs Signals
 
-| Feature        | Hooks           | Signals              |
-| -------------- | --------------- | -------------------- |
-| Per component  | One             | Multiple             |
-| Return cleanup | No              | Yes (disconnect)     |
-| Performance    | Faster          | Slightly slower      |
-| Use case       | Core invariants | Multiple subscribers |
+**Hooks are constructors/destructors.** They define how a component initializes
+and cleans up. One per component, by design.
+
+**Signals are event subscriptions.** External systems observe component changes.
+Multiple listeners, can disconnect.
+
+| Feature       | Hooks                  | Signals            |
+| ------------- | ---------------------- | ------------------ |
+| Mental model  | Constructor/Destructor | Event subscription |
+| Belongs to    | The component itself   | External observers |
+| Per component | One (intentional)      | Multiple           |
+| Disconnect    | No                     | Yes                |
+
+**Use hooks when:** "This component always does X on add/remove"
+
+- Model destroys its Instance on removal
+- Transform syncs to a BasePart on change
+
+**Use signals when:** "Other systems need to know about this component"
+
+- UI updates when Health changes
+- Networking replicates component state
+- Audio plays sound on damage
+
+Signals can do everything hooks do. Hooks are an optimization for the
+single-listener, never-disconnect case.
 
 See [feature-signals](feature-signals.md) for signal-based listeners.
 

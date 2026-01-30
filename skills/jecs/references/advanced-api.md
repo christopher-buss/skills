@@ -14,19 +14,19 @@ Preregistration, bulk operations, and TypeScript types.
 Register components before world creation for stable IDs.
 
 ```ts
-import { component, meta, Name, tag, world } from "@rbxts/jecs";
+import Jecs, { component, meta, Name } from "@rbxts/jecs";
 
 // Preregister (before world)
-const Position = component<Vector3>();
+const Transform = component<CFrame>();
 const Velocity = component<Vector3>();
-const Dead = tag();
+const Dead = Jecs.tag();
 
 // Add metadata before world
-meta(Position, Name, "Position");
+meta(Transform, Name, "Transform");
 meta(Velocity, Name, "Velocity");
 
 // Components registered when world created
-const ecs = world();
+const world = Jecs.world();
 ```
 
 **Benefits:**
@@ -44,19 +44,19 @@ Insert or remove multiple components in a single archetype transition.
 ```ts
 import { bulk_insert } from "@rbxts/jecs";
 
-const Position = ecs.component<Vector3>();
-const Velocity = ecs.component<Vector3>();
-const Mass = ecs.component<number>();
-const Dead = tag();
+const Transform = world.component<CFrame>();
+const Velocity = world.component<Vector3>();
+const Mass = world.component<number>();
+const Dead = world.component();
 
-const entity = ecs.entity();
+const entityId = world.entity();
 
 // Insert multiple components at once
 bulk_insert(
-	ecs,
-	entity,
-	[Position, Velocity, Mass, Dead],
-	[new Vector3(0, 0, 0), new Vector3(1, 0, 0), 100, undefined],
+	world,
+	entityId,
+	[Transform, Velocity, Mass, Dead],
+	[new CFrame(), new Vector3(1, 0, 0), 100, undefined],
 );
 ```
 
@@ -68,7 +68,7 @@ Tags use `undefined` as placeholder value.
 import { bulk_remove } from "@rbxts/jecs";
 
 // Remove multiple components at once
-bulk_remove(ecs, entity, [Position, Velocity, Mass]);
+bulk_remove(world, entityId, [Transform, Velocity, Mass]);
 ```
 
 **Performance:** Single archetype transition vs multiple.
@@ -80,7 +80,7 @@ Access internal entity storage info.
 ```ts
 import { record } from "@rbxts/jecs";
 
-const entityRecord = record(ecs, entity);
+const entityRecord = record(world, entityId);
 // entityRecord.archetype - current archetype
 // entityRecord.row - position in archetype
 // entityRecord.dense - position in dense array
@@ -93,7 +93,7 @@ Access component storage metadata.
 ```ts
 import { component_record } from "@rbxts/jecs";
 
-const compRecord = component_record(ecs, Position);
+const compRecord = component_record(world, Transform);
 // compRecord.records - Map<ArchetypeId, column index>
 // compRecord.counts - Map<ArchetypeId, entity count>
 // compRecord.size - total entities with this component
@@ -121,11 +121,11 @@ import type {
 
 ```ts
 // Component type inference
-const Health = ecs.component<number>();
+const Health = world.component<number>();
 type HealthType = InferComponent<typeof Health>; // number
 
 // Pair type inference (first element if not tag)
-const Owns = ecs.component<{ amount: number }>();
+const Owns = world.component<{ amount: number }>();
 // Tag pair returns second element's type
 type ChildData = InferComponent<Pair<Tag, Entity<string>>>; // string
 
@@ -136,16 +136,16 @@ type OwnsData = InferComponent<Pair<typeof Owns, Entity>>; // Gives { amount: nu
 
 ```ts
 // Query returns correctly typed tuple
-for (const [entity, position, vel] of ecs.query(Position, Velocity)) {
+for (const [entity, transform, velocity] of world.query(Transform, Velocity)) {
 	// entity: Entity
-	// pos: Vector3
-	// vel: Vector3
+	// transform: CFrame
+	// velocity: Vector3
 }
 
 // Multiple get returns tuple
-const [position, vel] = ecs.get(entity, Position, Velocity);
-// pos: Vector3 | undefined
-// vel: Vector3 | undefined
+const [transform, velocity] = world.get(entityId, Transform, Velocity);
+// transform: CFrame | undefined
+// velocity: Vector3 | undefined
 ```
 
 ## Debug Mode
@@ -153,7 +153,7 @@ const [position, vel] = ecs.get(entity, Position, Velocity);
 Enable runtime checks:
 
 ```ts
-const ecs = world(true); // DEBUG mode
+const world = Jecs.world(true); // DEBUG mode
 
 // Throws on:
 // - Structural changes in OnRemove during deletion
@@ -161,33 +161,19 @@ const ecs = world(true); // DEBUG mode
 // - Component ID misuse
 ```
 
-## Global Configuration
-
-Set before importing jecs:
-
-```ts
-// Increase component ID limit (default 256)
-// Then import
-import { world } from "@rbxts/jecs";
-
-_G.JECS_HI_COMPONENT_ID = 512;
-
-// Enable debug mode globally
-_G.JECS_DEBUG = true;
-```
-
 ## is_tag Helper
 
 Check if component is a tag (no data):
 
 ```ts
-import { is_tag } from "@rbxts/jecs";
+import Jecs, { is_tag } from "@rbxts/jecs";
 
-const Dead = tag();
-const Health = ecs.component<number>();
+const world = Jecs.world();
+const Dead = world.component();
+const Health = world.component<number>();
 
-is_tag(ecs, Dead); // true
-is_tag(ecs, Health); // false
+is_tag(world, Dead); // true
+is_tag(world, Health); // false
 ```
 
 Useful for serialization and networking logic.

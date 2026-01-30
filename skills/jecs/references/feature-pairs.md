@@ -1,6 +1,6 @@
 ---
 name: feature-pairs
-description:
+description: |
     Use when creating entity relationships, parent-child hierarchies, or
     querying pairs in jecs
 ---
@@ -12,9 +12,11 @@ Pairs encode entity-to-entity relationships: `(Relationship, Target)`.
 ## Creating Pairs
 
 ```ts
-import { IS_PAIR, pair, pair_first, pair_second, Wildcard } from "@rbxts/jecs";
+import Jecs, { pair, Wildcard } from "@rbxts/jecs";
 
+const world = Jecs.world();
 const Likes = world.component();
+
 const alice = world.entity();
 const bob = world.entity();
 
@@ -31,6 +33,8 @@ world.has(bob, pair(Likes, Wildcard)); // true (likes anyone)
 First element determines data type.
 
 ```ts
+import { pair } from "@rbxts/jecs";
+
 interface OwnershipData {
 	since: string;
 }
@@ -41,7 +45,8 @@ const car = world.entity();
 world.set(bob, pair(Owns, car), { since: "2024-01-01" });
 
 const data = world.get(bob, pair(Owns, car));
-print(data?.since); // "2024-01-01"
+assert(data !== undefined, "Ownership data should be defined");
+print(data.since); // "2024-01-01"
 ```
 
 ## Built-in Relationships
@@ -61,13 +66,13 @@ world.parent(child); // returns parent
 world.target(child, ChildOf); // same thing
 
 // Iterate children
-for (const childEntity of world.children(parent)) {
-	print(childEntity);
+for (const childEntityId of world.children(parent)) {
+	print(childEntityId);
 }
 
 // Or via query
-for (const [childEntity] of world.query(pair(ChildOf, parent))) {
-	print(childEntity);
+for (const [childEntityId] of world.query(pair(ChildOf, parent))) {
+	print(childEntityId);
 }
 ```
 
@@ -78,7 +83,11 @@ for (const [childEntity] of world.query(pair(ChildOf, parent))) {
 Only one target allowed per relationship type.
 
 ```ts
-import { Exclusive } from "@rbxts/jecs";
+import { Exclusive, pair } from "@rbxts/jecs";
+
+const item = world.entity();
+const player1 = world.entity();
+const player2 = world.entity();
 
 const BelongsTo = world.component();
 world.add(BelongsTo, Exclusive);
@@ -94,8 +103,8 @@ world.add(item, pair(BelongsTo, player2));
 
 ```ts
 // All entities that like alice
-for (const [entity] of world.query(pair(Likes, alice))) {
-	print(entity);
+for (const [entityId] of world.query(pair(Likes, alice))) {
+	print(entityId);
 }
 ```
 
@@ -103,9 +112,9 @@ for (const [entity] of world.query(pair(Likes, alice))) {
 
 ```ts
 // All entities that like someone
-for (const [entity] of world.query(pair(Likes, Wildcard))) {
-	const target = world.target(entity, Likes);
-	print(`${entity} likes ${target}`);
+for (const [entityId] of world.query(pair(Likes, Wildcard))) {
+	const target = world.target(entityId, Likes);
+	print(`${entityId} likes ${target}`);
 }
 ```
 
@@ -113,8 +122,8 @@ for (const [entity] of world.query(pair(Likes, Wildcard))) {
 
 ```ts
 // All relationships with alice as target
-for (const [entity] of world.query(pair(Wildcard, alice))) {
-	print(`${entity} has relationship with alice`);
+for (const [entityId] of world.query(pair(Wildcard, alice))) {
+	print(`${entityId} has relationship with alice`);
 }
 ```
 
@@ -139,6 +148,15 @@ while (target !== undefined) {
 ## Pair Introspection
 
 ```ts
+import {
+	ECS_PAIR_FIRST,
+	ECS_PAIR_SECOND,
+	IS_PAIR,
+	pair,
+	pair_first,
+	pair_second,
+} from "@rbxts/jecs";
+
 const likesPair = pair(Likes, alice);
 
 // Check if ID is a pair
@@ -156,16 +174,16 @@ ECS_PAIR_SECOND(likesPair); // raw ID
 ## Combining with Components
 
 ```ts
-const Position = world.component<Vector3>();
+const Transform = world.component<CFrame>();
 const Health = world.component<number>();
 
-// Query children with Position and Health
-for (const [entity, position, health] of world.query(
-	Position,
+// Query children with Transform and Health
+for (const [entity, transform, health] of world.query(
+	Transform,
 	Health,
 	pair(ChildOf, parent),
 )) {
-	print(`Child ${entity}: pos=${position}, health=${health}`);
+	print(`Child ${entity}: pos=${transform}, health=${health}`);
 }
 ```
 
@@ -187,8 +205,8 @@ Use pairs for multiple values of same type.
 const Begin = world.entity();
 const End = world.entity();
 
-world.set(entity, pair(Begin, Position), new Vector3(0, 0, 0));
-world.set(entity, pair(End, Position), new Vector3(10, 20, 30));
+world.set(entity, pair(Begin, Transform), new CFrame(0, 0, 0));
+world.set(entity, pair(End, Transform), new CFrame(10, 20, 30));
 ```
 
 <!--
