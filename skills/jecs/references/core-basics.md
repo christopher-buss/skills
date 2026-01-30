@@ -2,6 +2,12 @@
 name: core-basics
 description: |
     Use when creating worlds, entities, components, tags, or singletons in jecs
+metadata:
+    author: Christopher Buss
+    version: "2026.1.30"
+    source:
+        Generated from https://github.com/Ukendio/jecs, scripts at
+        https://github.com/christopher-buss/skills
 ---
 
 # Jecs Core Basics
@@ -21,24 +27,25 @@ const world = Jecs.world();
 Entities are unique IDs (48-bit: 24-bit index + 24-bit generation).
 
 ```ts
-import { ECS_GENERATION, ECS_ID, Entity } from "@rbxts/jecs";
+import type { Entity } from "@rbxts/jecs";
+import { ECS_GENERATION, ECS_ID } from "@rbxts/jecs";
 
 // Create entity
-const entity = world.entity();
+const entityId = world.entity();
 
 // Create at specific ID
 world.entity(42 as Entity);
 
 // Check existence
-world.contains(entity); // true if alive with correct generation
-world.exists(entity); // true if ID exists (ignores generation)
+world.contains(entityId); // true if alive with correct generation
+world.exists(entityId); // true if ID exists (ignores generation)
 
 // Delete entity (removes all components, triggers cleanup)
-world.delete(entity);
+world.delete(entityId);
 
 // Entity ID introspection
-const index = ECS_ID(entity);
-const generation = ECS_GENERATION(entity);
+const index = ECS_ID(entityId);
+const generation = ECS_GENERATION(entityId);
 ```
 
 **Generation:** When entities are recycled, generation increments. Stale
@@ -49,55 +56,54 @@ references fail `contains()` check.
 Components are typed data attached to entities. IDs occupy range 1-256.
 
 ```ts
-import { Entity } from "@rbxts/jecs";
-
 // Create typed component
-const Position = world.component<Vector3>();
+const Transform = world.component<CFrame>();
 const Health = world.component<number>();
 
 // Set component data
-world.set(entity, Position, new Vector3(10, 20, 30));
-world.set(entity, Health, 100);
+world.set(entityId, Transform, new CFrame(10, 20, 30));
+world.set(entityId, Health, 100);
 
 // Get component data (returns T | undefined)
-const position = world.get(entity, Position);
-const health = world.get(entity, Health);
-assert(health, "Entity must have health");
+const transform = world.get(entityId, Transform);
+const health = world.get(entityId, Health);
+assert(health !== undefined, "Entity must have health");
 
 // Check component presence (up to 4)
-world.has(entity, Position);
-world.has(entity, Position, Health);
+world.has(entityId, Transform);
+world.has(entityId, Transform, Health);
 
 // Remove component
-world.remove(entity, Position);
+world.remove(entityId, Transform);
 
 // Clear all components (keeps entity)
-world.clear(entity);
+world.clear(entityId);
 ```
 
-**Mental Model:** Components = columns, Entities = rows, `set`/`get`/`remove` =
-cell operations.
+**Mental Model:** C
+
+- Components = columns
+- Entities = rows
+- `set`/`get`/`remove` = cell operations
 
 ## Tags
 
 Tags are components with no data (zero storage cost).
 
 ```ts
-import { tag, Tag } from "@rbxts/jecs";
-
 // Create tag (before world)
-const Dead = tag();
+const Dead = Jecs.tag();
 
 // Or use regular entity as tag
 const Enemy = world.entity();
 
 // Add tag (not set!)
-world.add(entity, Dead);
-world.add(entity, Enemy);
+world.add(entityId, Dead);
+world.add(entityId, Enemy);
 
 // Check/remove same as components
-world.has(entity, Dead);
-world.remove(entity, Dead);
+world.has(entityId, Dead);
+world.remove(entityId, Dead);
 ```
 
 **Key Difference:** `world.add()` for tags, `world.set()` for data components.
@@ -114,6 +120,9 @@ world.set(TimeOfDay, TimeOfDay, 12.5);
 
 // Get singleton
 const time = world.get(TimeOfDay, TimeOfDay);
+assert(time !== undefined, "Singleton must have value");
+
+// Time of day is now 12.5
 ```
 
 ## Entity Ranges
@@ -135,18 +144,18 @@ Components are entities - set metadata using standard APIs.
 ```ts
 import { Component, Name } from "@rbxts/jecs";
 
-world.set(Position, Name, "Position");
-print(world.has(Position, Component)); // true
+world.set(Transform, Name, "Transform");
+print(world.has(Transform, Component)); // true
 ```
 
 ## Quick Reference
 
 | Operation        | Method                      |
 | ---------------- | --------------------------- |
-| Create world     | `world()`                   |
+| Create world     | `Jecs.world()`              |
 | Create entity    | `world.entity()`            |
 | Create component | `world.component<T>()`      |
-| Create tag       | `tag()`                     |
+| Create tag       | `Jecs.tag()`                |
 | Set data         | `world.set(e, comp, value)` |
 | Add tag          | `world.add(e, tag)`         |
 | Get data         | `world.get(e, comp)`        |
