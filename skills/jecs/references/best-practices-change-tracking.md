@@ -89,7 +89,7 @@ function trackComponent<T>(component: Entity<T>): ChangeRecord<T> {
 const positionChanges = trackComponent(Position);
 
 // After frame, process and clear
-function flushChanges() {
+function flushChanges(): void {
 	for (const [entity, value] of positionChanges.added) {
 		// Handle added
 	}
@@ -127,7 +127,7 @@ for (const component of ecs.each(Networked)) {
 }
 
 // Send delta each frame
-function sendDelta() {
+function sendDelta(): void {
 	const delta: Record<string, unknown> = {};
 
 	for (const [component, storage] of storages) {
@@ -159,7 +159,7 @@ ecs.set(Position, OnChange, (entity) => {
 // Process dirty entities
 const dirtyQuery = ecs.query(Position).with(Dirty).cached();
 
-function processDirty() {
+function processDirty(): void {
 	for (const [entity, position] of dirtyQuery) {
 		syncToNetwork(entity, position);
 		ecs.remove(entity, Dirty);

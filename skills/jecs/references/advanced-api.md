@@ -129,7 +129,7 @@ const Owns = ecs.component<{ amount: number }>();
 // Tag pair returns second element's type
 type ChildData = InferComponent<Pair<Tag, Entity<string>>>; // string
 
-type OwnsData = InferComponent<Pair<typeof Owns, Entity>>; // { amount: number }
+type OwnsData = InferComponent<Pair<typeof Owns, Entity>>; // Gives { amount: number }
 ```
 
 ### Query Typing

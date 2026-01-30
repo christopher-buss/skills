@@ -29,9 +29,13 @@ world.set(Transform, OnAdd, (entity: Entity, id: Id<CFrame>, data: CFrame) => {
 	print(`Transform added to ${entity}`);
 });
 
-world.set(Transform, OnChange, (entity: Entity, id: Id<CFrame>, data: CFrame) => {
-	print(`Transform changed on ${entity} to ${data}`);
-});
+world.set(
+	Transform,
+	OnChange,
+	(entity: Entity, id: Id<CFrame>, data: CFrame) => {
+		print(`Transform changed on ${entity} to ${data}`);
+	},
+);
 
 world.set(
 	Transform,
