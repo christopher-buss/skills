@@ -1,4 +1,17 @@
 {
+	"hooks": {
+		"PostToolUse": [
+			{
+				"matcher": "Edit|Write|MultiEdit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "sh .claude/hooks/lint.sh"
+					}
+				]
+			}
+		]
+	},
 	"includeCoAuthoredBy": true,
 	"permissions": {
 		"allow": [
