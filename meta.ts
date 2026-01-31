@@ -12,7 +12,7 @@ export const submodules = {
 	"jecs": "https://github.com/Ukendio/jecs",
 	"jest": "https://github.com/Roblox/jest-roblox",
 	"pnpm": "https://github.com/pnpm/pnpm.io",
-	"robloxTs": "https://github.com/roblox-ts/roblox-ts.com",
+	"roblox-ts": "https://github.com/roblox-ts/roblox-ts.com",
 	"superpowers": "https://github.com/obra/superpowers",
 };
 

@@ -4,8 +4,10 @@
 version: "0.2"
 language: en
 words:
+  - cframe
   - flecs
   - jecs
   - pnpmfile
   - regen
   - turborepo
+  - udim

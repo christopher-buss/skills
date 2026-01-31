@@ -7,9 +7,9 @@
 [submodule "vendor/humanizer"]
 	path = vendor/humanizer
 	url = https://github.com/blader/humanizer
-[submodule "sources/robloxTs"]
-	path = sources/robloxTs
-	url = https://github.com/roblox-ts/roblox-ts
+[submodule "sources/roblox-ts"]
+	path = sources/roblox-ts
+	url = https://github.com/roblox-ts/roblox-ts.com
 [submodule "vendor/superpowers"]
 	path = vendor/superpowers
 	url = https://github.com/obra/superpowers
@@ -19,3 +19,9 @@
 [submodule "sources/jest"]
 	path = sources/jest
 	url = https://github.com/Roblox/jest-roblox
+[submodule "sources/ecs-faq"]
+	path = sources/ecs-faq
+	url = https://github.com/SanderMertens/ecs-faq
+[submodule "sources/flecs"]
+	path = sources/flecs
+	url = https://github.com/SanderMertens/flecs
