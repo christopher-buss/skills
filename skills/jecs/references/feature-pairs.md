@@ -76,7 +76,10 @@ for (const [childEntityId] of world.query(pair(ChildOf, parent))) {
 }
 ```
 
-**Note:** ChildOf is exclusive (one parent only) and cascades deletion.
+**Note:** ChildOf is exclusive (one parent only) and cascades deletion. Use
+ChildOf for **ownership/lifecycle** (deletion, serialization), not necessarily
+for operational links. For direct access in systems, also store entity members.
+See `ecs-design` skill for when to use both together.
 
 ### Exclusive Relationships
 
