@@ -16,13 +16,13 @@ find it useful.
 ## Installation
 
 ```bash
-pnpx skills add christopher-buss/skills
+pnpx skills add christopher-buss/skills -skill='*'
 ```
 
 Or install everything globally:
 
 ```bash
-pnpx skills add christopher-buss/skills --all -g
+pnpx skills add christopher-buss/skills -skill='*' -g
 ```
 
 More on the CLI at [skills](https://github.com/vercel-labs/skills).
