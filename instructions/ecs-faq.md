@@ -1,0 +1,4 @@
+- Implement patterns into 'ecs-design' skill
+- Focus on data-oriented design, component architecture, system patterns
+- Good for "when to use X vs Y" guidance and common mistakes
+- Skip implementation-specific details, focus on design principles

@@ -1,0 +1,4 @@
+- Implement patterns into 'ecs-design' skill
+- Focus on `docs/DesignWithFlecs.md` for component and system design patterns
+- Skip C/C++ API specifics, extract conceptual patterns for archetypal ECS
+- Translate examples to TypeScript/jecs syntax where helpful

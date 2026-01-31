@@ -7,11 +7,13 @@ export interface VendorSkillMeta {
 
 /** Repositories to clone as submodules and generate skills from source. */
 export const submodules = {
-	jecs: "https://github.com/Ukendio/jecs",
-	jest: "https://github.com/Roblox/jest-roblox",
-	pnpm: "https://github.com/pnpm/pnpm.io",
-	robloxTs: "https://github.com/roblox-ts/roblox-ts",
-	superpowers: "https://github.com/obra/superpowers",
+	"ecs-faq": "https://github.com/SanderMertens/ecs-faq",
+	"flecs": "https://github.com/SanderMertens/flecs",
+	"jecs": "https://github.com/Ukendio/jecs",
+	"jest": "https://github.com/Roblox/jest-roblox",
+	"pnpm": "https://github.com/pnpm/pnpm.io",
+	"robloxTs": "https://github.com/roblox-ts/roblox-ts.com",
+	"superpowers": "https://github.com/obra/superpowers",
 };
 
 /** Already generated skills, sync with their `skills/` directory. */
@@ -32,4 +34,4 @@ export const vendors: Record<string, VendorSkillMeta> = {
 };
 
 /** Hand-written skills. */
-export const manual = ["isentinel"];
+export const manual = ["isentinel", "ecs-design"];
