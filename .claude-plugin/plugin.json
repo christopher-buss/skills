@@ -1,0 +1,10 @@
+{
+	"name": "sentinel",
+	"description": "Skills for Roblox-ts, ECS development with jecs, and general development workflows",
+	"version": "1.0.0",
+	"author": {
+		"name": "Christopher Buss"
+	},
+	"homepage": "https://github.com/christopher-buss/skills",
+	"repository": "https://github.com/christopher-buss/skills"
+}
