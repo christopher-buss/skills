@@ -1,4 +1,4 @@
-import isentinel from "@isentinel/eslint-config";
+import isentinel, { GLOB_MARKDOWN, GLOB_TS } from "@isentinel/eslint-config";
 
 import { vendors } from "./meta.ts";
 
@@ -9,9 +9,14 @@ export default isentinel(
 		name: "project/root",
 		flawless: true,
 		ignores: ["**/vendor/**", "**/sources/**", `**/skills/{${vendorSkillNames.join(",")}}/**`],
-		roblox: false,
+		roblox: {
+			files: [`${GLOB_MARKDOWN}/${GLOB_TS}`],
+		},
 		rules: {
-			"pnpm/yaml-enforce-settings": "off",
+			"roblox/no-user-defined-lua-tuple": "off",
+		},
+		test: {
+			jest: true,
 		},
 		type: "package",
 		typescript: {

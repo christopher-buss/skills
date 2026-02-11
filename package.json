@@ -5,7 +5,7 @@
 	"author": "Christopher Buss <christopher.buss@pm.me> (https://github.com/christopher-buss)",
 	"type": "module",
 	"scripts": {
-		"lint": "eslint --cache .",
+		"lint": "eslint --cache",
 		"prepare": "simple-git-hooks && git submodule update --init --recursive",
 		"start": "node scripts/cli.ts"
 	},

@@ -4,7 +4,7 @@ shellEmulator: true
 
 catalog:
   "@clack/prompts": ^0.11.0
-  "@isentinel/eslint-config": ^4.7.0
+  "@isentinel/eslint-config": ^4.7.10
   "@isentinel/tsconfig": ^1.2.0
   "@types/node": ^25.0.10
   eslint: ^9.39.2

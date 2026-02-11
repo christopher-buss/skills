@@ -375,5 +375,4 @@ Before finalizing a system:
 Source references:
 - https://github.com/SanderMertens/flecs/blob/master/docs/DesignWithFlecs.md#systems
 - https://github.com/SanderMertens/ecs-faq#system
-- Jecs Discord community discussions (Marcus/Ukendio)
 -->

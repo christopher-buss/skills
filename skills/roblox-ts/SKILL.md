@@ -1,6 +1,6 @@
 ---
 name: roblox-ts
-description:
+description: |
     Use when writing TypeScript code for Roblox using roblox-ts, especially when
     unsure if a JavaScript API exists or how to handle Luau interop
 metadata:

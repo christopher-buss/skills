@@ -164,16 +164,16 @@ for (const [id, a, b] of world.query(A, B).with(C)) {
 local query_1 = world:query(A, B):with(C):cached()
 local archetypes_1 = query_1:archetypes()
 for _, archetype_1 in archetypes_1 do
-    local entities_1 = archetype_1.entities
-    local field_1 = archetype_1.columns_map
-    local A_1 = field_1[A]
-    local B_1 = field_1[B]
-    for row_1 = #entities_1, 1, -1 do
-        local id = entities_1[row_1]
-        local a = A_1[row_1]
-        local b = B_1[row_1]
-        print(`{id} has A: {a} and B: {b}`)
-    end
+	local entities_1 = archetype_1.entities
+	local field_1 = archetype_1.columns_map
+	local A_1 = field_1[A]
+	local B_1 = field_1[B]
+	for row_1 = #entities_1, 1, -1 do
+		local id = entities_1[row_1]
+		local a = A_1[row_1]
+		local b = B_1[row_1]
+		print(`{id} has A: {a} and B: {b}`)
+	end
 end
 ```
 

@@ -46,6 +46,7 @@ The `typeof` operator is NOT supported:
 
 ```ts
 // ❌ COMPILE ERROR
+// eslint-disable-next-line roblox/no-value-typeof -- Example
 if (typeof value === "number") {
 	// Error
 }
@@ -97,6 +98,7 @@ function process(instance: Instance): void {
 Using `any` values errors at compile time:
 
 ```ts
+// eslint-disable-next-line roblox/no-any -- Example
 function broken(value: any): void {
 	print(value + 1); // ❌ Error: Using values of type `any` is not supported!
 }
