@@ -8,9 +8,15 @@ export default isentinel(
 	{
 		name: "project/root",
 		flawless: true,
-		ignores: ["**/vendor/**", "**/sources/**", `**/skills/{${vendorSkillNames.join(",")}}/**`],
+		ignores: [
+			"**/vendor/**",
+			"**/sources/**",
+			`**/skills/{${vendorSkillNames.join(",")}}/**`,
+			"skill-test",
+		],
 		roblox: {
 			files: [`${GLOB_MARKDOWN}/${GLOB_TS}`],
+			filesTypeAware: [""],
 		},
 		rules: {
 			"roblox/no-user-defined-lua-tuple": "off",

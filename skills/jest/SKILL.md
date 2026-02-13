@@ -2,9 +2,9 @@
 name: jest
 description:
     Testing Roblox/Luau code with Jest Roblox. Use when writing tests, mocking
-    functions, asserting values, or configuring test suites in Luau. NOT
-    JavaScript Jest — uses .never instead of .not, jest.fn() returns two values,
-    0 is truthy.
+    functions, asserting values, or configuring test suites in Luau with Jest
+    Roblox. NOT JavaScript Jest — uses .never instead of .not, jest.fn() returns
+    two values, 0 is truthy.
 metadata:
     author: Christopher Buss
     version: "2026.2.7"
@@ -46,11 +46,12 @@ this codebase.
 
 ### Testing Patterns
 
-| Topic           | Description                                  | Reference                                                        |
-| --------------- | -------------------------------------------- | ---------------------------------------------------------------- |
-| Async Testing   | Promises, done callbacks, .resolves/.rejects | [feature-async-testing](references/feature-async-testing.md)     |
-| Custom Matchers | expect.extend(), self parameter, isNever     | [feature-custom-matchers](references/feature-custom-matchers.md) |
-| Test Filtering  | testMatch, testPathPattern, testNamePattern  | [feature-test-filtering](references/feature-test-filtering.md)   |
+| Topic            | Description                                     | Reference                                                          |
+| ---------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
+| Async Testing    | Promises, done callbacks, .resolves/.rejects    | [feature-async-testing](references/feature-async-testing.md)       |
+| Custom Matchers  | expect.extend(), self parameter, isNever        | [feature-custom-matchers](references/feature-custom-matchers.md)   |
+| Snapshot Testing | toMatchSnapshot, property matchers, serializers | [feature-snapshot-testing](references/feature-snapshot-testing.md) |
+| Test Filtering   | testMatch, testPathPattern, testNamePattern     | [feature-test-filtering](references/feature-test-filtering.md)     |
 
 ### Mocking
 
