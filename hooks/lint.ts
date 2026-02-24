@@ -67,14 +67,18 @@ if (!isHookInput(input)) {
 	process.exit(0);
 }
 
-const result = lint(input.tool_input.file_path, {
-	createCache: createFromFile,
-	execSync(command: string, options?: object): string {
-		return execSync(command, { encoding: "utf-8", ...options });
+const result = lint(
+	input.tool_input.file_path,
+	{
+		createCache: createFromFile,
+		execSync(command: string, options?: object): string {
+			return execSync(command, { encoding: "utf-8", ...options });
+		},
+		existsSync,
+		spawn,
 	},
-	existsSync,
-	spawn,
-});
+	["--fix"],
+);
 
 if (result !== undefined) {
 	console.error(result.systemMessage);

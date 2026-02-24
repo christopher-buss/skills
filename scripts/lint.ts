@@ -43,6 +43,13 @@ const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts"];
 const ENTRY_CANDIDATES = ["index.ts", "cli.ts", "main.ts"];
 const MAX_ERRORS = 5;
 
+export function getChangedFiles(deps: ExecDeps): Array<string> {
+	const options = { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] };
+	const changed = deps.execSync("git diff --name-only --diff-filter=d HEAD", options);
+	const untracked = deps.execSync("git ls-files --others --exclude-standard", options);
+	return [...changed.trim().split("\n"), ...untracked.trim().split("\n")].filter(Boolean);
+}
+
 export function isLintableFile(filePath: string, extensions = DEFAULT_EXTENSIONS): boolean {
 	return extensions.some((extension) => filePath.endsWith(extension));
 }
@@ -115,9 +122,14 @@ export function invalidateCacheEntries(filePaths: Array<string>, deps: CacheDeps
 	cache.reconcile();
 }
 
-export function runEslint(filePath: string, deps: ExecDeps): string | undefined {
+export function runEslint(
+	filePath: string,
+	deps: ExecDeps,
+	extraFlags: Array<string> = [],
+): string | undefined {
+	const flags = ["--cache", "--max-warnings 0", ...extraFlags].join(" ");
 	try {
-		deps.execSync(`pnpm exec eslint_d --cache --max-warnings 0 --fix "${filePath}"`, {
+		deps.execSync(`pnpm exec eslint_d ${flags} "${filePath}"`, {
 			env: { ...process.env, ESLINT_IN_EDITOR: "true" },
 			stdio: "pipe",
 		});
@@ -169,7 +181,11 @@ export function buildHookOutput(filePath: string, errors: Array<string>): HookOu
 	};
 }
 
-export function lint(filePath: string, deps: LintDeps): HookOutput | undefined {
+export function lint(
+	filePath: string,
+	deps: LintDeps,
+	extraFlags: Array<string> = [],
+): HookOutput | undefined {
 	if (!isLintableFile(filePath)) {
 		return undefined;
 	}
@@ -177,7 +193,7 @@ export function lint(filePath: string, deps: LintDeps): HookOutput | undefined {
 	const importers = findImporters(filePath, deps);
 	invalidateCacheEntries(importers, deps);
 
-	const output = runEslint(filePath, deps);
+	const output = runEslint(filePath, deps, extraFlags);
 	restartDaemon(deps);
 
 	if (output !== undefined) {
@@ -190,10 +206,29 @@ export function lint(filePath: string, deps: LintDeps): HookOutput | undefined {
 	return undefined;
 }
 
-export function main(filePath: string, deps: LintDeps): void {
-	const result = lint(filePath, deps);
-	if (result !== undefined) {
-		process.stderr.write(`${result.hookSpecificOutput.additionalContext}\n`);
+export function main(targets: Array<string>, deps: LintDeps): void {
+	const changedFiles = getChangedFiles(deps);
+	invalidateCacheEntries(changedFiles, deps);
+
+	let hasErrors = false;
+	for (const target of targets) {
+		const output = runEslint(target, deps, ["--color"]);
+		if (output !== undefined) {
+			hasErrors = true;
+			const filtered = output
+				.split("\n")
+				.filter((line) => !line.startsWith("["))
+				.join("\n")
+				.trim();
+			if (filtered.length > 0) {
+				process.stderr.write(`${filtered}\n`);
+			}
+		}
+	}
+
+	restartDaemon(deps);
+
+	if (hasErrors) {
 		process.exit(1);
 	}
 }
@@ -222,12 +257,14 @@ function findImporters(filePath: string, deps: LintDeps): Array<string> {
 /* v8 ignore start -- CLI entrypoint */
 const IS_CLI_INVOCATION = process.argv[1]?.endsWith("lint.ts") === true;
 if (IS_CLI_INVOCATION) {
-	main(process.argv[2] ?? ".", {
+	const deps: LintDeps = {
 		createCache: createFromFile,
 		execSync(command: string, options?: object): string {
 			return execSync(command, { encoding: "utf-8", ...options });
 		},
 		existsSync,
 		spawn,
-	});
+	};
+	const targets = process.argv.length > 2 ? process.argv.slice(2) : ["."];
+	main(targets, deps);
 }

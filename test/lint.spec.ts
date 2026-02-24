@@ -7,6 +7,7 @@ import {
 	findEntryPoints,
 	findSourceRoot,
 	formatErrors,
+	getChangedFiles,
 	getDependencyGraph,
 	invalidateCacheEntries,
 	invertGraph,
@@ -228,7 +229,7 @@ describe(lint, () => {
 			runEslint(testFilePath, deps);
 
 			expect(capturedCommand).toBe(
-				`pnpm exec eslint_d --cache --max-warnings 0 --fix "${testFilePath}"`,
+				`pnpm exec eslint_d --cache --max-warnings 0 "${testFilePath}"`,
 			);
 			expect(capturedEnvironment).toMatchObject({ ESLINT_IN_EDITOR: "true" });
 		});
@@ -411,6 +412,36 @@ describe(lint, () => {
 		});
 	});
 
+	describe(getChangedFiles, () => {
+		it("should return empty array when no changes", () => {
+			expect.assertions(1);
+
+			const deps = { execSync: () => "" };
+
+			expect(getChangedFiles(deps)).toStrictEqual([]);
+		});
+
+		it("should parse git diff and untracked files into file list", () => {
+			expect.assertions(1);
+
+			const deps = {
+				execSync(command: string): string {
+					if (command.includes("git diff")) {
+						return "src/foo.ts\nsrc/bar.ts\n";
+					}
+
+					if (command.includes("ls-files")) {
+						return "src/new.ts\n";
+					}
+
+					return "";
+				},
+			};
+
+			expect(getChangedFiles(deps)).toStrictEqual(["src/foo.ts", "src/bar.ts", "src/new.ts"]);
+		});
+	});
+
 	describe(main, () => {
 		const spawnResult = { on: () => spawnResult, unref: () => {} };
 		const baseDeps = {
@@ -420,13 +451,48 @@ describe(lint, () => {
 			spawn: () => spawnResult,
 		};
 
+		it("should invalidate cache for changed files before linting", () => {
+			expect.assertions(1);
+
+			vi.spyOn(process, "exit").mockReturnValue(undefined as never);
+			vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+			const removed: Array<string> = [];
+
+			const deps = {
+				...baseDeps,
+				createCache: () => {
+					return {
+						reconcile: () => {},
+						removeEntry(key: string) {
+							removed.push(key);
+						},
+					};
+				},
+				execSync(command: string): string {
+					if (command.includes("git diff")) {
+						return "src/changed.ts\n";
+					}
+
+					return "";
+				},
+				existsSync: () => true,
+			};
+
+			main(["."], deps);
+
+			expect(removed).toContain("src/changed.ts");
+
+			vi.restoreAllMocks();
+		});
+
 		it("should exit cleanly when no errors", () => {
 			expect.assertions(2);
 
 			const exitSpy = vi.spyOn(process, "exit").mockReturnValue(undefined as never);
 			const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
 
-			main("/project/src/foo.ts", baseDeps);
+			main(["."], baseDeps);
 
 			expect(exitSpy).not.toHaveBeenCalled();
 			expect(stderrSpy).not.toHaveBeenCalled();
@@ -434,10 +500,34 @@ describe(lint, () => {
 			vi.restoreAllMocks();
 		});
 
-		it("should print errors to stderr and exit 1 on lint failure", () => {
-			expect.assertions(2);
+		it("should exit 1 when eslint fails", () => {
+			expect.assertions(1);
 
 			const exitSpy = vi.spyOn(process, "exit").mockReturnValue(undefined as never);
+
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("eslint_d")) {
+						throw new Error("lint failed");
+					}
+
+					return "";
+				},
+				spawn: () => spawnResult,
+			};
+
+			main(["."], deps);
+
+			expect(exitSpy).toHaveBeenCalledWith(1);
+
+			vi.restoreAllMocks();
+		});
+
+		it("should not write to stderr when output is only config noise", () => {
+			expect.assertions(1);
+
+			vi.spyOn(process, "exit").mockReturnValue(undefined as never);
 			const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
 
 			const deps = {
@@ -448,7 +538,7 @@ describe(lint, () => {
 							stderr: Buffer;
 							stdout: Buffer;
 						};
-						error.stdout = Buffer.from("  1:5  error  no-unused-vars\n");
+						error.stdout = Buffer.from("[@config] noise only\n");
 						error.stderr = Buffer.from("");
 						throw error;
 					}
@@ -458,10 +548,42 @@ describe(lint, () => {
 				spawn: () => spawnResult,
 			};
 
-			main("/project/src/foo.ts", deps);
+			main(["."], deps);
 
-			expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("no-unused-vars"));
+			expect(stderrSpy).not.toHaveBeenCalled();
+
+			vi.restoreAllMocks();
+		});
+
+		it("should filter config noise from output", () => {
+			expect.assertions(2);
+
+			const exitSpy = vi.spyOn(process, "exit").mockReturnValue(undefined as never);
+			const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+			const noisy = "[@config] some noise\nsrc/foo.ts\n  1:5  error  bad\n";
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("eslint_d")) {
+						const error = new Error("fail") as Error & {
+							stderr: Buffer;
+							stdout: Buffer;
+						};
+						error.stdout = Buffer.from(noisy);
+						error.stderr = Buffer.from("");
+						throw error;
+					}
+
+					return "";
+				},
+				spawn: () => spawnResult,
+			};
+
+			main(["."], deps);
+
 			expect(exitSpy).toHaveBeenCalledWith(1);
+			expect(stderrSpy).toHaveBeenCalledWith(expect.not.stringContaining("@config"));
 
 			vi.restoreAllMocks();
 		});
