@@ -56,9 +56,7 @@ Get the real module even when it's mocked:
 
 ```ts
 jest.mock<typeof import("src/utils")>(Workspace.utils, () => {
-	const actual = jest.requireActual<typeof import("src/utils")>(
-		Workspace.utils,
-	);
+	const actual = jest.requireActual<typeof import("src/utils")>(Workspace.utils);
 	return {
 		mockedFunc: jest.fn()[0],
 		realFunc: actual.realFunc,
@@ -103,9 +101,10 @@ synchronously unwrap the Promise instead of `await import()`.
 Module mock functions return the `jest` object for chaining:
 
 ```ts
-jest.mock<typeof import("src/a")>(Workspace.a, () => ({})).mock<
-	typeof import("src/b")
->(Workspace.b, () => ({}));
+jest.mock<typeof import("src/a")>(Workspace.a, () => ({})).mock<typeof import("src/b")>(
+	Workspace.b,
+	() => ({}),
+);
 ```
 
 <!--

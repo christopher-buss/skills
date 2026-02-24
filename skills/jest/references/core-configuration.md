@@ -56,10 +56,7 @@ Arguments: `runCLI(rootDir, options, projects)`.
 
 ```ts
 export = {
-	reporters: [
-		"default",
-		{ options: { key: "value" }, reporter: Workspace.MyReporter },
-	],
+	reporters: ["default", { options: { key: "value" }, reporter: Workspace.MyReporter }],
 };
 ```
 

@@ -107,9 +107,9 @@ Or pass a prototype table for class checking via `instanceof`.
 Matches only `nil`. Use inside `toMatchObject` to assert a key is absent:
 
 ```ts
-expect({ foo = "bar" }).toMatchObject({
-	baz = expect.nothing(),
-	foo = "bar",
+expect({ foo: "bar" }).toMatchObject({
+	baz: expect.nothing(),
+	foo: "bar",
 });
 ```
 

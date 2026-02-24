@@ -33,9 +33,7 @@ If your question involves phrases like "that belongs to," "in the same X as," or
 ```typescript
 // "Find allies at war with someone"
 // Entities: my faction, ally faction, their enemy
-for (const [id, faction] of world
-	.query(Faction)
-	.with(pair(AlliedWith, allyId))) {
+for (const [id, faction] of world.query(Faction).with(pair(AlliedWith, allyId))) {
 	// Now check: does allyId have AtWar relationship?
 	if (world.has(allyId, AtWar)) {
 		// This ally is at war

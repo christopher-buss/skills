@@ -215,9 +215,7 @@ for (const cellId of visibleCells) {
 }
 
 // Scene graph: only children of this parent
-for (const [entityId, transform] of world
-	.query(Transform)
-	.with(pair(ChildOf, parentId))) {
+for (const [entityId, transform] of world.query(Transform).with(pair(ChildOf, parentId))) {
 	// Direct children only
 }
 ```

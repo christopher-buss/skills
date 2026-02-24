@@ -25,10 +25,7 @@ const added = world.query(Position).without(pair(Previous, Position)).cached();
 
 const changed = world.query(Position, pair(Previous, Position)).cached();
 
-const removed = world
-	.query(pair(Previous, Position))
-	.without(Position)
-	.cached();
+const removed = world.query(pair(Previous, Position)).without(Position).cached();
 ```
 
 ## Processing Changes

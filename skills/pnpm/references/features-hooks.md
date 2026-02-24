@@ -90,8 +90,7 @@ function readPackage(package_, context) {
 function readPackage(package_, context) {
 	// Replace deprecated package
 	if (package_.dependencies?.["old-package"]) {
-		package_.dependencies["new-package"] =
-			package_.dependencies["old-package"];
+		package_.dependencies["new-package"] = package_.dependencies["old-package"];
 		delete package_.dependencies["old-package"];
 	}
 
@@ -124,9 +123,7 @@ Called after the lockfile is generated. Use for post-resolution modifications.
 ```js
 function afterAllResolved(lockfile, context) {
 	// Log all resolved packages
-	context.log(
-		`Resolved ${Object.keys(lockfile.packages || {}).length} packages`,
-	);
+	context.log(`Resolved ${Object.keys(lockfile.packages || {}).length} packages`);
 
 	// Modify lockfile if needed
 	return lockfile;
@@ -203,9 +200,7 @@ function readPackage(package_, context) {
 function readPackage(package_, context) {
 	if (process.env.DEBUG_PNPM) {
 		context.log(`${package_.name}@${package_.version}`);
-		context.log(
-			`  deps: ${Object.keys(package_.dependencies || {}).join(", ")}`,
-		);
+		context.log(`  deps: ${Object.keys(package_.dependencies || {}).join(", ")}`);
 	}
 
 	return package_;

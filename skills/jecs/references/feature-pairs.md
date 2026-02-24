@@ -181,11 +181,7 @@ const Transform = world.component<CFrame>();
 const Health = world.component<number>();
 
 // Query children with Transform and Health
-for (const [entity, transform, health] of world.query(
-	Transform,
-	Health,
-	pair(ChildOf, parent),
-)) {
+for (const [entity, transform, health] of world.query(Transform, Health, pair(ChildOf, parent))) {
 	print(`Child ${entity}: pos=${transform}, health=${health}`);
 }
 ```
