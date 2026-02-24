@@ -380,7 +380,7 @@ function findImporters(filePath: string, deps: LintDeps): Array<string> {
 }
 
 /* v8 ignore start -- CLI entrypoint */
-const IS_CLI_INVOCATION = process.argv[1]?.endsWith("lint.ts") === true;
+const IS_CLI_INVOCATION = process.argv[1]?.endsWith("scripts/lint.ts") === true;
 if (IS_CLI_INVOCATION) {
 	const deps: LintDeps = {
 		createCache: createFromFile,

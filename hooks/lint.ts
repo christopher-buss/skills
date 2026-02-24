@@ -49,7 +49,6 @@ const result = lint(
 );
 
 if (result !== undefined) {
-	console.error(result.systemMessage);
 	// eslint-disable-next-line no-console -- Hook protocol requires stdout JSON
 	console.log(JSON.stringify(result));
 }
