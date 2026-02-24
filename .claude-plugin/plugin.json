@@ -1,10 +1,22 @@
 {
 	"name": "sentinel",
-	"description": "Skills for Roblox-ts, ECS development with jecs, and general development workflows",
+	"description": "Skills for roblox-ts, ECS development with jecs, and general development workflows",
 	"version": "1.0.0",
 	"author": {
-		"name": "Christopher Buss"
+		"name": "Christopher Buss",
+		"email": "christopher.buss@pm.me",
+		"url": "https://github.com/christopher-buss"
 	},
 	"homepage": "https://github.com/christopher-buss/skills",
-	"repository": "https://github.com/christopher-buss/skills"
+	"repository": "https://github.com/christopher-buss/skills",
+	"license": "MIT",
+	"keywords": [
+		"skills",
+		"tdd",
+		"roblox",
+		"roblox-ts",
+		"collaboration",
+		"best-practices",
+		"workflows"
+	]
 }
