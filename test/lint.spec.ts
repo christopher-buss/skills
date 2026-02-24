@@ -14,8 +14,10 @@ import {
 	isLintableFile,
 	lint,
 	main,
+	readSettings,
 	restartDaemon,
 	runEslint,
+	runOxlint,
 } from "../scripts/lint.js";
 
 describe(lint, () => {
@@ -442,6 +444,115 @@ describe(lint, () => {
 		});
 	});
 
+	describe(readSettings, () => {
+		it("should return defaults when no file exists", () => {
+			expect.assertions(1);
+
+			const deps = { existsSync: () => false, readFileSync: () => "" };
+
+			expect(readSettings(deps)).toStrictEqual({ eslint: true, lint: true, oxlint: false });
+		});
+
+		it("should return defaults when file has no frontmatter", () => {
+			expect.assertions(1);
+
+			const deps = { existsSync: () => true, readFileSync: () => "no frontmatter here" };
+
+			expect(readSettings(deps)).toStrictEqual({ eslint: true, lint: true, oxlint: false });
+		});
+
+		it("should skip malformed lines in frontmatter", () => {
+			expect.assertions(1);
+
+			const content = '---\nno-colon-line\noxlint: "true"\n---\n';
+			const deps = { existsSync: () => true, readFileSync: () => content };
+
+			expect(readSettings(deps)).toMatchObject({ oxlint: true });
+		});
+
+		it("should parse eslint and oxlint flags from frontmatter", () => {
+			expect.assertions(1);
+
+			const content = '---\nlint: "true"\neslint: "false"\noxlint: "true"\n---\n';
+			const deps = { existsSync: () => true, readFileSync: () => content };
+
+			expect(readSettings(deps)).toStrictEqual({ eslint: false, lint: true, oxlint: true });
+		});
+	});
+
+	describe(runOxlint, () => {
+		it("should run oxlint with correct command", () => {
+			expect.assertions(1);
+
+			let capturedCommand = "";
+			const deps = {
+				execSync(command: string) {
+					capturedCommand = command;
+					return "";
+				},
+			};
+
+			runOxlint("/project/src/foo.ts", deps);
+
+			expect(capturedCommand).toBe('pnpm exec oxlint "/project/src/foo.ts"');
+		});
+
+		it("should pass extra flags", () => {
+			expect.assertions(1);
+
+			let capturedCommand = "";
+			const deps = {
+				execSync(command: string) {
+					capturedCommand = command;
+					return "";
+				},
+			};
+
+			runOxlint("/project/src/foo.ts", deps, ["--fix"]);
+
+			expect(capturedCommand).toBe('pnpm exec oxlint --fix "/project/src/foo.ts"');
+		});
+
+		it("should capture error output", () => {
+			expect.assertions(1);
+
+			const deps = {
+				execSync() {
+					const error = new Error("fail") as Error & {
+						stderr: Buffer;
+						stdout: Buffer;
+					};
+					error.stdout = Buffer.from("  1:5  error  no-unused-vars\n");
+					error.stderr = Buffer.from("");
+					throw error;
+				},
+			};
+
+			expect(runOxlint("/project/src/foo.ts", deps)).toContain("no-unused-vars");
+		});
+
+		it("should return undefined on success", () => {
+			expect.assertions(1);
+
+			const deps = { execSync: () => "" };
+
+			expect(runOxlint("/project/src/foo.ts", deps)).toBeUndefined();
+		});
+
+		it("should return empty string when error has no properties", () => {
+			expect.assertions(1);
+
+			const deps = {
+				execSync() {
+					// eslint-disable-next-line ts/only-throw-error -- testing edge case
+					throw { stderr: Buffer.from(""), stdout: Buffer.from("") };
+				},
+			};
+
+			expect(runOxlint("/project/src/foo.ts", deps)).toBe("");
+		});
+	});
+
 	describe(main, () => {
 		const spawnResult = { on: () => spawnResult, unref: () => {} };
 		const baseDeps = {
@@ -584,6 +695,61 @@ describe(lint, () => {
 
 			expect(exitSpy).toHaveBeenCalledWith(1);
 			expect(stderrSpy).toHaveBeenCalledWith(expect.not.stringContaining("@config"));
+
+			vi.restoreAllMocks();
+		});
+
+		it("should exit 1 when oxlint fails", () => {
+			expect.assertions(1);
+
+			const exitSpy = vi.spyOn(process, "exit").mockReturnValue(undefined as never);
+			vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("oxlint")) {
+						throw new Error("oxlint error");
+					}
+
+					return "";
+				},
+			};
+
+			main(["."], deps, { eslint: false, lint: true, oxlint: true });
+
+			expect(exitSpy).toHaveBeenCalledWith(1);
+
+			vi.restoreAllMocks();
+		});
+
+		it("should run oxlint and skip eslint per settings", () => {
+			expect.assertions(2);
+
+			vi.spyOn(process, "exit").mockReturnValue(undefined as never);
+			vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+			let didRunOxlint = false;
+			let didRunEslint = false;
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("oxlint")) {
+						didRunOxlint = true;
+					}
+
+					if (command.includes("eslint_d")) {
+						didRunEslint = true;
+					}
+
+					return "";
+				},
+			};
+
+			main(["."], deps, { eslint: false, lint: true, oxlint: true });
+
+			expect(didRunOxlint).toBe(true);
+			expect(didRunEslint).toBe(false);
 
 			vi.restoreAllMocks();
 		});
@@ -752,6 +918,114 @@ describe(lint, () => {
 					hookEventName: "PostToolUse",
 				},
 			});
+		});
+
+		it("should return errors from oxlint when enabled", () => {
+			expect.assertions(1);
+
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("oxlint")) {
+						const error = new Error("fail") as Error & {
+							stderr: Buffer;
+							stdout: Buffer;
+						};
+						error.stdout = Buffer.from(`${testErrorLine}\n`);
+						error.stderr = Buffer.from("");
+						throw error;
+					}
+
+					return "";
+				},
+				spawn: () => spawnResult,
+			};
+
+			const result = lint(join("/project", "src", "foo.ts"), deps, [], {
+				eslint: false,
+				lint: true,
+				oxlint: true,
+			});
+
+			expect(result).toMatchObject({
+				hookSpecificOutput: { hookEventName: "PostToolUse" },
+			});
+		});
+
+		it("should skip oxlint when disabled (default settings)", () => {
+			expect.assertions(1);
+
+			let didRunOxlint = false;
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("oxlint")) {
+						didRunOxlint = true;
+					}
+
+					return "";
+				},
+				spawn: () => spawnResult,
+			};
+
+			lint(join("/project", "src", "foo.ts"), deps);
+
+			expect(didRunOxlint).toBe(false);
+		});
+
+		it("should run oxlint when enabled in settings", () => {
+			expect.assertions(1);
+
+			let didRunOxlint = false;
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("oxlint")) {
+						didRunOxlint = true;
+					}
+
+					return "";
+				},
+				spawn: () => spawnResult,
+			};
+
+			lint(join("/project", "src", "foo.ts"), deps, [], {
+				eslint: true,
+				lint: true,
+				oxlint: true,
+			});
+
+			expect(didRunOxlint).toBe(true);
+		});
+
+		it("should skip eslint when disabled in settings", () => {
+			expect.assertions(2);
+
+			let didRunEslint = false;
+			let didRestartDaemon = false;
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("eslint_d")) {
+						didRunEslint = true;
+					}
+
+					return "";
+				},
+				spawn() {
+					didRestartDaemon = true;
+					return spawnResult;
+				},
+			};
+
+			lint(join("/project", "src", "foo.ts"), deps, [], {
+				eslint: false,
+				lint: true,
+				oxlint: false,
+			});
+
+			expect(didRunEslint).toBe(false);
+			expect(didRestartDaemon).toBe(false);
 		});
 	});
 });

@@ -8,6 +8,7 @@ words:
   - flecs
   - jecs
   - lintable
+  - oxlint
   - pnpmfile
   - regen
   - turborepo

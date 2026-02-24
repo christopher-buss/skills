@@ -1,8 +1,20 @@
+// TODO: invalidate eslint_d cache when cspell.config.yaml changes
 import { createFromFile } from "file-entry-cache";
 import { execSync, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import process from "node:process";
+
+export interface LintSettings {
+	eslint: boolean;
+	lint: boolean;
+	oxlint: boolean;
+}
+
+export interface SettingsDeps {
+	existsSync(path: string): boolean;
+	readFileSync(path: string, encoding: BufferEncoding): string;
+}
 
 export interface LintDeps extends CacheDeps, ExecDeps, FileSystemDeps, SpawnDeps {}
 
@@ -42,6 +54,25 @@ const ESLINT_CACHE_PATH = ".eslintcache";
 const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts"];
 const ENTRY_CANDIDATES = ["index.ts", "cli.ts", "main.ts"];
 const MAX_ERRORS = 5;
+
+const SETTINGS_FILE = ".claude/sentinel.local.md";
+
+const DEFAULT_SETTINGS: LintSettings = { eslint: true, lint: true, oxlint: false };
+
+export function readSettings(deps: SettingsDeps): LintSettings {
+	if (!deps.existsSync(SETTINGS_FILE)) {
+		return { ...DEFAULT_SETTINGS };
+	}
+
+	const content = deps.readFileSync(SETTINGS_FILE, "utf-8");
+	const fields = parseFrontmatter(content);
+
+	return {
+		eslint: fields.get("eslint") !== "false",
+		lint: fields.get("lint") !== "false",
+		oxlint: fields.get("oxlint") === "true",
+	};
+}
 
 export function getChangedFiles(deps: ExecDeps): Array<string> {
 	const options = { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] };
@@ -122,6 +153,27 @@ export function invalidateCacheEntries(filePaths: Array<string>, deps: CacheDeps
 	cache.reconcile();
 }
 
+export function runOxlint(
+	filePath: string,
+	deps: ExecDeps,
+	extraFlags: Array<string> = [],
+): string | undefined {
+	const flags = extraFlags.length > 0 ? `${extraFlags.join(" ")} ` : "";
+	try {
+		deps.execSync(`pnpm exec oxlint ${flags}"${filePath}"`, {
+			stdio: "pipe",
+		});
+		return undefined;
+	} catch (err_) {
+		const err = err_ as { message?: string; stderr?: Buffer; stdout?: Buffer };
+		const stdout = err.stdout?.toString() ?? "";
+		const stderr = err.stderr?.toString() ?? "";
+		const message = err.message ?? "";
+
+		return stdout || stderr || message;
+	}
+}
+
 export function runEslint(
 	filePath: string,
 	deps: ExecDeps,
@@ -185,6 +237,7 @@ export function lint(
 	filePath: string,
 	deps: LintDeps,
 	extraFlags: Array<string> = [],
+	settings: LintSettings = DEFAULT_SETTINGS,
 ): HookOutput | undefined {
 	if (!isLintableFile(filePath)) {
 		return undefined;
@@ -193,11 +246,29 @@ export function lint(
 	const importers = findImporters(filePath, deps);
 	invalidateCacheEntries(importers, deps);
 
-	const output = runEslint(filePath, deps, extraFlags);
-	restartDaemon(deps);
+	const outputs: Array<string> = [];
 
-	if (output !== undefined) {
-		const errors = formatErrors(output);
+	if (settings.oxlint) {
+		const output = runOxlint(filePath, deps, extraFlags);
+		if (output !== undefined) {
+			outputs.push(output);
+		}
+	}
+
+	if (settings.eslint) {
+		const output = runEslint(filePath, deps, extraFlags);
+		if (output !== undefined) {
+			outputs.push(output);
+		}
+	}
+
+	if (settings.eslint) {
+		restartDaemon(deps);
+	}
+
+	if (outputs.length > 0) {
+		const combined = outputs.join("\n");
+		const errors = formatErrors(combined);
 		if (errors.length > 0) {
 			return buildHookOutput(filePath, errors);
 		}
@@ -206,14 +277,33 @@ export function lint(
 	return undefined;
 }
 
-export function main(targets: Array<string>, deps: LintDeps): void {
+export function main(
+	targets: Array<string>,
+	deps: LintDeps,
+	settings: LintSettings = DEFAULT_SETTINGS,
+): void {
 	const changedFiles = getChangedFiles(deps);
 	invalidateCacheEntries(changedFiles, deps);
 
 	let hasErrors = false;
 	for (const target of targets) {
-		const output = runEslint(target, deps, ["--color"]);
-		if (output !== undefined) {
+		const outputs: Array<string> = [];
+
+		if (settings.oxlint) {
+			const output = runOxlint(target, deps, ["--color"]);
+			if (output !== undefined) {
+				outputs.push(output);
+			}
+		}
+
+		if (settings.eslint) {
+			const output = runEslint(target, deps, ["--color"]);
+			if (output !== undefined) {
+				outputs.push(output);
+			}
+		}
+
+		for (const output of outputs) {
 			hasErrors = true;
 			const filtered = output
 				.split("\n")
@@ -226,11 +316,36 @@ export function main(targets: Array<string>, deps: LintDeps): void {
 		}
 	}
 
-	restartDaemon(deps);
+	if (settings.eslint) {
+		restartDaemon(deps);
+	}
 
 	if (hasErrors) {
 		process.exit(1);
 	}
+}
+
+function parseFrontmatter(content: string): Map<string, string> {
+	const fields = new Map<string, string>();
+	const match = /^---\n([\s\S]*?)\n---/m.exec(content);
+	const frontmatter = match?.[1];
+	if (frontmatter === undefined) {
+		return fields;
+	}
+
+	for (const line of frontmatter.split("\n")) {
+		const colon = line.indexOf(":");
+		if (colon > 0) {
+			const key = line.slice(0, colon).trim();
+			const value = line
+				.slice(colon + 1)
+				.trim()
+				.replace(/^["']|["']$/g, "");
+			fields.set(key, value);
+		}
+	}
+
+	return fields;
 }
 
 function findImporters(filePath: string, deps: LintDeps): Array<string> {
@@ -265,6 +380,7 @@ if (IS_CLI_INVOCATION) {
 		existsSync,
 		spawn,
 	};
+	const settings = readSettings({ existsSync, readFileSync });
 	const targets = process.argv.length > 2 ? process.argv.slice(2) : ["."];
-	main(targets, deps);
+	main(targets, deps, settings);
 }
