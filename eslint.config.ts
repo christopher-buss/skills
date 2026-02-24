@@ -16,6 +16,9 @@ export default isentinel(
 			"**/sources/**",
 			`**/skills/{${vendorSkillNames.join(",")}}/**`,
 			"skill-test",
+			"!.claude",
+			".claude/**/*",
+			"!.claude/**/*.json",
 		],
 		roblox: {
 			files: [`${GLOB_MARKDOWN}/${GLOB_TS}`],
