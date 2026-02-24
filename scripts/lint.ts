@@ -1,21 +1,47 @@
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
+import process from "node:process";
+
+export interface LintDeps extends CacheDeps, ExecDeps, FileSystemDeps, SpawnDeps {}
+
+export type DependencyGraph = Record<string, Array<string>>;
 
 interface FileSystemDeps {
 	existsSync(path: string): boolean;
 }
 
-const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts"];
-
-export function isLintableFile(filePath: string, extensions = DEFAULT_EXTENSIONS): boolean {
-	return extensions.some((extension) => filePath.endsWith(extension));
+interface CacheDeps {
+	createCache(path: string): { reconcile(): void; removeEntry(key: string): void };
+	existsSync(path: string): boolean;
 }
-
-const ENTRY_CANDIDATES = ["index.ts", "cli.ts", "main.ts"];
-
-export type DependencyGraph = Record<string, Array<string>>;
 
 interface ExecDeps {
 	execSync(command: string, options?: object): string;
+}
+
+interface SpawnResult {
+	on(event: string, handler: () => void): SpawnResult;
+	unref(): void;
+}
+
+interface SpawnDeps {
+	spawn(command: string, args: Array<string>, options?: object): SpawnResult;
+}
+
+interface HookOutput {
+	hookSpecificOutput: {
+		additionalContext: string;
+		hookEventName: string;
+	};
+	systemMessage: string;
+}
+
+const ESLINT_CACHE_PATH = ".eslintcache";
+const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts"];
+const ENTRY_CANDIDATES = ["index.ts", "cli.ts", "main.ts"];
+const MAX_ERRORS = 5;
+
+export function isLintableFile(filePath: string, extensions = DEFAULT_EXTENSIONS): boolean {
+	return extensions.some((extension) => filePath.endsWith(extension));
 }
 
 export function findEntryPoints(sourceRoot: string, deps: FileSystemDeps): Array<string> {
@@ -67,4 +93,117 @@ export function findSourceRoot(filePath: string, deps: FileSystemDeps): string |
 	}
 
 	return undefined;
+}
+
+export function invalidateCacheEntries(filePaths: Array<string>, deps: CacheDeps): void {
+	if (filePaths.length === 0) {
+		return;
+	}
+
+	if (!deps.existsSync(ESLINT_CACHE_PATH)) {
+		return;
+	}
+
+	const cache = deps.createCache(ESLINT_CACHE_PATH);
+	for (const file of filePaths) {
+		cache.removeEntry(file);
+	}
+
+	cache.reconcile();
+}
+
+export function runEslint(filePath: string, deps: ExecDeps): string | undefined {
+	try {
+		deps.execSync(`pnpm exec eslint_d --cache --max-warnings 0 --fix "${filePath}"`, {
+			env: { ...process.env, ESLINT_IN_EDITOR: "true" },
+			stdio: "pipe",
+		});
+		return undefined;
+	} catch (err_) {
+		const err = err_ as { message?: string; stderr?: Buffer; stdout?: Buffer };
+		const stdout = err.stdout?.toString() ?? "";
+		const stderr = err.stderr?.toString() ?? "";
+		const message = err.message ?? "";
+
+		return stdout || stderr || message;
+	}
+}
+
+export function restartDaemon(deps: SpawnDeps): void {
+	try {
+		deps.spawn("pnpm", ["eslint_d", "restart"], {
+			detached: true,
+			stdio: "ignore",
+		})
+			// eslint-disable-next-line ts/no-empty-function -- intentionally swallow
+			.on("error", () => {})
+			.unref();
+	} catch {
+		// swallow
+	}
+}
+
+export function formatErrors(output: string): Array<string> {
+	return output
+		.split("\n")
+		.filter((line) => /error/i.test(line))
+		.slice(0, MAX_ERRORS);
+}
+
+export function buildHookOutput(filePath: string, errors: Array<string>): HookOutput {
+	const errorText = errors.join("\n");
+	const isTruncated = errors.length >= MAX_ERRORS;
+
+	const userMessage = `⚠️ Lint errors in ${filePath}:\n${errorText}${isTruncated ? "\n..." : ""}`;
+	const claudeMessage = `⚠️ Lint errors in ${filePath}:\n${errorText}${isTruncated ? "\n(run lint to view more)" : ""}`;
+
+	return {
+		hookSpecificOutput: {
+			additionalContext: claudeMessage,
+			hookEventName: "PostToolUse",
+		},
+		systemMessage: userMessage,
+	};
+}
+
+export function lint(filePath: string, deps: LintDeps): HookOutput | undefined {
+	if (!isLintableFile(filePath)) {
+		return undefined;
+	}
+
+	const importers = findImporters(filePath, deps);
+	invalidateCacheEntries(importers, deps);
+
+	const output = runEslint(filePath, deps);
+	restartDaemon(deps);
+
+	if (output !== undefined) {
+		const errors = formatErrors(output);
+		if (errors.length > 0) {
+			return buildHookOutput(filePath, errors);
+		}
+	}
+
+	return undefined;
+}
+
+function findImporters(filePath: string, deps: LintDeps): Array<string> {
+	const absPath = resolve(filePath);
+	const sourceRoot = findSourceRoot(absPath, deps);
+	if (sourceRoot === undefined) {
+		return [];
+	}
+
+	const entryPoints = findEntryPoints(sourceRoot, deps);
+	if (entryPoints.length === 0) {
+		return [];
+	}
+
+	try {
+		const graph = getDependencyGraph(sourceRoot, entryPoints, deps);
+		const targetRelative = relative(sourceRoot, absPath).replaceAll("\\", "/");
+		return invertGraph(graph, targetRelative).map((file) => join(sourceRoot, file));
+	} catch {
+		return [];
+	}
 }

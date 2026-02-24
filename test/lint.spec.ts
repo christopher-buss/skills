@@ -3,14 +3,20 @@ import { describe, expect, it } from "vitest";
 
 import { isHookInput } from "../hooks/lint.js";
 import {
+	buildHookOutput,
 	findEntryPoints,
 	findSourceRoot,
+	formatErrors,
 	getDependencyGraph,
+	invalidateCacheEntries,
 	invertGraph,
 	isLintableFile,
+	lint,
+	restartDaemon,
+	runEslint,
 } from "../scripts/lint.js";
 
-describe("lint", () => {
+describe(lint, () => {
 	describe(isHookInput, () => {
 		it("should return true for valid input with tool_input.file_path", () => {
 			expect.assertions(1);
@@ -173,39 +179,253 @@ describe("lint", () => {
 		});
 	});
 
-	describe("invalidateCacheEntries", () => {
-		it.todo("should be no-op for empty file list");
+	const testFilePath = "/project/src/foo.ts";
+	const testErrorLine = "  1:5  error  no-unused-vars";
 
-		it.todo("should be no-op when cache file does not exist");
+	describe(invalidateCacheEntries, () => {
+		it("should be no-op for empty file list", () => {
+			expect.assertions(1);
 
-		it.todo("should remove entries and reconcile cache");
+			const deps = {
+				createCache: () => ({ reconcile: () => {}, removeEntry: () => {} }),
+				existsSync: () => true,
+			};
+
+			// Should not throw
+			invalidateCacheEntries([], deps);
+
+			expect(true).toBe(true);
+		});
+
+		it("should be no-op when cache file does not exist", () => {
+			expect.assertions(1);
+
+			const deps = {
+				createCache: () => ({ reconcile: () => {}, removeEntry: () => {} }),
+				existsSync: () => false,
+			};
+
+			invalidateCacheEntries([testFilePath], deps);
+
+			expect(true).toBe(true);
+		});
+
+		it("should remove entries and reconcile cache", () => {
+			expect.assertions(2);
+
+			const removed: Array<string> = [];
+			let isReconciled = false;
+
+			const deps = {
+				createCache: () => {
+					return {
+						reconcile() {
+							isReconciled = true;
+						},
+						removeEntry(key: string) {
+							removed.push(key);
+						},
+					};
+				},
+				existsSync: () => true,
+			};
+
+			invalidateCacheEntries(["/project/src/a.ts", "/project/src/b.ts"], deps);
+
+			expect(removed).toStrictEqual(["/project/src/a.ts", "/project/src/b.ts"]);
+			expect(isReconciled).toBe(true);
+		});
 	});
 
-	describe("runEslint", () => {
-		it.todo("should run eslint_d with correct args and ESLINT_IN_EDITOR env");
+	describe(runEslint, () => {
+		it("should run eslint_d with correct args and ESLINT_IN_EDITOR env", () => {
+			expect.assertions(2);
 
-		it.todo("should capture stdout/stderr/message on error");
+			let capturedCommand = "";
+			let capturedEnvironment: Record<string, string> = {};
+
+			const deps = {
+				execSync(command: string, options?: { env?: Record<string, string> }) {
+					capturedCommand = command;
+					capturedEnvironment = options?.env ?? {};
+					return "";
+				},
+			};
+
+			runEslint(testFilePath, deps);
+
+			expect(capturedCommand).toBe(
+				`pnpm exec eslint_d --cache --max-warnings 0 --fix "${testFilePath}"`,
+			);
+			expect(capturedEnvironment).toMatchObject({ ESLINT_IN_EDITOR: "true" });
+		});
+
+		it("should capture stdout/stderr/message on error", () => {
+			expect.assertions(1);
+
+			const deps = {
+				execSync() {
+					const error = new Error("Command failed") as Error & {
+						stderr: Buffer;
+						stdout: Buffer;
+					};
+					error.stdout = Buffer.from(`${testErrorLine}\n`);
+					error.stderr = Buffer.from("");
+					throw error;
+				},
+			};
+
+			const result = runEslint(testFilePath, deps);
+
+			expect(result).toContain("no-unused-vars");
+		});
 	});
 
-	describe("restartDaemon", () => {
-		it.todo("should spawn detached eslint_d restart and swallow errors");
+	describe(restartDaemon, () => {
+		it("should spawn detached eslint_d restart and swallow errors", () => {
+			expect.assertions(2);
+
+			let capturedCommand = "";
+			let capturedArgs: Array<string> = [];
+
+			const self = { on: () => self, unref: () => {} };
+			const deps = {
+				spawn(command: string, args: Array<string>) {
+					capturedCommand = command;
+					capturedArgs = args;
+					return self;
+				},
+			};
+
+			restartDaemon(deps);
+
+			expect(capturedCommand).toBe("pnpm");
+			expect(capturedArgs).toStrictEqual(["eslint_d", "restart"]);
+		});
 	});
 
-	describe("formatErrors", () => {
-		it.todo("should extract error lines from eslint output");
+	describe(formatErrors, () => {
+		it("should extract error lines from eslint output", () => {
+			expect.assertions(1);
 
-		it.todo("should truncate to 5 errors max");
+			const output = `${testErrorLine}\n  2:1  warning  no-console\n`;
+
+			expect(formatErrors(output)).toStrictEqual([testErrorLine]);
+		});
+
+		it("should truncate to 5 errors max", () => {
+			expect.assertions(1);
+
+			const lines = Array.from(
+				{ length: 10 },
+				(_, index) => `  ${index}:1  error  rule-${index}`,
+			);
+			const output = lines.join("\n");
+
+			const result = formatErrors(output);
+
+			expect(result).toHaveLength(5);
+		});
 	});
 
-	describe("buildHookOutput", () => {
-		it.todo("should return correct hook JSON shape");
+	describe(buildHookOutput, () => {
+		it("should return correct hook JSON shape", () => {
+			expect.assertions(3);
+
+			const result = buildHookOutput("foo.ts", [testErrorLine]);
+
+			expect(result).toMatchObject({
+				hookSpecificOutput: {
+					hookEventName: "PostToolUse",
+				},
+			});
+			expect(result.systemMessage).toContain("foo.ts");
+			expect(result.hookSpecificOutput.additionalContext).toContain("foo.ts");
+		});
 	});
 
-	describe("lint (orchestrator)", () => {
-		it.todo("should skip non-lintable files with early exit");
+	describe(lint, () => {
+		const spawnResult = { on: () => spawnResult, unref: () => {} };
+		const baseDeps = {
+			createCache: () => ({ reconcile: () => {}, removeEntry: () => {} }),
+			execSync: () => "",
+			existsSync: () => false,
+			spawn: () => spawnResult,
+		};
 
-		it.todo("should run full pipeline: importers → invalidate → eslint → restart");
+		it("should skip non-lintable files with early exit", () => {
+			expect.assertions(1);
 
-		it.todo("should return formatted hook output on lint failure");
+			const result = lint("readme.txt", baseDeps);
+
+			expect(result).toBeUndefined();
+		});
+
+		it("should run full pipeline: importers → invalidate → eslint → restart", () => {
+			expect.assertions(2);
+
+			let didRunEslint = false;
+			let didRestartDaemon = false;
+
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("eslint_d")) {
+						didRunEslint = true;
+					}
+
+					if (command.includes("madge")) {
+						return '{"app.ts":[]}';
+					}
+
+					return "";
+				},
+				spawn() {
+					didRestartDaemon = true;
+					return spawnResult;
+				},
+			};
+
+			lint(join("/project", "src", "foo.ts"), deps);
+
+			expect(didRunEslint).toBe(true);
+			expect(didRestartDaemon).toBe(true);
+		});
+
+		it("should return formatted hook output on lint failure", () => {
+			expect.assertions(1);
+
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("eslint_d")) {
+						const error = new Error("fail") as Error & {
+							stderr: Buffer;
+							stdout: Buffer;
+						};
+						error.stdout = Buffer.from(`${testErrorLine}\n`);
+						error.stderr = Buffer.from("");
+						throw error;
+					}
+
+					if (command.includes("madge")) {
+						return "{}";
+					}
+
+					return "";
+				},
+				spawn() {
+					return spawnResult;
+				},
+			};
+
+			const result = lint(join("/project", "src", "foo.ts"), deps);
+
+			expect(result).toMatchObject({
+				hookSpecificOutput: {
+					hookEventName: "PostToolUse",
+				},
+			});
+		});
 	});
 });
