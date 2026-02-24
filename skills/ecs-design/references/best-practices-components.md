@@ -120,10 +120,7 @@ Query automatically filters:
 
 ```typescript
 // Only processes entities that CAN move
-for (const [entityId, transform, velocity] of world.query(
-	Transform,
-	Velocity,
-)) {
+for (const [entityId, transform, velocity] of world.query(Transform, Velocity)) {
 	// ...
 }
 ```

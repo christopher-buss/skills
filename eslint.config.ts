@@ -8,6 +8,9 @@ export default isentinel(
 	{
 		name: "project/root",
 		flawless: true,
+		formatters: {
+			markdown: false,
+		},
 		ignores: [
 			"**/vendor/**",
 			"**/sources/**",

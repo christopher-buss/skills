@@ -15,10 +15,7 @@ types. One-off logic belongs in helper functions.
 ```typescript
 // GOOD: Reusable system - works for players, NPCs, projectiles, etc.
 function movementSystem(): void {
-	for (const [entityId, transform, velocity] of world.query(
-		Transform,
-		Velocity,
-	)) {
+	for (const [entityId, transform, velocity] of world.query(Transform, Velocity)) {
 		transform.add(velocity.mul(dt));
 	}
 }
@@ -79,10 +76,7 @@ function applyDamage(entity: Entity, amount: number): void {
 
 // GOOD: Batch processing
 function damageSystem(): void {
-	for (const [entityId, health, damage] of world.query(
-		Health,
-		PendingDamage,
-	)) {
+	for (const [entityId, health, damage] of world.query(Health, PendingDamage)) {
 		world.set(entityId, Health, health - damage.amount);
 		world.remove(entityId, PendingDamage);
 	}
@@ -105,10 +99,7 @@ for (const [entityId, transform] of world.query(Transform)) {
 }
 
 // GOOD: Filter in query
-for (const [entityId, transform] of world
-	.query(Transform)
-	.with(CanMove)
-	.without(Frozen)) {
+for (const [entityId, transform] of world.query(Transform).with(CanMove).without(Frozen)) {
 	// move
 }
 ```
@@ -136,9 +127,7 @@ for (const [entityId, transform, previousTransform, model] of world.query(
 }
 
 // Initialize Previous when entity is added (separate system)
-for (const [entityId, transform] of world
-	.query(Transform)
-	.without(pair(Previous, Transform))) {
+for (const [entityId, transform] of world.query(Transform).without(pair(Previous, Transform))) {
 	world.set(entityId, pair(Previous, Transform), transform);
 }
 ```
@@ -252,9 +241,7 @@ function pathfindingSystem(): void {
 
 // GOOD: Spawn thread for async work
 function pathfindingSystem(): void {
-	for (const [entityId, target] of world
-		.query(Target)
-		.without(ComputingPath)) {
+	for (const [entityId, target] of world.query(Target).without(ComputingPath)) {
 		world.add(entityId, ComputingPath);
 		task.spawn(() => {
 			const path = PathfindingService.ComputeAsync(/* ... */);
@@ -337,9 +324,7 @@ at module scope.
 ```typescript
 // WRONG: Creates new cache every frame!
 function movementSystem(dt: number): void {
-	for (const [entityId, transform, velocity] of world
-		.query(Transform, Velocity)
-		.cached()) {
+	for (const [entityId, transform, velocity] of world.query(Transform, Velocity).cached()) {
 		// New cache created every call
 	}
 }

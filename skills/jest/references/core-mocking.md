@@ -85,9 +85,7 @@ mock.mockReturnValue(42);
 mock(); // 42
 
 // Return specific values in sequence
-mock.mockReturnValueOnce("first")
-	.mockReturnValueOnce("second")
-	.mockReturnValue("default");
+mock.mockReturnValueOnce("first").mockReturnValueOnce("second").mockReturnValue("default");
 
 mock(); // "first"
 mock(); // "second"

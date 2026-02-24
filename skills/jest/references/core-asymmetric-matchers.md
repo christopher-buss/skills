@@ -30,8 +30,8 @@ Matches by type string or prototype class:
 
 ```ts
 // Type strings
-expect({ id = 42 }).toStrictEqual({ id = expect.any("number") });
-expect({ name = "foo" }).toStrictEqual({ name = expect.any("string") });
+expect({ id: 42 }).toStrictEqual({ id: expect.any("number") });
+expect({ name: "foo" }).toStrictEqual({ name: expect.any("string") });
 
 // Prototype class (uses LuauPolyfill instanceof)
 expect(instance).toEqual(expect.any(MyClass));
@@ -74,9 +74,7 @@ expect(["a", "b", "c"]).toStrictEqual(expect.arrayContaining(["a", "c"]));
 Matches a received table containing all expected key-value pairs:
 
 ```ts
-expect({ x: 1, y: 2, z: 3 }).toStrictEqual(
-	expect.objectContaining({ x: 1, y: 2 }),
-);
+expect({ x: 1, y: 2, z: 3 }).toStrictEqual(expect.objectContaining({ x: 1, y: 2 }));
 ```
 
 ## `expect.stringContaining(string)`

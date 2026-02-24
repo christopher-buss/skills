@@ -141,11 +141,7 @@ import { toMatchSnapshot } from "@rbxts/jest-snapshot";
 
 expect.extend({
 	toMatchTrimmedSnapshot(received: string, length: number) {
-		return toMatchSnapshot(
-			this,
-			received.sub(1, length),
-			"toMatchTrimmedSnapshot",
-		);
+		return toMatchSnapshot(this, received.sub(1, length), "toMatchTrimmedSnapshot");
 	},
 });
 ```

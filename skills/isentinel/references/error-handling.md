@@ -128,7 +128,5 @@ impossible"
 For operations that can legitimately fail:
 
 ```ts
-type Result<T, E = string> =
-	| { error: E; success: false }
-	| { success: true; value: T };
+type Result<T, E = string> = { error: E; success: false } | { success: true; value: T };
 ```

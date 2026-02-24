@@ -113,12 +113,7 @@ world.set(entity, Velocity, Vector3.zero);
 world.set(entity, Mass, 100);
 
 // BETTER: Single transition
-bulk_insert(
-	world,
-	entity,
-	[Position, Velocity, Mass],
-	[Vector3.zero, Vector3.zero, 100],
-);
+bulk_insert(world, entity, [Position, Velocity, Mass], [Vector3.zero, Vector3.zero, 100]);
 
 // Batch removal
 bulk_remove(world, entity, [Velocity, Mass]);

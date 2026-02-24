@@ -105,12 +105,9 @@ const [names, values] = avgReporter.finish();
 Controls multiple reporters at once:
 
 ```ts
-const profiler = initializeProfiler(
-	[avgReporter, timeReporter],
-	(metricName, value) => {
-		print(metricName, value);
-	},
-);
+const profiler = initializeProfiler([avgReporter, timeReporter], (metricName, value) => {
+	print(metricName, value);
+});
 
 profiler.start("render");
 // ... benchmark code ...

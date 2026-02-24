@@ -20,10 +20,7 @@ const Transform = world.component<CFrame>();
 const Velocity = world.component<Vector3>();
 
 // Iterate entities with both components
-for (const [entityId, transform, velocity] of world.query(
-	Transform,
-	Velocity,
-)) {
+for (const [entityId, transform, velocity] of world.query(Transform, Velocity)) {
 	world.set(entityId, Transform, transform.add(velocity));
 }
 ```
@@ -40,10 +37,7 @@ const Walking = world.component();
 const Flying = world.component();
 
 // query() returns values - use for components you need to read
-for (const [entityId, transform, velocity] of world.query(
-	Transform,
-	Velocity,
-)) {
+for (const [entityId, transform, velocity] of world.query(Transform, Velocity)) {
 	world.set(entityId, Transform, transform.add(velocity));
 }
 
