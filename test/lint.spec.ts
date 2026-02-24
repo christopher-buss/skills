@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isHookInput } from "../scripts/lint.js";
+import { isHookInput, isLintableFile } from "../scripts/lint.js";
 
 describe("lint", () => {
 	describe(isHookInput, () => {
@@ -12,19 +12,44 @@ describe("lint", () => {
 			expect(isHookInput(input)).toBe(true);
 		});
 
-		it.todo("should return false for null");
+		it("should return false for null", () => {
+			expect.assertions(1);
 
-		it.todo("should return false when tool_input is missing");
+			expect(isHookInput(null)).toBe(false);
+		});
 
-		it.todo("should return false when file_path is missing from tool_input");
+		it("should return false when tool_input is missing", () => {
+			expect.assertions(1);
+
+			expect(isHookInput({ other: "field" })).toBe(false);
+		});
+
+		it("should return false when file_path is missing from tool_input", () => {
+			expect.assertions(1);
+
+			expect(isHookInput({ tool_input: { other: "field" } })).toBe(false);
+		});
 	});
 
-	describe("isLintableFile", () => {
-		it.todo("should return true for .ts file");
+	describe(isLintableFile, () => {
+		it("should return true for .ts file", () => {
+			expect.assertions(1);
 
-		it.todo("should return false for .txt file");
+			expect(isLintableFile("src/index.ts")).toBe(true);
+		});
 
-		it.todo("should respect custom extensions list");
+		it("should return false for .txt file", () => {
+			expect.assertions(1);
+
+			expect(isLintableFile("readme.txt")).toBe(false);
+		});
+
+		it("should respect custom extensions list", () => {
+			expect.assertions(2);
+
+			expect(isLintableFile("app.vue", [".vue", ".ts"])).toBe(true);
+			expect(isLintableFile("app.ts", [".vue"])).toBe(false);
+		});
 	});
 
 	describe("findSourceRoot", () => {
