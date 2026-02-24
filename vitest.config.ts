@@ -6,7 +6,7 @@ export default defineConfig({
 			include: ["hooks/**/*.spec.ts"],
 			provider: "v8",
 			thresholds: {
-				"src/lint/lint.ts": {
+				"scripts/lint.ts": {
 					branches: 100,
 					functions: 100,
 					lines: 100,

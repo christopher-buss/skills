@@ -1,6 +1,7 @@
 {
 	"extends": "@isentinel/tsconfig/typescript",
 	"compilerOptions": {
+		"libReplacement": true,
 		"allowImportingTsExtensions": true
 	},
 	"exclude": ["node_modules", "**/.*/", "sources/**", "vendor/**", "reference/**"]

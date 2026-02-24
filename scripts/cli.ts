@@ -33,6 +33,18 @@ interface VendorConfig {
 	source: string;
 }
 
+function exec(cmd: string, cwd = ROOT): string {
+	return execSync(cmd, { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+}
+
+function execSafe(cmd: string, cwd = ROOT): null | string {
+	try {
+		return exec(cmd, cwd);
+	} catch {
+		return null;
+	}
+}
+
 async function checkUpdates() {
 	const spinner = prompts.spinner();
 	spinner.start("Fetching remote changes...");
@@ -89,6 +101,66 @@ async function checkUpdates() {
 	}
 }
 
+function getExistingSkillNames(): Array<string> {
+	const skillsDirectory = join(ROOT, "skills");
+	if (!existsSync(skillsDirectory)) {
+		return [];
+	}
+
+	return readdirSync(skillsDirectory, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory())
+		.map((entry) => entry.name);
+}
+
+function getExistingSubmodulePaths(): Array<string> {
+	const gitmodules = join(ROOT, ".gitmodules");
+	if (!existsSync(gitmodules)) {
+		return [];
+	}
+
+	const content = readFileSync(gitmodules, "utf-8");
+	const matches = content.matchAll(/path\s*=\s*(.+)/g);
+	return Array.from(matches, (match) => match[1]?.trim() ?? "");
+}
+
+function getExpectedSkillNames(): Set<string> {
+	const expected = new Set<string>();
+
+	// Skills from submodules (generated skills use same name as submodule key)
+	for (const name of Object.keys(submodules)) {
+		expected.add(name);
+	}
+
+	// Skills from vendors (use the output skill name)
+	for (const config of Object.values(vendors)) {
+		const vendorConfig = config as VendorConfig;
+		for (const outputName of Object.values(vendorConfig.skills)) {
+			expected.add(outputName);
+		}
+	}
+
+	// Manual skills
+	for (const name of manual) {
+		expected.add(name);
+	}
+
+	return expected;
+}
+
+function removeSubmodule(submodulePath: string): void {
+	// De-initialize the submodule
+	// cspell:ignore deinit
+	execSafe(`git submodule deinit -f ${submodulePath}`);
+	// Remove from .git/modules
+	const gitModulesPath = join(ROOT, ".git", "modules", submodulePath);
+	if (existsSync(gitModulesPath)) {
+		rmSync(gitModulesPath, { recursive: true });
+	}
+
+	// Remove from working tree and .gitmodules
+	exec(`git rm -f ${submodulePath}`);
+}
+
 async function cleanup(skipPrompt = false) {
 	const spinner = prompts.spinner();
 	let hasChanges = false;
@@ -96,7 +168,7 @@ async function cleanup(skipPrompt = false) {
 	// 1. Find and remove extra submodules
 	const allProjects: Array<Project> = [
 		...Object.entries(submodules).map(([name, url]) => {
-			return { name, path: `sources/${name}`, type: "source" as const, url };
+			return { name, path: `sources/${name}`, type: "source" as const, url: url as string };
 		}),
 		...Object.entries(vendors).map(([name, config]) => {
 			return {
@@ -215,72 +287,24 @@ function copyFilesFromSourceSkill(sourceSkillPath: string, outputPath: string) {
 	}
 }
 
-function exec(cmd: string, cwd = ROOT): string {
-	return execSync(cmd, { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+function getGitSha(repositoryPath: string): null | string {
+	return execSafe("git rev-parse HEAD", repositoryPath);
 }
 
-function execSafe(cmd: string, cwd = ROOT): null | string {
-	try {
-		return exec(cmd, cwd);
-	} catch {
-		return null;
-	}
-}
-
-function getExistingSkillNames(): Array<string> {
-	const skillsDirectory = join(ROOT, "skills");
-	if (!existsSync(skillsDirectory)) {
-		return [];
-	}
-
-	return readdirSync(skillsDirectory, { withFileTypes: true })
-		.filter((entry) => entry.isDirectory())
-		.map((entry) => entry.name);
-}
-
-function getExistingSubmodulePaths(): Array<string> {
+function submoduleExists(path: string): boolean {
 	const gitmodules = join(ROOT, ".gitmodules");
 	if (!existsSync(gitmodules)) {
-		return [];
+		return false;
 	}
 
 	const content = readFileSync(gitmodules, "utf-8");
-	const matches = content.matchAll(/path\s*=\s*(.+)/g);
-	return Array.from(matches, (match) => match[1]?.trim() ?? "");
-}
-
-function getExpectedSkillNames(): Set<string> {
-	const expected = new Set<string>();
-
-	// Skills from submodules (generated skills use same name as submodule key)
-	for (const name of Object.keys(submodules)) {
-		expected.add(name);
-	}
-
-	// Skills from vendors (use the output skill name)
-	for (const config of Object.values(vendors)) {
-		const vendorConfig = config as VendorConfig;
-		for (const outputName of Object.values(vendorConfig.skills)) {
-			expected.add(outputName);
-		}
-	}
-
-	// Manual skills
-	for (const name of manual) {
-		expected.add(name);
-	}
-
-	return expected;
-}
-
-function getGitSha(repositoryPath: string): null | string {
-	return execSafe("git rev-parse HEAD", repositoryPath);
+	return content.includes(`path = ${path}`);
 }
 
 async function initSubmodules(skipPrompt = false) {
 	const allProjects: Array<Project> = [
 		...Object.entries(submodules).map(([name, url]) => {
-			return { name, path: `sources/${name}`, type: "source" as const, url };
+			return { name, path: `sources/${name}`, type: "source" as const, url: url as string };
 		}),
 		...Object.entries(vendors).map(([name, config]) => {
 			return {
@@ -381,110 +405,6 @@ async function initSubmodules(skipPrompt = false) {
 			`Already initialized: ${existingProjects.map((project) => project.name).join(", ")}`,
 		);
 	}
-}
-
-async function main() {
-	const args = process.argv.slice(2);
-	const shouldSkipPrompt = args.includes("-y") || args.includes("--yes");
-	const command = args.find((argument) => !argument.startsWith("-"));
-
-	// Handle subcommands directly
-	if (command === "init") {
-		prompts.intro("Skills Manager - Init");
-		await initSubmodules(shouldSkipPrompt);
-		prompts.outro("Done");
-		return;
-	}
-
-	if (command === "sync") {
-		prompts.intro("Skills Manager - Sync");
-		await syncSubmodules();
-		prompts.outro("Done");
-		return;
-	}
-
-	if (command === "check") {
-		prompts.intro("Skills Manager - Check");
-		await checkUpdates();
-		prompts.outro("Done");
-		return;
-	}
-
-	if (command === "cleanup") {
-		prompts.intro("Skills Manager - Cleanup");
-		await cleanup(shouldSkipPrompt);
-		prompts.outro("Done");
-		return;
-	}
-
-	// No subcommand: show interactive menu (requires interaction)
-	if (shouldSkipPrompt) {
-		prompts.log.error("Command required when using -y flag");
-		prompts.log.info("Available commands: init, sync, check, cleanup");
-		process.exit(1);
-	}
-
-	prompts.intro("Skills Manager");
-
-	const action = await prompts.select({
-		message: "What would you like to do?",
-		options: [
-			{ hint: "Pull latest and sync Type 2 skills", label: "Sync submodules", value: "sync" },
-			{ hint: "Add new submodules", label: "Init submodules", value: "init" },
-			{ hint: "See available updates", label: "Check updates", value: "check" },
-			{ hint: "Remove unused submodules and skills", label: "Cleanup", value: "cleanup" },
-		],
-	});
-
-	if (prompts.isCancel(action)) {
-		prompts.cancel("Cancelled");
-		process.exit(0);
-	}
-
-	switch (action) {
-		case "check": {
-			await checkUpdates();
-			break;
-		}
-		case "cleanup": {
-			await cleanup();
-			break;
-		}
-		case "init": {
-			await initSubmodules();
-			break;
-		}
-		case "sync": {
-			await syncSubmodules();
-			break;
-		}
-	}
-
-	prompts.outro("Done");
-}
-
-function removeSubmodule(submodulePath: string): void {
-	// De-initialize the submodule
-	// cspell:ignore deinit
-	execSafe(`git submodule deinit -f ${submodulePath}`);
-	// Remove from .git/modules
-	const gitModulesPath = join(ROOT, ".git", "modules", submodulePath);
-	if (existsSync(gitModulesPath)) {
-		rmSync(gitModulesPath, { recursive: true });
-	}
-
-	// Remove from working tree and .gitmodules
-	exec(`git rm -f ${submodulePath}`);
-}
-
-function submoduleExists(path: string): boolean {
-	const gitmodules = join(ROOT, ".gitmodules");
-	if (!existsSync(gitmodules)) {
-		return false;
-	}
-
-	const content = readFileSync(gitmodules, "utf-8");
-	return content.includes(`path = ${path}`);
 }
 
 async function syncSubmodules() {
@@ -591,6 +511,86 @@ async function syncSubmodules() {
 	}
 
 	prompts.log.success("All skills synced");
+}
+
+async function main() {
+	const args = process.argv.slice(2);
+	const shouldSkipPrompt = args.includes("-y") || args.includes("--yes");
+	const command = args.find((argument) => !argument.startsWith("-"));
+
+	// Handle subcommands directly
+	if (command === "init") {
+		prompts.intro("Skills Manager - Init");
+		await initSubmodules(shouldSkipPrompt);
+		prompts.outro("Done");
+		return;
+	}
+
+	if (command === "sync") {
+		prompts.intro("Skills Manager - Sync");
+		await syncSubmodules();
+		prompts.outro("Done");
+		return;
+	}
+
+	if (command === "check") {
+		prompts.intro("Skills Manager - Check");
+		await checkUpdates();
+		prompts.outro("Done");
+		return;
+	}
+
+	if (command === "cleanup") {
+		prompts.intro("Skills Manager - Cleanup");
+		await cleanup(shouldSkipPrompt);
+		prompts.outro("Done");
+		return;
+	}
+
+	// No subcommand: show interactive menu (requires interaction)
+	if (shouldSkipPrompt) {
+		prompts.log.error("Command required when using -y flag");
+		prompts.log.info("Available commands: init, sync, check, cleanup");
+		process.exit(1);
+	}
+
+	prompts.intro("Skills Manager");
+
+	const action = await prompts.select({
+		message: "What would you like to do?",
+		options: [
+			{ hint: "Pull latest and sync Type 2 skills", label: "Sync submodules", value: "sync" },
+			{ hint: "Add new submodules", label: "Init submodules", value: "init" },
+			{ hint: "See available updates", label: "Check updates", value: "check" },
+			{ hint: "Remove unused submodules and skills", label: "Cleanup", value: "cleanup" },
+		],
+	});
+
+	if (prompts.isCancel(action)) {
+		prompts.cancel("Cancelled");
+		process.exit(0);
+	}
+
+	switch (action) {
+		case "check": {
+			await checkUpdates();
+			break;
+		}
+		case "cleanup": {
+			await cleanup();
+			break;
+		}
+		case "init": {
+			await initSubmodules();
+			break;
+		}
+		case "sync": {
+			await syncSubmodules();
+			break;
+		}
+	}
+
+	prompts.outro("Done");
 }
 
 main().catch(console.error);

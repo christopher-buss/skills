@@ -25,6 +25,8 @@
 		"@types/node": "catalog:",
 		"@typescript/native-preview": "catalog:",
 		"@vitest/coverage-v8": "catalog:",
+		"@vitest/eslint-plugin": "catalog:",
+		"better-typescript-lib": "catalog:",
 		"eslint": "catalog:",
 		"eslint-plugin-n": "catalog:",
 		"eslint-plugin-pnpm": "catalog:",
