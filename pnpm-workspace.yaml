@@ -19,8 +19,10 @@ catalog:
   eslint-plugin-n: ^17.23.2
   eslint-plugin-pnpm: ^1.5.0
   eslint_d: ^14.3.0
+  file-entry-cache: ^11.1.2
   jiti: ^2.6.1
   lint-staged: ^15.5.1
+  madge: ^8.0.0
   simple-git-hooks: ^2.11.1
   typescript: ^5.9.3
   vitest: ^4.0.18

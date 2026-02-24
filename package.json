@@ -31,8 +31,10 @@
 		"eslint-plugin-n": "catalog:",
 		"eslint-plugin-pnpm": "catalog:",
 		"eslint_d": "catalog:",
+		"file-entry-cache": "catalog:",
 		"jiti": "catalog:",
 		"lint-staged": "catalog:",
+		"madge": "catalog:",
 		"simple-git-hooks": "catalog:",
 		"typescript": "catalog:",
 		"vitest": "catalog:"
