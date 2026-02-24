@@ -1,17 +1,4 @@
 {
-	"hooks": {
-		"PostToolUse": [
-			{
-				"matcher": "Edit|Write|MultiEdit",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "sh .claude/hooks/lint.sh"
-					}
-				]
-			}
-		]
-	},
 	"includeCoAuthoredBy": true,
 	"permissions": {
 		"allow": [
@@ -30,10 +17,26 @@
 			"WebFetch",
 			"WebSearch"
 		],
-		"additionalDirectories": [],
+		"deny": [],
 		"ask": [],
 		"defaultMode": "plan",
-		"deny": []
+		"additionalDirectories": []
 	},
-	"outputStyle": "XP Programmer"
+	"hooks": {
+		"PostToolUse": [
+			{
+				"matcher": "Edit|Write|MultiEdit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node hooks/lint.ts"
+					}
+				]
+			}
+		]
+	},
+	"outputStyle": "XP Programmer",
+	"enabledPlugins": {
+		"plugin-dev@claude-code-plugins": true
+	}
 }

@@ -3,7 +3,7 @@ import { execSync, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import process from "node:process";
 
-import { lint } from "../scripts/lint.js";
+import { lint } from "../scripts/lint.ts";
 
 interface HookInput {
 	// eslint-disable-next-line flawless/naming-convention -- Upstream-defined input shape
