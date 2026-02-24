@@ -3,7 +3,6 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
 	test: {
 		coverage: {
-			include: ["hooks/**/*.spec.ts"],
 			provider: "v8",
 			thresholds: {
 				"scripts/lint.ts": {

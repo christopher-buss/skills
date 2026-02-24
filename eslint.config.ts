@@ -1,4 +1,4 @@
-import isentinel, { GLOB_MARKDOWN, GLOB_TS } from "@isentinel/eslint-config";
+import isentinel, { GLOB_MARKDOWN, GLOB_TESTS, GLOB_TS } from "@isentinel/eslint-config";
 
 import { vendors } from "./meta.ts";
 
@@ -39,6 +39,13 @@ export default isentinel(
 			"max-lines": "off",
 			"max-lines-per-function": "off",
 			"sonar/cognitive-complexity": "off",
+		},
+	},
+	{
+		name: "project/tests",
+		files: [...GLOB_TESTS],
+		rules: {
+			"sonar/no-duplicate-string": "off",
 		},
 	},
 );

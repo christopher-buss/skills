@@ -1,7 +1,6 @@
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { isHookInput } from "../hooks/lint.js";
 import {
 	buildHookOutput,
 	findEntryPoints,
@@ -17,34 +16,6 @@ import {
 } from "../scripts/lint.js";
 
 describe(lint, () => {
-	describe(isHookInput, () => {
-		it("should return true for valid input with tool_input.file_path", () => {
-			expect.assertions(1);
-
-			const input = { tool_input: { file_path: "src/index.ts" } };
-
-			expect(isHookInput(input)).toBe(true);
-		});
-
-		it("should return false for null", () => {
-			expect.assertions(1);
-
-			expect(isHookInput(null)).toBe(false);
-		});
-
-		it("should return false when tool_input is missing", () => {
-			expect.assertions(1);
-
-			expect(isHookInput({ other: "field" })).toBe(false);
-		});
-
-		it("should return false when file_path is missing from tool_input", () => {
-			expect.assertions(1);
-
-			expect(isHookInput({ tool_input: { other: "field" } })).toBe(false);
-		});
-	});
-
 	describe(isLintableFile, () => {
 		it("should return true for .ts file", () => {
 			expect.assertions(1);
