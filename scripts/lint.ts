@@ -179,7 +179,7 @@ export function runEslint(
 	deps: ExecDeps,
 	extraFlags: Array<string> = [],
 ): string | undefined {
-	const flags = ["--cache", "--max-warnings 0", ...extraFlags].join(" ");
+	const flags = ["--cache", ...extraFlags].join(" ");
 	try {
 		deps.execSync(`pnpm exec eslint_d ${flags} "${filePath}"`, {
 			env: { ...process.env, ESLINT_IN_EDITOR: "true" },
