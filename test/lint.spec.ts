@@ -1,5 +1,6 @@
 import { join, resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import process from "node:process";
+import { describe, expect, it, vi } from "vitest";
 
 import {
 	buildHookOutput,
@@ -11,6 +12,7 @@ import {
 	invertGraph,
 	isLintableFile,
 	lint,
+	main,
 	restartDaemon,
 	runEslint,
 } from "../scripts/lint.js";
@@ -406,6 +408,62 @@ describe(lint, () => {
 
 			expect(result.systemMessage).toContain("...");
 			expect(result.hookSpecificOutput.additionalContext).toContain("run lint to view more");
+		});
+	});
+
+	describe(main, () => {
+		const spawnResult = { on: () => spawnResult, unref: () => {} };
+		const baseDeps = {
+			createCache: () => ({ reconcile: () => {}, removeEntry: () => {} }),
+			execSync: () => "",
+			existsSync: () => false,
+			spawn: () => spawnResult,
+		};
+
+		it("should exit cleanly when no errors", () => {
+			expect.assertions(2);
+
+			const exitSpy = vi.spyOn(process, "exit").mockReturnValue(undefined as never);
+			const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+			main("/project/src/foo.ts", baseDeps);
+
+			expect(exitSpy).not.toHaveBeenCalled();
+			expect(stderrSpy).not.toHaveBeenCalled();
+
+			vi.restoreAllMocks();
+		});
+
+		it("should print errors to stderr and exit 1 on lint failure", () => {
+			expect.assertions(2);
+
+			const exitSpy = vi.spyOn(process, "exit").mockReturnValue(undefined as never);
+			const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("eslint_d")) {
+						const error = new Error("fail") as Error & {
+							stderr: Buffer;
+							stdout: Buffer;
+						};
+						error.stdout = Buffer.from("  1:5  error  no-unused-vars\n");
+						error.stderr = Buffer.from("");
+						throw error;
+					}
+
+					return "";
+				},
+				spawn: () => spawnResult,
+			};
+
+			main("/project/src/foo.ts", deps);
+
+			expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("no-unused-vars"));
+			expect(exitSpy).toHaveBeenCalledWith(1);
+
+			vi.restoreAllMocks();
 		});
 	});
 

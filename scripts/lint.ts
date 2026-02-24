@@ -1,3 +1,6 @@
+import { createFromFile } from "file-entry-cache";
+import { execSync, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import process from "node:process";
 
@@ -187,6 +190,14 @@ export function lint(filePath: string, deps: LintDeps): HookOutput | undefined {
 	return undefined;
 }
 
+export function main(filePath: string, deps: LintDeps): void {
+	const result = lint(filePath, deps);
+	if (result !== undefined) {
+		process.stderr.write(`${result.hookSpecificOutput.additionalContext}\n`);
+		process.exit(1);
+	}
+}
+
 function findImporters(filePath: string, deps: LintDeps): Array<string> {
 	const absPath = resolve(filePath);
 	const sourceRoot = findSourceRoot(absPath, deps);
@@ -206,4 +217,17 @@ function findImporters(filePath: string, deps: LintDeps): Array<string> {
 	} catch {
 		return [];
 	}
+}
+
+/* v8 ignore start -- CLI entrypoint */
+const IS_CLI_INVOCATION = process.argv[1]?.endsWith("lint.ts") === true;
+if (IS_CLI_INVOCATION) {
+	main(process.argv[2] ?? ".", {
+		createCache: createFromFile,
+		execSync(command: string, options?: object): string {
+			return execSync(command, { encoding: "utf-8", ...options });
+		},
+		existsSync,
+		spawn,
+	});
 }
