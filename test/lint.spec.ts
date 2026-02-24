@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { isHookInput } from "../hooks/lint.js";
-import { findSourceRoot, isLintableFile } from "../scripts/lint.js";
+import { findEntryPoints, findSourceRoot, invertGraph, isLintableFile } from "../scripts/lint.js";
 
 describe("lint", () => {
 	describe(isHookInput, () => {
@@ -55,36 +55,95 @@ describe("lint", () => {
 	});
 
 	describe(findSourceRoot, () => {
+		const packageJson = join("/project", "package.json");
+		const sourceDirectory = join("/project", "src");
+
 		it("should return src/ when package.json and src/ both exist", () => {
 			expect.assertions(1);
 
-			const existing = new Set([join("/project", "package.json"), join("/project", "src")]);
+			const existing = new Set([packageJson, sourceDirectory]);
 			const deps = { existsSync: (path: string) => existing.has(path) };
 
-			expect(findSourceRoot(join("/project", "src", "foo.ts"), deps)).toBe(
+			expect(findSourceRoot(join("/project", "src", "foo.ts"), deps)).toBe(sourceDirectory);
+		});
+
+		it("should return project root when no src/ directory", () => {
+			expect.assertions(1);
+
+			const existing = new Set([packageJson]);
+			const deps = { existsSync: (path: string) => existing.has(path) };
+
+			expect(findSourceRoot(join("/project", "lib", "foo.ts"), deps)).toBe(join("/project"));
+		});
+
+		it("should walk up directories to find package.json", () => {
+			expect.assertions(1);
+
+			const existing = new Set([packageJson, sourceDirectory]);
+			const deps = { existsSync: (path: string) => existing.has(path) };
+
+			expect(findSourceRoot(join("/project", "src", "deep", "nested", "foo.ts"), deps)).toBe(
 				join("/project", "src"),
 			);
 		});
 
-		it.todo("should return project root when no src/ directory");
+		it("should return undefined when no package.json found", () => {
+			expect.assertions(1);
 
-		it.todo("should walk up directories to find package.json");
+			const deps = { existsSync: () => false };
 
-		it.todo("should return undefined when no package.json found");
+			expect(findSourceRoot(join("/project", "src", "foo.ts"), deps)).toBeUndefined();
+		});
 	});
 
-	describe("findEntryPoints", () => {
-		it.todo("should return only candidates that exist on disk");
+	describe(findEntryPoints, () => {
+		it("should return only candidates that exist on disk", () => {
+			expect.assertions(1);
 
-		it.todo("should return empty array when no candidates exist");
+			const sourceRoot = join("/project", "src");
+			const existing = new Set([join(sourceRoot, "index.ts")]);
+			const deps = { existsSync: (path: string) => existing.has(path) };
+
+			expect(findEntryPoints(sourceRoot, deps)).toStrictEqual([join(sourceRoot, "index.ts")]);
+		});
+
+		it("should return empty array when no candidates exist", () => {
+			expect.assertions(1);
+
+			const deps = { existsSync: () => false };
+
+			expect(findEntryPoints(join("/project", "src"), deps)).toStrictEqual([]);
+		});
 	});
 
-	describe("invertGraph", () => {
-		it.todo("should find single importer of target file");
+	describe(invertGraph, () => {
+		it("should find single importer of target file", () => {
+			expect.assertions(1);
 
-		it.todo("should return empty array when no importers");
+			const graph = { "app.ts": ["utils.ts"], "utils.ts": [] };
 
-		it.todo("should find multiple importers of target file");
+			expect(invertGraph(graph, "utils.ts")).toStrictEqual(["app.ts"]);
+		});
+
+		it("should return empty array when no importers", () => {
+			expect.assertions(1);
+
+			const graph = { "app.ts": ["utils.ts"], "utils.ts": [] };
+
+			expect(invertGraph(graph, "app.ts")).toStrictEqual([]);
+		});
+
+		it("should find multiple importers of target file", () => {
+			expect.assertions(1);
+
+			const graph = {
+				"a.ts": ["shared.ts"],
+				"b.ts": ["shared.ts"],
+				"shared.ts": [],
+			};
+
+			expect(invertGraph(graph, "shared.ts")).toStrictEqual(["a.ts", "b.ts"]);
+		});
 	});
 
 	describe("getDependencyGraph", () => {

@@ -10,6 +10,27 @@ export function isLintableFile(filePath: string, extensions = DEFAULT_EXTENSIONS
 	return extensions.some((extension) => filePath.endsWith(extension));
 }
 
+const ENTRY_CANDIDATES = ["index.ts", "cli.ts", "main.ts"];
+
+export type DependencyGraph = Record<string, Array<string>>;
+
+export function findEntryPoints(sourceRoot: string, deps: FileSystemDeps): Array<string> {
+	return ENTRY_CANDIDATES.map((name) => join(sourceRoot, name)).filter((path) => {
+		return deps.existsSync(path);
+	});
+}
+
+export function invertGraph(graph: DependencyGraph, target: string): Array<string> {
+	const importers: Array<string> = [];
+	for (const [file, dependencies] of Object.entries(graph)) {
+		if (dependencies.includes(target)) {
+			importers.push(file);
+		}
+	}
+
+	return importers;
+}
+
 export function findSourceRoot(filePath: string, deps: FileSystemDeps): string | undefined {
 	let current = dirname(filePath);
 	while (current !== dirname(current)) {
