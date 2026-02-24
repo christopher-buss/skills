@@ -6,6 +6,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import process from "node:process";
 
 export interface LintSettings {
+	cacheBust: Array<string>;
 	eslint: boolean;
 	lint: boolean;
 	oxlint: boolean;
@@ -57,7 +58,7 @@ const MAX_ERRORS = 5;
 
 const SETTINGS_FILE = ".claude/sentinel.local.md";
 
-const DEFAULT_SETTINGS: LintSettings = { eslint: true, lint: true, oxlint: false };
+const DEFAULT_SETTINGS: LintSettings = { cacheBust: [], eslint: true, lint: true, oxlint: false };
 
 export function readSettings(deps: SettingsDeps): LintSettings {
 	if (!deps.existsSync(SETTINGS_FILE)) {
@@ -67,7 +68,16 @@ export function readSettings(deps: SettingsDeps): LintSettings {
 	const content = deps.readFileSync(SETTINGS_FILE, "utf-8");
 	const fields = parseFrontmatter(content);
 
+	const cacheBustRaw = fields.get("cache-bust") ?? "";
+	const cacheBust = cacheBustRaw
+		? cacheBustRaw
+				.split(",")
+				.map((entry) => entry.trim())
+				.filter(Boolean)
+		: [];
+
 	return {
+		cacheBust,
 		eslint: fields.get("eslint") !== "false",
 		lint: fields.get("lint") !== "false",
 		oxlint: fields.get("oxlint") === "true",
