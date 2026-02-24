@@ -1,0 +1,20 @@
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+	test: {
+		coverage: {
+			include: ["hooks/**/*.spec.ts"],
+			provider: "v8",
+			thresholds: {
+				"src/lint/lint.ts": {
+					branches: 100,
+					functions: 100,
+					lines: 100,
+					statements: 100,
+				},
+			},
+		},
+		include: ["test/**/*.spec.ts"],
+		testTimeout: 60000,
+	},
+});
