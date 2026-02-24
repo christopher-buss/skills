@@ -448,7 +448,12 @@ describe(lint, () => {
 
 			const deps = { existsSync: () => false, readFileSync: () => "" };
 
-			expect(readSettings(deps)).toStrictEqual({ eslint: true, lint: true, oxlint: false });
+			expect(readSettings(deps)).toStrictEqual({
+				cacheBust: [],
+				eslint: true,
+				lint: true,
+				oxlint: false,
+			});
 		});
 
 		it("should return defaults when file has no frontmatter", () => {
@@ -456,7 +461,12 @@ describe(lint, () => {
 
 			const deps = { existsSync: () => true, readFileSync: () => "no frontmatter here" };
 
-			expect(readSettings(deps)).toStrictEqual({ eslint: true, lint: true, oxlint: false });
+			expect(readSettings(deps)).toStrictEqual({
+				cacheBust: [],
+				eslint: true,
+				lint: true,
+				oxlint: false,
+			});
 		});
 
 		it("should skip malformed lines in frontmatter", () => {
@@ -474,7 +484,12 @@ describe(lint, () => {
 			const content = '---\nlint: "true"\neslint: "false"\noxlint: "true"\n---\n';
 			const deps = { existsSync: () => true, readFileSync: () => content };
 
-			expect(readSettings(deps)).toStrictEqual({ eslint: false, lint: true, oxlint: true });
+			expect(readSettings(deps)).toStrictEqual({
+				cacheBust: [],
+				eslint: false,
+				lint: true,
+				oxlint: true,
+			});
 		});
 	});
 
@@ -714,7 +729,7 @@ describe(lint, () => {
 				},
 			};
 
-			main(["."], deps, { eslint: false, lint: true, oxlint: true });
+			main(["."], deps, { cacheBust: [], eslint: false, lint: true, oxlint: true });
 
 			expect(exitSpy).toHaveBeenCalledWith(1);
 
@@ -744,7 +759,7 @@ describe(lint, () => {
 				},
 			};
 
-			main(["."], deps, { eslint: false, lint: true, oxlint: true });
+			main(["."], deps, { cacheBust: [], eslint: false, lint: true, oxlint: true });
 
 			expect(didRunOxlint).toBe(true);
 			expect(didRunEslint).toBe(false);
@@ -940,6 +955,7 @@ describe(lint, () => {
 			};
 
 			const result = lint(join("/project", "src", "foo.ts"), deps, [], {
+				cacheBust: [],
 				eslint: false,
 				lint: true,
 				oxlint: true,
@@ -988,6 +1004,7 @@ describe(lint, () => {
 			};
 
 			lint(join("/project", "src", "foo.ts"), deps, [], {
+				cacheBust: [],
 				eslint: true,
 				lint: true,
 				oxlint: true,
@@ -1017,6 +1034,7 @@ describe(lint, () => {
 			};
 
 			lint(join("/project", "src", "foo.ts"), deps, [], {
+				cacheBust: [],
 				eslint: false,
 				lint: true,
 				oxlint: false,
