@@ -1,7 +1,8 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { findSourceRoot, isHookInput, isLintableFile } from "../scripts/lint.js";
+import { isHookInput } from "../hooks/lint.js";
+import { findSourceRoot, isLintableFile } from "../scripts/lint.js";
 
 describe("lint", () => {
 	describe(isHookInput, () => {
