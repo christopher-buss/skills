@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { isHookInput } from "../hooks/lint.js";
@@ -279,6 +279,67 @@ describe(lint, () => {
 
 			expect(result).toContain("no-unused-vars");
 		});
+
+		it("should fall back to stderr when stdout is empty", () => {
+			expect.assertions(1);
+
+			const deps = {
+				execSync() {
+					const error = new Error("fail") as Error & {
+						stderr: Buffer;
+						stdout: Buffer;
+					};
+					error.stdout = Buffer.from("");
+					error.stderr = Buffer.from("stderr output");
+					throw error;
+				},
+			};
+
+			expect(runEslint(testFilePath, deps)).toBe("stderr output");
+		});
+
+		it("should fall back to message when error has no stdout/stderr properties", () => {
+			expect.assertions(1);
+
+			const deps = {
+				execSync() {
+					throw new Error("plain error");
+				},
+			};
+
+			expect(runEslint(testFilePath, deps)).toBe("plain error");
+		});
+
+		it("should return empty string when error has no properties", () => {
+			expect.assertions(1);
+
+			const deps = {
+				execSync() {
+					// eslint-disable-next-line ts/only-throw-error -- testing edge case
+					throw { stderr: Buffer.from(""), stdout: Buffer.from("") };
+				},
+			};
+
+			expect(runEslint(testFilePath, deps)).toBe("");
+		});
+
+		it("should fall back to message when stdout and stderr are empty", () => {
+			expect.assertions(1);
+
+			const deps = {
+				execSync() {
+					const error = new Error("error message") as Error & {
+						stderr: Buffer;
+						stdout: Buffer;
+					};
+					error.stdout = Buffer.from("");
+					error.stderr = Buffer.from("");
+					throw error;
+				},
+			};
+
+			expect(runEslint(testFilePath, deps)).toBe("error message");
+		});
 	});
 
 	describe(restartDaemon, () => {
@@ -288,7 +349,13 @@ describe(lint, () => {
 			let capturedCommand = "";
 			let capturedArgs: Array<string> = [];
 
-			const self = { on: () => self, unref: () => {} };
+			const self = {
+				on(_event: string, handler: () => void) {
+					handler();
+					return self;
+				},
+				unref: () => {},
+			};
 			const deps = {
 				spawn(command: string, args: Array<string>) {
 					capturedCommand = command;
@@ -301,6 +368,20 @@ describe(lint, () => {
 
 			expect(capturedCommand).toBe("pnpm");
 			expect(capturedArgs).toStrictEqual(["eslint_d", "restart"]);
+		});
+
+		it("should swallow spawn errors", () => {
+			expect.assertions(1);
+
+			const deps = {
+				spawn() {
+					throw new Error("spawn failed");
+				},
+			};
+
+			restartDaemon(deps);
+
+			expect(true).toBe(true);
 		});
 	});
 
@@ -342,6 +423,19 @@ describe(lint, () => {
 			expect(result.systemMessage).toContain("foo.ts");
 			expect(result.hookSpecificOutput.additionalContext).toContain("foo.ts");
 		});
+
+		it("should truncate output when errors reach max", () => {
+			expect.assertions(2);
+
+			const errors = Array.from(
+				{ length: 5 },
+				(_, index) => `  ${index}:1  error  rule-${index}`,
+			);
+			const result = buildHookOutput("foo.ts", errors);
+
+			expect(result.systemMessage).toContain("...");
+			expect(result.hookSpecificOutput.additionalContext).toContain("run lint to view more");
+		});
 	});
 
 	describe(lint, () => {
@@ -361,11 +455,46 @@ describe(lint, () => {
 			expect(result).toBeUndefined();
 		});
 
+		it("should return undefined when eslint output has no error lines", () => {
+			expect.assertions(1);
+
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("eslint_d")) {
+						const error = new Error("fail") as Error & {
+							stderr: Buffer;
+							stdout: Buffer;
+						};
+						error.stdout = Buffer.from("  1:5  warning  no-console\n");
+						error.stderr = Buffer.from("");
+						throw error;
+					}
+
+					return "";
+				},
+				spawn() {
+					return spawnResult;
+				},
+			};
+
+			const result = lint(join("/project", "src", "foo.ts"), deps);
+
+			expect(result).toBeUndefined();
+		});
+
 		it("should run full pipeline: importers → invalidate → eslint → restart", () => {
 			expect.assertions(2);
 
 			let didRunEslint = false;
 			let didRestartDaemon = false;
+
+			const projectSource = resolve("/project", "src");
+			const existing = new Set([
+				join(projectSource, "index.ts"),
+				join(resolve("/project"), "package.json"),
+				projectSource,
+			]);
 
 			const deps = {
 				...baseDeps,
@@ -375,11 +504,12 @@ describe(lint, () => {
 					}
 
 					if (command.includes("madge")) {
-						return '{"app.ts":[]}';
+						return '{"app.ts":["foo.ts"]}';
 					}
 
 					return "";
 				},
+				existsSync: (path: string) => existing.has(path),
 				spawn() {
 					didRestartDaemon = true;
 					return spawnResult;
@@ -390,6 +520,51 @@ describe(lint, () => {
 
 			expect(didRunEslint).toBe(true);
 			expect(didRestartDaemon).toBe(true);
+		});
+
+		it("should skip importers when no entry points found", () => {
+			expect.assertions(1);
+
+			const existing = new Set([
+				join(resolve("/project"), "package.json"),
+				resolve("/project", "src"),
+			]);
+
+			const deps = {
+				...baseDeps,
+				existsSync: (path: string) => existing.has(path),
+			};
+
+			const result = lint(join("/project", "src", "foo.ts"), deps);
+
+			expect(result).toBeUndefined();
+		});
+
+		it("should gracefully handle madge failure in importer resolution", () => {
+			expect.assertions(1);
+
+			const projectSource = resolve("/project", "src");
+			const existing = new Set([
+				join(projectSource, "index.ts"),
+				join(resolve("/project"), "package.json"),
+				projectSource,
+			]);
+
+			const deps = {
+				...baseDeps,
+				execSync(command: string): string {
+					if (command.includes("madge")) {
+						throw new Error("madge not found");
+					}
+
+					return "";
+				},
+				existsSync: (path: string) => existing.has(path),
+			};
+
+			const result = lint(join("/project", "src", "foo.ts"), deps);
+
+			expect(result).toBeUndefined();
 		});
 
 		it("should return formatted hook output on lint failure", () => {
