@@ -2,7 +2,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { isHookInput } from "../hooks/lint.js";
-import { findEntryPoints, findSourceRoot, invertGraph, isLintableFile } from "../scripts/lint.js";
+import {
+	findEntryPoints,
+	findSourceRoot,
+	getDependencyGraph,
+	invertGraph,
+	isLintableFile,
+} from "../scripts/lint.js";
 
 describe("lint", () => {
 	describe(isHookInput, () => {
@@ -146,8 +152,25 @@ describe("lint", () => {
 		});
 	});
 
-	describe("getDependencyGraph", () => {
-		it.todo("should call execSync with correct madge command and parse JSON");
+	describe(getDependencyGraph, () => {
+		it("should call execSync with correct madge command and parse JSON", () => {
+			expect.assertions(2);
+
+			const expectedGraph = { "app.ts": ["utils.ts"], "utils.ts": [] };
+			let capturedCommand = "";
+
+			const deps = {
+				execSync(command: string) {
+					capturedCommand = command;
+					return JSON.stringify(expectedGraph);
+				},
+			};
+
+			const result = getDependencyGraph("/src", ["/src/index.ts"], deps);
+
+			expect(capturedCommand).toBe('pnpm madge --json "/src/index.ts"');
+			expect(result).toStrictEqual(expectedGraph);
+		});
 	});
 
 	describe("invalidateCacheEntries", () => {
