@@ -14,10 +14,30 @@ const ENTRY_CANDIDATES = ["index.ts", "cli.ts", "main.ts"];
 
 export type DependencyGraph = Record<string, Array<string>>;
 
+interface ExecDeps {
+	execSync(command: string, options?: object): string;
+}
+
 export function findEntryPoints(sourceRoot: string, deps: FileSystemDeps): Array<string> {
 	return ENTRY_CANDIDATES.map((name) => join(sourceRoot, name)).filter((path) => {
 		return deps.existsSync(path);
 	});
+}
+
+export function getDependencyGraph(
+	sourceRoot: string,
+	entryPoints: Array<string>,
+	deps: ExecDeps,
+): DependencyGraph {
+	const entryArguments = entryPoints.map((ep) => `"${ep}"`).join(" ");
+	const output = deps.execSync(`pnpm madge --json ${entryArguments}`, {
+		cwd: sourceRoot,
+		encoding: "utf-8",
+		stdio: ["pipe", "pipe", "pipe"],
+		timeout: 30_000,
+	});
+
+	return JSON.parse(output) as DependencyGraph;
 }
 
 export function invertGraph(graph: DependencyGraph, target: string): Array<string> {
