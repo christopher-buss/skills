@@ -21,9 +21,6 @@ export default isentinel(
 		rules: {
 			"roblox/no-user-defined-lua-tuple": "off",
 		},
-		test: {
-			jest: true,
-		},
 		type: "package",
 		typescript: {
 			outOfProjectFiles: ["eslint.config.ts"],
