@@ -1,6 +1,7 @@
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { isHookInput, isLintableFile } from "../scripts/lint.js";
+import { findSourceRoot, isHookInput, isLintableFile } from "../scripts/lint.js";
 
 describe("lint", () => {
 	describe(isHookInput, () => {
@@ -52,8 +53,17 @@ describe("lint", () => {
 		});
 	});
 
-	describe("findSourceRoot", () => {
-		it.todo("should return src/ when package.json and src/ both exist");
+	describe(findSourceRoot, () => {
+		it("should return src/ when package.json and src/ both exist", () => {
+			expect.assertions(1);
+
+			const existing = new Set([join("/project", "package.json"), join("/project", "src")]);
+			const deps = { existsSync: (path: string) => existing.has(path) };
+
+			expect(findSourceRoot(join("/project", "src", "foo.ts"), deps)).toBe(
+				join("/project", "src"),
+			);
+		});
 
 		it.todo("should return project root when no src/ directory");
 
