@@ -230,9 +230,7 @@ describe(lint, () => {
 
 			runEslint(testFilePath, deps);
 
-			expect(capturedCommand).toBe(
-				`pnpm exec eslint_d --cache --max-warnings 0 "${testFilePath}"`,
-			);
+			expect(capturedCommand).toBe(`pnpm exec eslint_d --cache "${testFilePath}"`);
 			expect(capturedEnvironment).toMatchObject({ ESLINT_IN_EDITOR: "true" });
 		});
 
@@ -1027,5 +1025,40 @@ describe(lint, () => {
 			expect(didRunEslint).toBe(false);
 			expect(didRestartDaemon).toBe(false);
 		});
+	});
+
+	describe("readSettings cacheBust", () => {
+		it("should parse cacheBust into array", () => {
+			expect.assertions(1);
+
+			const content = "---\ncache-bust: eslint.config.ts, tsconfig.json\n---\n";
+			const deps = { existsSync: () => true, readFileSync: () => content };
+
+			expect(readSettings(deps)).toMatchObject({
+				cacheBust: ["eslint.config.ts", "tsconfig.json"],
+			});
+		});
+
+		it.todo("should default cacheBust to empty array");
+	});
+
+	describe("shouldBustCache", () => {
+		it.todo("should return true when bust file newer than cache");
+
+		it.todo("should return false when cache newer than bust file");
+
+		it.todo("should return false when cache does not exist");
+	});
+
+	describe("clearCache", () => {
+		it.todo("should delete cache file");
+
+		it.todo("should no-op when cache missing");
+	});
+
+	describe("cache busting integration", () => {
+		it.todo("should clear full cache in lint when bust triggered");
+
+		it.todo("should clear full cache in main when bust triggered");
 	});
 });
