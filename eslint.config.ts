@@ -23,7 +23,7 @@ export default isentinel(
 		},
 		type: "package",
 		typescript: {
-			outOfProjectFiles: ["eslint.config.ts"],
+			outOfProjectFiles: ["eslint.config.ts", "vitest.config.ts"],
 		},
 	},
 	{
