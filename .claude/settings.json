@@ -29,7 +29,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node hooks/lint.ts --guard"
+						"command": "node hooks/lint-guard.ts"
 					}
 				]
 			}
