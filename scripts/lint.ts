@@ -62,7 +62,8 @@ const DEFAULT_SETTINGS = {
 
 export interface StopDecisionResult {
 	decision?: "block";
-	reason: string;
+	reason?: string;
+	resetStopAttempts?: true;
 }
 
 interface StopDecisionInput {
@@ -200,6 +201,10 @@ export function writeStopAttempts(count: number): void {
 
 export function stopDecision(input: StopDecisionInput): StopDecisionResult | undefined {
 	if (input.errorFiles.length === 0) {
+		if (input.stopAttempts > 0) {
+			return { resetStopAttempts: true };
+		}
+
 		return undefined;
 	}
 

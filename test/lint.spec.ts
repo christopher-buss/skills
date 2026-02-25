@@ -1527,6 +1527,19 @@ describe(lint, () => {
 			expect(result).toBeUndefined();
 		});
 
+		it("should reset stop attempts when errors cleared after prior blocks", () => {
+			expect.assertions(1);
+
+			const result = stopDecision({
+				errorFiles: [],
+				lintAttempts: {},
+				maxLintAttempts: 3,
+				stopAttempts: 2,
+			});
+
+			expect(result).toStrictEqual({ resetStopAttempts: true });
+		});
+
 		it("should block when errors exist and attempts below max", () => {
 			expect.assertions(2);
 
