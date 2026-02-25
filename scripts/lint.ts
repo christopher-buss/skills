@@ -152,6 +152,12 @@ export function writeLintAttempts(attempts: Record<string, number>): void {
 	writeFileSync(LINT_STATE_PATH, JSON.stringify(attempts));
 }
 
+export function clearLintAttempts(): void {
+	if (existsSync(LINT_STATE_PATH)) {
+		unlinkSync(LINT_STATE_PATH);
+	}
+}
+
 export function resolveBustFiles(patterns: Array<string>): Array<string> {
 	const positive = patterns.filter((pattern) => !pattern.startsWith("!"));
 	const negative = patterns
