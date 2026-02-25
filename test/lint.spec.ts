@@ -19,6 +19,7 @@ import {
 	buildHookOutput,
 	clearCache,
 	clearLintAttempts,
+	clearStopAttempts,
 	DEFAULT_CACHE_BUST,
 	findEntryPoints,
 	findSourceRoot,
@@ -1484,6 +1485,30 @@ describe(lint, () => {
 				".claude/state/stop-attempts.json",
 				"2",
 			);
+		});
+	});
+
+	describe(clearStopAttempts, () => {
+		it("should delete file when exists", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+
+			clearStopAttempts();
+
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/stop-attempts.json");
+		});
+
+		it("should no-op when file missing", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(false);
+
+			clearStopAttempts();
+
+			expect(mockedUnlinkSync).not.toHaveBeenCalled();
 		});
 	});
 
