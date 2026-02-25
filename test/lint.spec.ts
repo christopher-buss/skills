@@ -218,7 +218,7 @@ describe(lint, () => {
 			expect.assertions(2);
 
 			let capturedCommand = "";
-			let capturedEnvironment: Record<string, string> = {};
+			let capturedEnvironment = {} as Record<string, string>;
 
 			const deps = {
 				execSync(command: string, options?: { env?: Record<string, string> }) {

@@ -1,8 +1,11 @@
 import isentinel, { GLOB_MARKDOWN, GLOB_TESTS, GLOB_TS } from "@isentinel/eslint-config";
 
+import type { VendorSkillMeta } from "./meta.ts";
 import { vendors } from "./meta.ts";
 
-const vendorSkillNames = Object.values(vendors).flatMap((name) => Object.values(name.skills));
+const vendorSkillNames = Object.values(vendors).flatMap((name: VendorSkillMeta) => {
+	return Object.values(name.skills);
+});
 
 export default isentinel(
 	{
@@ -25,6 +28,15 @@ export default isentinel(
 			filesTypeAware: [""],
 		},
 		rules: {
+			"no-restricted-syntax": [
+				"error",
+				{
+					message:
+						"Don't annotate initialized object variables. Prefer inference or use 'satisfies' instead.",
+					selector:
+						"VariableDeclarator[init.type='ObjectExpression'] > Identifier[typeAnnotation]",
+				},
+			],
 			"roblox/no-user-defined-lua-tuple": "off",
 		},
 		test: {

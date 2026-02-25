@@ -1,4 +1,3 @@
-// TODO: invalidate eslint_d cache when cspell.config.yaml changes
 import { createFromFile } from "file-entry-cache";
 import { execSync, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -58,7 +57,12 @@ const MAX_ERRORS = 5;
 
 const SETTINGS_FILE = ".claude/sentinel.local.md";
 
-const DEFAULT_SETTINGS: LintSettings = { cacheBust: [], eslint: true, lint: true, oxlint: false };
+const DEFAULT_SETTINGS = {
+	cacheBust: [],
+	eslint: true,
+	lint: true,
+	oxlint: false,
+} satisfies LintSettings;
 
 export function readSettings(deps: SettingsDeps): LintSettings {
 	if (!deps.existsSync(SETTINGS_FILE)) {
@@ -382,7 +386,7 @@ function findImporters(filePath: string, deps: LintDeps): Array<string> {
 /* v8 ignore start -- CLI entrypoint */
 const IS_CLI_INVOCATION = process.argv[1]?.endsWith("scripts/lint.ts") === true;
 if (IS_CLI_INVOCATION) {
-	const deps: LintDeps = {
+	const deps = {
 		createCache: createFromFile,
 		execSync(command: string, options?: object): string {
 			return execSync(command, { encoding: "utf-8", ...options });
