@@ -31,7 +31,7 @@ interface HookOutput {
 	systemMessage: string;
 }
 
-const PROTECTED_PREFIXES = ["eslint.config."];
+const PROTECTED_PREFIXES = ["eslint.config.", "oxlint.config."];
 
 export function isProtectedFile(filename: string): boolean {
 	return PROTECTED_PREFIXES.some((prefix) => filename.startsWith(prefix));
