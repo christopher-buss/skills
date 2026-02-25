@@ -1192,7 +1192,25 @@ describe(lint, () => {
 	});
 
 	describe("cache busting integration", () => {
-		it.todo("should clear full cache in lint when bust triggered");
+		it("should clear full cache in lint when bust triggered", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedStatSync.mockImplementation((path) => {
+				return fromPartial({ mtimeMs: (path as string) === ".eslintcache" ? 100 : 200 });
+			});
+
+			lint(join("/project", "src", "foo.ts"), [], {
+				cacheBust: ["eslint.config.ts"],
+				eslint: true,
+				lint: true,
+				oxlint: false,
+				runner: "pnpm exec",
+			});
+
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".eslintcache");
+		});
 
 		it.todo("should clear full cache in main when bust triggered");
 	});
