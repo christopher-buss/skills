@@ -34,6 +34,8 @@ for (const file of files) {
 	}
 }
 
+writeStopAttempts(readStopAttempts() + 1);
+
 const result = stopDecision({
 	errorFiles,
 	lintAttempts: readLintAttempts(),
@@ -42,9 +44,6 @@ const result = stopDecision({
 });
 
 if (result !== undefined) {
-	const stopCount = readStopAttempts() + 1;
-	writeStopAttempts(stopCount);
-
 	// eslint-disable-next-line no-console -- Hook protocol requires stdout JSON
 	console.log(JSON.stringify(result));
 }
