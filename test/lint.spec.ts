@@ -437,7 +437,7 @@ describe(lint, () => {
 				},
 			});
 			expect(result.systemMessage).toContain("foo.ts");
-			expect(result.hookSpecificOutput.additionalContext).toContain("foo.ts");
+			expect(result.hookSpecificOutput!.additionalContext).toContain("foo.ts");
 		});
 
 		it("should truncate output when errors reach max", () => {
@@ -450,7 +450,7 @@ describe(lint, () => {
 			const result = buildHookOutput("foo.ts", errors);
 
 			expect(result.systemMessage).toContain("...");
-			expect(result.hookSpecificOutput.additionalContext).toContain("run lint to view more");
+			expect(result.hookSpecificOutput!.additionalContext).toContain("run lint to view more");
 		});
 	});
 

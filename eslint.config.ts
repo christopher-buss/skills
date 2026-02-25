@@ -1,4 +1,4 @@
-import isentinel, { GLOB_MARKDOWN, GLOB_TESTS, GLOB_TS } from "@isentinel/eslint-config";
+import isentinel, { GLOB_MARKDOWN, GLOB_SRC, GLOB_TESTS, GLOB_TS } from "@isentinel/eslint-config";
 
 import type { VendorSkillMeta } from "./meta.ts";
 import { vendors } from "./meta.ts";
@@ -49,8 +49,9 @@ export default isentinel(
 	},
 	{
 		name: "project/scripts",
-		files: ["scripts/*"],
+		files: [`**/scripts/${GLOB_SRC}`, `**/hooks/${GLOB_SRC}`],
 		rules: {
+			"antfu/no-top-level-await": "off",
 			"max-lines": "off",
 			"max-lines-per-function": "off",
 			"sonar/cognitive-complexity": "off",

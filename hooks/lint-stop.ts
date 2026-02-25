@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readStdinJson, writeStdoutJson } from "@constellos/claude-code-kit/runners";
+
 import process from "node:process";
 
 import {
@@ -19,7 +20,7 @@ if (!settings.lint) {
 }
 
 // Consume stdin (Stop hook protocol requires it)
-readFileSync(0, "utf-8");
+await readStdinJson();
 
 const files = getChangedFiles().filter((file) => isLintableFile(file));
 if (files.length === 0) {
@@ -52,5 +53,4 @@ if (result.resetStopAttempts) {
 
 writeStopAttempts(readStopAttempts() + 1);
 
-// eslint-disable-next-line no-console -- Hook protocol requires stdout JSON
-console.log(JSON.stringify(result));
+writeStdoutJson(result);

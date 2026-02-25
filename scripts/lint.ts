@@ -1,3 +1,5 @@
+import type { PostToolUseHookOutput } from "@constellos/claude-code-kit/types/hooks";
+
 import { createFromFile } from "file-entry-cache";
 import { execSync, spawn } from "node:child_process";
 import {
@@ -22,14 +24,6 @@ export interface LintSettings {
 }
 
 export type DependencyGraph = Record<string, Array<string>>;
-
-interface HookOutput {
-	hookSpecificOutput: {
-		additionalContext: string;
-		hookEventName: string;
-	};
-	systemMessage: string;
-}
 
 const PROTECTED_PATTERNS = ["eslint.config.", "oxlint.config.", ".eslintrc", ".oxlintrc."];
 
@@ -364,7 +358,7 @@ export function formatErrors(output: string): Array<string> {
 		.slice(0, MAX_ERRORS);
 }
 
-export function buildHookOutput(filePath: string, errors: Array<string>): HookOutput {
+export function buildHookOutput(filePath: string, errors: Array<string>): PostToolUseHookOutput {
 	const errorText = errors.join("\n");
 	const isTruncated = errors.length >= MAX_ERRORS;
 
@@ -372,6 +366,7 @@ export function buildHookOutput(filePath: string, errors: Array<string>): HookOu
 	const claudeMessage = `⚠️ Lint errors in ${filePath}:\n${errorText}${isTruncated ? "\n(run lint to view more)" : ""}`;
 
 	return {
+		decision: undefined,
 		hookSpecificOutput: {
 			additionalContext: claudeMessage,
 			hookEventName: "PostToolUse",
@@ -384,7 +379,7 @@ export function lint(
 	filePath: string,
 	extraFlags: Array<string> = [],
 	settings: LintSettings = DEFAULT_SETTINGS,
-): HookOutput | undefined {
+): PostToolUseHookOutput | undefined {
 	if (!isLintableFile(filePath)) {
 		return undefined;
 	}

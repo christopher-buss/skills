@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
 function runGuard(filePath: string): string {
-	const input = JSON.stringify({ tool_input: { file_path: filePath } });
+	const input = JSON.stringify({ tool_input: { file_path: filePath }, tool_name: "Edit" });
 	const result = spawnSync("node", ["hooks/lint-guard.ts"], {
 		encoding: "utf-8",
 		input,

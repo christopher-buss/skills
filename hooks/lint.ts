@@ -1,25 +1,9 @@
-import { readFileSync } from "node:fs";
+import { readStdinJson, writeStdoutJson } from "@constellos/claude-code-kit/runners";
+import type { PostToolUseInput } from "@constellos/claude-code-kit/types/hooks";
+
 import process from "node:process";
 
 import { lint, readLintAttempts, readSettings, writeLintAttempts } from "../scripts/lint.ts";
-
-interface HookInput {
-	// eslint-disable-next-line flawless/naming-convention -- Upstream-defined input shape
-	tool_input: {
-		// eslint-disable-next-line flawless/naming-convention -- Upstream-defined input shape
-		file_path: string;
-	};
-}
-
-function isHookInput(value: unknown): value is HookInput {
-	if (typeof value !== "object" || value === null || !("tool_input" in value)) {
-		return false;
-	}
-
-	// eslint-disable-next-line flawless/naming-convention -- Upstream-defined input shape
-	const { tool_input } = value as { tool_input: unknown };
-	return typeof tool_input === "object" && tool_input !== null && "file_path" in tool_input;
-}
 
 const settings = readSettings();
 
@@ -27,8 +11,9 @@ if (!settings.lint) {
 	process.exit(0);
 }
 
-const input: unknown = JSON.parse(readFileSync(0, "utf-8"));
-if (!isHookInput(input)) {
+const input = await readStdinJson<PostToolUseInput>();
+
+if (input.tool_name !== "Write" && input.tool_name !== "Edit") {
 	process.exit(0);
 }
 
@@ -41,12 +26,11 @@ function run(filePath: string): void {
 		attempts[filePath] = count;
 		writeLintAttempts(attempts);
 
-		if (count >= settings.maxLintAttempts) {
+		if (count >= settings.maxLintAttempts && result.hookSpecificOutput) {
 			result.hookSpecificOutput.additionalContext = `CRITICAL: ${filePath} failed linting ${count} times. STOP editing this file and report lint errors to user.\n${result.hookSpecificOutput.additionalContext}`;
 		}
 
-		// eslint-disable-next-line no-console -- Hook protocol requires stdout JSON
-		console.log(JSON.stringify(result));
+		writeStdoutJson(result);
 	} else if (filePath in attempts) {
 		delete attempts[filePath];
 		writeLintAttempts(attempts);
