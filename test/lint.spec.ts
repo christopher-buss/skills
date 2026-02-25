@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	buildHookOutput,
 	clearCache,
+	DEFAULT_CACHE_BUST,
 	findEntryPoints,
 	findSourceRoot,
 	formatErrors,
@@ -468,7 +469,7 @@ describe(lint, () => {
 			mockedExistsSync.mockReturnValue(false);
 
 			expect(readSettings()).toStrictEqual({
-				cacheBust: [],
+				cacheBust: [...DEFAULT_CACHE_BUST],
 				eslint: true,
 				lint: true,
 				oxlint: false,
@@ -483,7 +484,7 @@ describe(lint, () => {
 			mockedReadFileSync.mockReturnValue("no frontmatter here");
 
 			expect(readSettings()).toStrictEqual({
-				cacheBust: [],
+				cacheBust: [...DEFAULT_CACHE_BUST],
 				eslint: true,
 				lint: true,
 				oxlint: false,
@@ -509,7 +510,7 @@ describe(lint, () => {
 			);
 
 			expect(readSettings()).toStrictEqual({
-				cacheBust: [],
+				cacheBust: [...DEFAULT_CACHE_BUST],
 				eslint: false,
 				lint: true,
 				oxlint: true,
@@ -1027,20 +1028,28 @@ describe(lint, () => {
 	});
 
 	describe("readSettings cacheBust", () => {
-		it("should parse cacheBust into array", () => {
+		it("should merge defaults with user patterns", () => {
 			expect.assertions(1);
 
 			mockedExistsSync.mockReturnValue(true);
 			mockedReadFileSync.mockReturnValue(
-				"---\ncache-bust: eslint.config.ts, tsconfig.json\n---\n",
+				"---\ncache-bust: cspell.config.yaml, !src/tsconfig.json\n---\n",
 			);
 
 			expect(readSettings()).toMatchObject({
-				cacheBust: ["eslint.config.ts", "tsconfig.json"],
+				cacheBust: [...DEFAULT_CACHE_BUST, "cspell.config.yaml", "!src/tsconfig.json"],
 			});
 		});
 
-		it.todo("should default cacheBust to empty array");
+		it("should default cacheBust to DEFAULT_CACHE_BUST", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(false);
+
+			expect(readSettings()).toMatchObject({
+				cacheBust: [...DEFAULT_CACHE_BUST],
+			});
+		});
 	});
 
 	describe("readSettings runner", () => {
@@ -1183,6 +1192,40 @@ describe(lint, () => {
 			});
 
 			expect(resolveBustFiles(["a.*", "b.*"])).toStrictEqual(["a.ts", "b.ts"]);
+		});
+
+		it("should filter negated patterns from results", () => {
+			expect.assertions(1);
+
+			mockedGlobSync.mockImplementation((pattern) => {
+				if (pattern === "*.config.*") {
+					return ["eslint.config.ts", "vitest.config.ts"];
+				}
+
+				if (pattern === "vitest.config.ts") {
+					return ["vitest.config.ts"];
+				}
+
+				return [];
+			});
+
+			expect(resolveBustFiles(["*.config.*", "!vitest.config.ts"])).toStrictEqual([
+				"eslint.config.ts",
+			]);
+		});
+
+		it("should return empty when negation removes all matches", () => {
+			expect.assertions(1);
+
+			mockedGlobSync.mockImplementation((pattern) => {
+				if (pattern === "a.ts") {
+					return ["a.ts"];
+				}
+
+				return [];
+			});
+
+			expect(resolveBustFiles(["a.ts", "!a.ts"])).toStrictEqual([]);
 		});
 	});
 
