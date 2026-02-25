@@ -1,3 +1,4 @@
-import { clearLintAttempts } from "../scripts/lint.ts";
+import { clearLintAttempts, clearStopAttempts } from "../scripts/lint.ts";
 
 clearLintAttempts();
+clearStopAttempts();
