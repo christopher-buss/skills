@@ -203,9 +203,10 @@ export function stopDecision(input: StopDecisionInput): StopDecisionResult | und
 		return undefined;
 	}
 
-	const isAllMaxed = input.errorFiles.every(
-		(file) => (input.lintAttempts[file] ?? 0) >= input.maxLintAttempts,
-	);
+	const isAllMaxed = input.errorFiles.every((file) => {
+		const attempts = findAttempts(file, input.lintAttempts);
+		return attempts >= input.maxLintAttempts;
+	});
 	if (isAllMaxed) {
 		return undefined;
 	}
@@ -488,6 +489,22 @@ function parseFrontmatter(content: string): Map<string, string> {
 	}
 
 	return fields;
+}
+
+function findAttempts(file: string, lintAttempts: Record<string, number>): number {
+	if (file in lintAttempts) {
+		return lintAttempts[file] ?? 0;
+	}
+
+	const normalized = file.replaceAll("\\", "/");
+	for (const [key, count] of Object.entries(lintAttempts)) {
+		const normalizedKey = key.replaceAll("\\", "/");
+		if (normalizedKey.endsWith(normalized) || normalized.endsWith(normalizedKey)) {
+			return count;
+		}
+	}
+
+	return 0;
 }
 
 function findImporters(filePath: string, runner = DEFAULT_SETTINGS.runner): Array<string> {
