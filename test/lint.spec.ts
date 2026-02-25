@@ -150,7 +150,7 @@ describe(lint, () => {
 
 			const result = getDependencyGraph("/src", ["/src/index.ts"], deps);
 
-			expect(capturedCommand).toBe('pnpm madge --json "/src/index.ts"');
+			expect(capturedCommand).toBe('pnpm exec madge --json "/src/index.ts"');
 			expect(result).toStrictEqual(expectedGraph);
 		});
 	});
@@ -341,7 +341,7 @@ describe(lint, () => {
 			restartDaemon(deps);
 
 			expect(capturedCommand).toBe("pnpm");
-			expect(capturedArgs).toStrictEqual(["eslint_d", "restart"]);
+			expect(capturedArgs).toStrictEqual(["exec", "eslint_d", "restart"]);
 		});
 
 		it("should swallow spawn errors", () => {
@@ -453,6 +453,7 @@ describe(lint, () => {
 				eslint: true,
 				lint: true,
 				oxlint: false,
+				runner: "pnpm exec",
 			});
 		});
 
@@ -466,6 +467,7 @@ describe(lint, () => {
 				eslint: true,
 				lint: true,
 				oxlint: false,
+				runner: "pnpm exec",
 			});
 		});
 
@@ -489,6 +491,7 @@ describe(lint, () => {
 				eslint: false,
 				lint: true,
 				oxlint: true,
+				runner: "pnpm exec",
 			});
 		});
 	});
@@ -729,7 +732,13 @@ describe(lint, () => {
 				},
 			};
 
-			main(["."], deps, { cacheBust: [], eslint: false, lint: true, oxlint: true });
+			main(["."], deps, {
+				cacheBust: [],
+				eslint: false,
+				lint: true,
+				oxlint: true,
+				runner: "pnpm exec",
+			});
 
 			expect(exitSpy).toHaveBeenCalledWith(1);
 
@@ -759,7 +768,13 @@ describe(lint, () => {
 				},
 			};
 
-			main(["."], deps, { cacheBust: [], eslint: false, lint: true, oxlint: true });
+			main(["."], deps, {
+				cacheBust: [],
+				eslint: false,
+				lint: true,
+				oxlint: true,
+				runner: "pnpm exec",
+			});
 
 			expect(didRunOxlint).toBe(true);
 			expect(didRunEslint).toBe(false);
@@ -959,6 +974,7 @@ describe(lint, () => {
 				eslint: false,
 				lint: true,
 				oxlint: true,
+				runner: "pnpm exec",
 			});
 
 			expect(result).toMatchObject({
@@ -1008,6 +1024,7 @@ describe(lint, () => {
 				eslint: true,
 				lint: true,
 				oxlint: true,
+				runner: "pnpm exec",
 			});
 
 			expect(didRunOxlint).toBe(true);
@@ -1038,6 +1055,7 @@ describe(lint, () => {
 				eslint: false,
 				lint: true,
 				oxlint: false,
+				runner: "pnpm exec",
 			});
 
 			expect(didRunEslint).toBe(false);
@@ -1058,6 +1076,135 @@ describe(lint, () => {
 		});
 
 		it.todo("should default cacheBust to empty array");
+	});
+
+	describe("readSettings runner", () => {
+		it("should parse runner from frontmatter", () => {
+			expect.assertions(1);
+
+			const content = "---\nrunner: npx\n---\n";
+			const deps = { existsSync: () => true, readFileSync: () => content };
+
+			expect(readSettings(deps)).toMatchObject({ runner: "npx" });
+		});
+
+		it("should default runner to pnpm exec", () => {
+			expect.assertions(1);
+
+			const content = "---\neslint: true\n---\n";
+			const deps = { existsSync: () => true, readFileSync: () => content };
+
+			expect(readSettings(deps)).toMatchObject({ runner: "pnpm exec" });
+		});
+
+		it("should strip quotes from runner value", () => {
+			expect.assertions(1);
+
+			const content = '---\nrunner: "yarn dlx"\n---\n';
+			const deps = { existsSync: () => true, readFileSync: () => content };
+
+			expect(readSettings(deps)).toMatchObject({ runner: "yarn dlx" });
+		});
+	});
+
+	describe("custom runner commands", () => {
+		it("should use custom runner in eslint command", () => {
+			expect.assertions(1);
+
+			let capturedCommand = "";
+			const deps = {
+				execSync(command: string) {
+					capturedCommand = command;
+					return "";
+				},
+			};
+
+			runEslint(testFilePath, deps, [], "npx");
+
+			expect(capturedCommand).toBe(`npx eslint_d --cache "${testFilePath}"`);
+		});
+
+		it("should use custom runner in oxlint command", () => {
+			expect.assertions(1);
+
+			let capturedCommand = "";
+			const deps = {
+				execSync(command: string) {
+					capturedCommand = command;
+					return "";
+				},
+			};
+
+			runOxlint(testFilePath, deps, [], "npx");
+
+			expect(capturedCommand).toBe(`npx oxlint "${testFilePath}"`);
+		});
+
+		it("should split multi-word runner for spawn in restartDaemon", () => {
+			expect.assertions(2);
+
+			let capturedCommand = "";
+			let capturedArgs: Array<string> = [];
+			const self = {
+				on() {
+					return self;
+				},
+				unref: () => {},
+			};
+			const deps = {
+				spawn(command: string, args: Array<string>) {
+					capturedCommand = command;
+					capturedArgs = args;
+					return self;
+				},
+			};
+
+			restartDaemon(deps, "yarn dlx");
+
+			expect(capturedCommand).toBe("yarn");
+			expect(capturedArgs).toStrictEqual(["dlx", "eslint_d", "restart"]);
+		});
+
+		it("should handle single-word runner for spawn", () => {
+			expect.assertions(2);
+
+			let capturedCommand = "";
+			let capturedArgs: Array<string> = [];
+			const self = {
+				on() {
+					return self;
+				},
+				unref: () => {},
+			};
+			const deps = {
+				spawn(command: string, args: Array<string>) {
+					capturedCommand = command;
+					capturedArgs = args;
+					return self;
+				},
+			};
+
+			restartDaemon(deps, "npx");
+
+			expect(capturedCommand).toBe("npx");
+			expect(capturedArgs).toStrictEqual(["eslint_d", "restart"]);
+		});
+
+		it("should use custom runner in getDependencyGraph", () => {
+			expect.assertions(1);
+
+			let capturedCommand = "";
+			const deps = {
+				execSync(command: string) {
+					capturedCommand = command;
+					return "{}";
+				},
+			};
+
+			getDependencyGraph("/src", ["/src/index.ts"], deps, "npx");
+
+			expect(capturedCommand).toBe('npx madge --json "/src/index.ts"');
+		});
 	});
 
 	describe("shouldBustCache", () => {
