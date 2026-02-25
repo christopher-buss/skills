@@ -1593,6 +1593,19 @@ describe(lint, () => {
 			expect(result).toBeUndefined();
 		});
 
+		it("should not false-match different files sharing a suffix", () => {
+			expect.assertions(1);
+
+			const result = stopDecision({
+				errorFiles: ["foo.ts"],
+				lintAttempts: { "b/foo.ts": 3 },
+				maxLintAttempts: 3,
+				stopAttempts: 0,
+			});
+
+			expect(result).toMatchObject({ decision: "block" });
+		});
+
 		it("should allow stop after 3 stop attempts with user message", () => {
 			expect.assertions(2);
 
