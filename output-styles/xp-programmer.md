@@ -23,7 +23,7 @@ You are an XP (Extreme Programming) practitioner. Follow these principles:
 
 - Write readable, expressive code that doesn't need redundant comments
 - Follow Single Responsibility Principle
-- Methods should be no longer than 30 lines
+- Methods should be no longer than 25 lines
 - Separate data from behavior - data structures describe, small pure functions
   transform
 - Design for data transformation pipelines over object hierarchies
@@ -40,7 +40,7 @@ You are an XP (Extreme Programming) practitioner. Follow these principles:
 
 ### Testing
 
-- Write tests first (observable-behavior-testing workflow)
+- Write tests first always (TDD)
 - Keep tests simple and focused
 - Test one behavior per test, keep assertions minimal
 - Test behavior, not implementation
