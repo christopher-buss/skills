@@ -1,7 +1,7 @@
 import { createFromFile } from "file-entry-cache";
 import type { ChildProcess } from "node:child_process";
 import { execSync, spawn } from "node:child_process";
-import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import { existsSync, globSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { join, resolve } from "node:path";
 import process from "node:process";
 import type { PartialDeep } from "type-fest";
@@ -21,6 +21,7 @@ import {
 	lint,
 	main,
 	readSettings,
+	resolveBustFiles,
 	restartDaemon,
 	runEslint,
 	runOxlint,
@@ -41,6 +42,7 @@ vi.mock(import("node:child_process"), async () => {
 vi.mock(import("node:fs"), async () => {
 	return fromPartial({
 		existsSync: vi.fn<typeof existsSync>(() => false),
+		globSync: vi.fn<typeof globSync>(() => []),
 		readFileSync: vi.fn<typeof readFileSync>(),
 		statSync: vi.fn<typeof statSync>(),
 		unlinkSync: vi.fn<typeof unlinkSync>(),
@@ -61,6 +63,9 @@ vi.mock(import("file-entry-cache"), async () => {
 const mockedExecSync = vi.mocked(execSync);
 const mockedSpawn = vi.mocked(spawn);
 const mockedExistsSync = vi.mocked(existsSync);
+const mockedGlobSync = vi.mocked(globSync) as unknown as ReturnType<
+	typeof vi.fn<(pattern: string) => Array<string>>
+>;
 const mockedReadFileSync = vi.mocked(readFileSync);
 const mockedStatSync = vi.mocked(statSync);
 const mockedUnlinkSync = vi.mocked(unlinkSync);
@@ -1136,21 +1141,68 @@ describe(lint, () => {
 		});
 	});
 
-	describe(shouldBustCache, () => {
-		it("should return true when bust file newer than cache", () => {
+	describe(resolveBustFiles, () => {
+		it("should expand glob patterns via globSync", () => {
 			expect.assertions(1);
 
+			mockedGlobSync.mockImplementation((pattern) => {
+				if (pattern === "**/*.config.ts") {
+					return ["eslint.config.ts", "vitest.config.ts"];
+				}
+
+				return [];
+			});
+
+			expect(resolveBustFiles(["**/*.config.ts"])).toStrictEqual([
+				"eslint.config.ts",
+				"vitest.config.ts",
+			]);
+		});
+
+		it("should return empty array when no matches", () => {
+			expect.assertions(1);
+
+			mockedGlobSync.mockReturnValue([]);
+
+			expect(resolveBustFiles(["**/*.nope"])).toStrictEqual([]);
+		});
+
+		it("should flatten results from multiple patterns", () => {
+			expect.assertions(1);
+
+			mockedGlobSync.mockImplementation((pattern) => {
+				if (pattern === "a.*") {
+					return ["a.ts"];
+				}
+
+				if (pattern === "b.*") {
+					return ["b.ts"];
+				}
+
+				return [];
+			});
+
+			expect(resolveBustFiles(["a.*", "b.*"])).toStrictEqual(["a.ts", "b.ts"]);
+		});
+	});
+
+	describe(shouldBustCache, () => {
+		it("should return true when glob-resolved file newer than cache", () => {
+			expect.assertions(1);
+
+			mockedGlobSync.mockReturnValue(["eslint.config.ts"]);
 			mockedExistsSync.mockReturnValue(true);
 			mockedStatSync.mockImplementation((path) => {
 				return fromPartial({ mtimeMs: path === ".eslintcache" ? 100 : 200 });
 			});
 
-			expect(shouldBustCache(["eslint.config.ts"])).toBe(true);
+			expect(shouldBustCache(["eslint.config.*"])).toBe(true);
 		});
 
 		it("should return false when cache newer than bust file", () => {
 			expect.assertions(1);
 
+			mockedGlobSync.mockReturnValue(["eslint.config.ts"]);
 			mockedExistsSync.mockReturnValue(true);
 			mockedStatSync.mockImplementation((path) => {
 				return fromPartial({ mtimeMs: path === ".eslintcache" ? 200 : 100 });
@@ -1162,9 +1214,19 @@ describe(lint, () => {
 		it("should return false when cache does not exist", () => {
 			expect.assertions(1);
 
+			mockedGlobSync.mockImplementation((pattern) => [pattern]);
 			mockedExistsSync.mockImplementation((path) => path !== ".eslintcache");
 
 			expect(shouldBustCache(["eslint.config.ts"])).toBe(false);
+		});
+
+		it("should return false when glob resolves no files", () => {
+			expect.assertions(1);
+
+			mockedGlobSync.mockReturnValue([]);
+			mockedExistsSync.mockReturnValue(true);
+
+			expect(shouldBustCache(["**/*.nope"])).toBe(false);
 		});
 	});
 
@@ -1196,6 +1258,7 @@ describe(lint, () => {
 			expect.assertions(1);
 
 			mockedUnlinkSync.mockClear();
+			mockedGlobSync.mockImplementation((pattern) => [pattern]);
 			mockedExistsSync.mockReturnValue(true);
 			mockedStatSync.mockImplementation((path) => {
 				return fromPartial({ mtimeMs: (path as string) === ".eslintcache" ? 100 : 200 });
@@ -1217,6 +1280,7 @@ describe(lint, () => {
 
 			vi.spyOn(process, "exit").mockReturnValue(undefined as never);
 			mockedUnlinkSync.mockClear();
+			mockedGlobSync.mockImplementation((pattern) => [pattern]);
 			mockedExistsSync.mockReturnValue(true);
 			mockedStatSync.mockImplementation((path) => {
 				return fromPartial({ mtimeMs: (path as string) === ".eslintcache" ? 100 : 200 });
