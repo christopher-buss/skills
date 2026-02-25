@@ -1464,5 +1464,11 @@ describe(lint, () => {
 
 			expect(isProtectedFile("eslint.config.mjs")).toBe(true);
 		});
+
+		it("should block oxlint config files", () => {
+			expect.assertions(1);
+
+			expect(isProtectedFile("oxlint.config.ts")).toBe(true);
+		});
 	});
 });
