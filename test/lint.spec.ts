@@ -1108,6 +1108,15 @@ describe(lint, () => {
 
 			expect(readSettings()).toMatchObject({ maxLintAttempts: 5 });
 		});
+
+		it("should default maxLintAttempts to 3", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue("---\neslint: true\n---\n");
+
+			expect(readSettings()).toMatchObject({ maxLintAttempts: 3 });
+		});
 	});
 
 	describe("custom runner commands", () => {
