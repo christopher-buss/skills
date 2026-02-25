@@ -185,6 +185,12 @@ export function writeStopAttempts(count: number): void {
 	writeFileSync(STOP_STATE_PATH, JSON.stringify(count));
 }
 
+export function clearStopAttempts(): void {
+	if (existsSync(STOP_STATE_PATH)) {
+		unlinkSync(STOP_STATE_PATH);
+	}
+}
+
 export function clearLintAttempts(): void {
 	if (existsSync(LINT_STATE_PATH)) {
 		unlinkSync(LINT_STATE_PATH);
