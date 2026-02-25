@@ -202,6 +202,13 @@ export function stopDecision(input: StopDecisionInput): StopDecisionResult | und
 		return undefined;
 	}
 
+	const isAllMaxed = input.errorFiles.every(
+		(file) => (input.lintAttempts[file] ?? 0) >= input.maxLintAttempts,
+	);
+	if (isAllMaxed) {
+		return undefined;
+	}
+
 	return {
 		decision: "block",
 		reason: `Lint errors remain in: ${input.errorFiles.join(", ")}. Fix them before stopping.`,
