@@ -1526,6 +1526,20 @@ describe(lint, () => {
 
 			expect(result).toBeUndefined();
 		});
+
+		it("should block when errors exist and attempts below max", () => {
+			expect.assertions(2);
+
+			const result = stopDecision({
+				errorFiles: ["src/foo.ts"],
+				lintAttempts: {},
+				maxLintAttempts: 3,
+				stopAttempts: 0,
+			});
+
+			expect(result?.decision).toBe("block");
+			expect(result?.reason).toContain("src/foo.ts");
+		});
 	});
 
 	describe(isProtectedFile, () => {

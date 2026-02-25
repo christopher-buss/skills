@@ -202,7 +202,10 @@ export function stopDecision(input: StopDecisionInput): StopDecisionResult | und
 		return undefined;
 	}
 
-	return undefined;
+	return {
+		decision: "block",
+		reason: `Lint errors remain in: ${input.errorFiles.join(", ")}. Fix them before stopping.`,
+	};
 }
 
 export function clearStopAttempts(): void {
