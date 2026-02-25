@@ -1540,6 +1540,19 @@ describe(lint, () => {
 			expect(result).toStrictEqual({ resetStopAttempts: true });
 		});
 
+		it("should not increment stop attempts when no errors and counter is 0", () => {
+			expect.assertions(1);
+
+			const result = stopDecision({
+				errorFiles: [],
+				lintAttempts: {},
+				maxLintAttempts: 3,
+				stopAttempts: 0,
+			});
+
+			expect(result).toBeUndefined();
+		});
+
 		it("should block when errors exist and attempts below max", () => {
 			expect.assertions(2);
 
