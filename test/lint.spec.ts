@@ -1179,7 +1179,16 @@ describe(lint, () => {
 			expect(mockedUnlinkSync).toHaveBeenCalledWith(".eslintcache");
 		});
 
-		it.todo("should no-op when cache missing");
+		it("should no-op when cache missing", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(false);
+
+			clearCache();
+
+			expect(mockedUnlinkSync).not.toHaveBeenCalled();
+		});
 	});
 
 	describe("cache busting integration", () => {
