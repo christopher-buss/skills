@@ -36,16 +36,7 @@
 		],
 		"SessionStart": [
 			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "node hooks/clear-lint-state.ts"
-					}
-				]
-			}
-		],
-		"PreCompact": [
-			{
+				"matcher": "startup|resume|clear|compact",
 				"hooks": [
 					{
 						"type": "command",
