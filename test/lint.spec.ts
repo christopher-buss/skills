@@ -1476,5 +1476,11 @@ describe(lint, () => {
 
 			expect(isProtectedFile("src/index.ts")).toBe(false);
 		});
+
+		it("should approve files with eslint in path but not filename", () => {
+			expect.assertions(1);
+
+			expect(isProtectedFile("eslint-plugin/index.ts")).toBe(false);
+		});
 	});
 });
