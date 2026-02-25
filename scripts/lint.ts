@@ -29,8 +29,10 @@ const MAX_ERRORS = 5;
 
 const SETTINGS_FILE = ".claude/sentinel.local.md";
 
+export const DEFAULT_CACHE_BUST = ["*.config.*", "**/tsconfig*.json"];
+
 const DEFAULT_SETTINGS = {
-	cacheBust: [],
+	cacheBust: [...DEFAULT_CACHE_BUST],
 	eslint: true,
 	lint: true,
 	oxlint: false,
@@ -46,7 +48,7 @@ export function readSettings(): LintSettings {
 	const fields = parseFrontmatter(content);
 
 	const cacheBustRaw = fields.get("cache-bust") ?? "";
-	const cacheBust = cacheBustRaw
+	const userPatterns = cacheBustRaw
 		? cacheBustRaw
 				.split(",")
 				.map((entry) => entry.trim())
@@ -54,7 +56,7 @@ export function readSettings(): LintSettings {
 		: [];
 
 	return {
-		cacheBust,
+		cacheBust: [...DEFAULT_CACHE_BUST, ...userPatterns],
 		eslint: fields.get("eslint") !== "false",
 		lint: fields.get("lint") !== "false",
 		oxlint: fields.get("oxlint") === "true",
@@ -125,7 +127,18 @@ export function findSourceRoot(filePath: string): string | undefined {
 }
 
 export function resolveBustFiles(patterns: Array<string>): Array<string> {
-	return patterns.flatMap((pattern) => globSync(pattern));
+	const positive = patterns.filter((pattern) => !pattern.startsWith("!"));
+	const negative = patterns
+		.filter((pattern) => pattern.startsWith("!"))
+		.map((pat) => pat.slice(1));
+
+	const matched = positive.flatMap((pattern) => globSync(pattern));
+	if (negative.length === 0) {
+		return matched;
+	}
+
+	const excluded = new Set(negative.flatMap((pattern) => globSync(pattern)));
+	return matched.filter((file) => !excluded.has(file));
 }
 
 export function shouldBustCache(patterns: Array<string>): boolean {
