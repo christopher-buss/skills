@@ -9,6 +9,7 @@ export interface LintSettings {
 	eslint: boolean;
 	lint: boolean;
 	oxlint: boolean;
+	runner: string;
 }
 
 export interface SettingsDeps {
@@ -62,6 +63,7 @@ const DEFAULT_SETTINGS = {
 	eslint: true,
 	lint: true,
 	oxlint: false,
+	runner: "pnpm exec",
 } satisfies LintSettings;
 
 export function readSettings(deps: SettingsDeps): LintSettings {
@@ -85,6 +87,7 @@ export function readSettings(deps: SettingsDeps): LintSettings {
 		eslint: fields.get("eslint") !== "false",
 		lint: fields.get("lint") !== "false",
 		oxlint: fields.get("oxlint") === "true",
+		runner: fields.get("runner") ?? DEFAULT_SETTINGS.runner,
 	};
 }
 
@@ -109,9 +112,10 @@ export function getDependencyGraph(
 	sourceRoot: string,
 	entryPoints: Array<string>,
 	deps: ExecDeps,
+	runner = DEFAULT_SETTINGS.runner,
 ): DependencyGraph {
 	const entryArguments = entryPoints.map((ep) => `"${ep}"`).join(" ");
-	const output = deps.execSync(`pnpm madge --json ${entryArguments}`, {
+	const output = deps.execSync(`${runner} madge --json ${entryArguments}`, {
 		cwd: sourceRoot,
 		encoding: "utf-8",
 		stdio: ["pipe", "pipe", "pipe"],
@@ -171,10 +175,11 @@ export function runOxlint(
 	filePath: string,
 	deps: ExecDeps,
 	extraFlags: Array<string> = [],
+	runner = DEFAULT_SETTINGS.runner,
 ): string | undefined {
 	const flags = extraFlags.length > 0 ? `${extraFlags.join(" ")} ` : "";
 	try {
-		deps.execSync(`pnpm exec oxlint ${flags}"${filePath}"`, {
+		deps.execSync(`${runner} oxlint ${flags}"${filePath}"`, {
 			stdio: "pipe",
 		});
 		return undefined;
@@ -192,10 +197,11 @@ export function runEslint(
 	filePath: string,
 	deps: ExecDeps,
 	extraFlags: Array<string> = [],
+	runner = DEFAULT_SETTINGS.runner,
 ): string | undefined {
 	const flags = ["--cache", ...extraFlags].join(" ");
 	try {
-		deps.execSync(`pnpm exec eslint_d ${flags} "${filePath}"`, {
+		deps.execSync(`${runner} eslint_d ${flags} "${filePath}"`, {
 			env: { ...process.env, ESLINT_IN_EDITOR: "true" },
 			stdio: "pipe",
 		});
@@ -210,9 +216,10 @@ export function runEslint(
 	}
 }
 
-export function restartDaemon(deps: SpawnDeps): void {
+export function restartDaemon(deps: SpawnDeps, runner = DEFAULT_SETTINGS.runner): void {
+	const [command = "pnpm", ...prefixArgs] = runner.split(/\s+/);
 	try {
-		deps.spawn("pnpm", ["eslint_d", "restart"], {
+		deps.spawn(command, [...prefixArgs, "eslint_d", "restart"], {
 			detached: true,
 			stdio: "ignore",
 		})
@@ -257,27 +264,27 @@ export function lint(
 		return undefined;
 	}
 
-	const importers = findImporters(filePath, deps);
+	const importers = findImporters(filePath, deps, settings.runner);
 	invalidateCacheEntries(importers, deps);
 
 	const outputs: Array<string> = [];
 
 	if (settings.oxlint) {
-		const output = runOxlint(filePath, deps, extraFlags);
+		const output = runOxlint(filePath, deps, extraFlags, settings.runner);
 		if (output !== undefined) {
 			outputs.push(output);
 		}
 	}
 
 	if (settings.eslint) {
-		const output = runEslint(filePath, deps, extraFlags);
+		const output = runEslint(filePath, deps, extraFlags, settings.runner);
 		if (output !== undefined) {
 			outputs.push(output);
 		}
 	}
 
 	if (settings.eslint) {
-		restartDaemon(deps);
+		restartDaemon(deps, settings.runner);
 	}
 
 	if (outputs.length > 0) {
@@ -304,14 +311,14 @@ export function main(
 		const outputs: Array<string> = [];
 
 		if (settings.oxlint) {
-			const output = runOxlint(target, deps, ["--color"]);
+			const output = runOxlint(target, deps, ["--color"], settings.runner);
 			if (output !== undefined) {
 				outputs.push(output);
 			}
 		}
 
 		if (settings.eslint) {
-			const output = runEslint(target, deps, ["--color"]);
+			const output = runEslint(target, deps, ["--color"], settings.runner);
 			if (output !== undefined) {
 				outputs.push(output);
 			}
@@ -331,7 +338,7 @@ export function main(
 	}
 
 	if (settings.eslint) {
-		restartDaemon(deps);
+		restartDaemon(deps, settings.runner);
 	}
 
 	if (hasErrors) {
@@ -362,7 +369,11 @@ function parseFrontmatter(content: string): Map<string, string> {
 	return fields;
 }
 
-function findImporters(filePath: string, deps: LintDeps): Array<string> {
+function findImporters(
+	filePath: string,
+	deps: LintDeps,
+	runner = DEFAULT_SETTINGS.runner,
+): Array<string> {
 	const absPath = resolve(filePath);
 	const sourceRoot = findSourceRoot(absPath, deps);
 	if (sourceRoot === undefined) {
@@ -375,7 +386,7 @@ function findImporters(filePath: string, deps: LintDeps): Array<string> {
 	}
 
 	try {
-		const graph = getDependencyGraph(sourceRoot, entryPoints, deps);
+		const graph = getDependencyGraph(sourceRoot, entryPoints, deps, runner);
 		const targetRelative = relative(sourceRoot, absPath).replaceAll("\\", "/");
 		return invertGraph(graph, targetRelative).map((file) => join(sourceRoot, file));
 	} catch {
