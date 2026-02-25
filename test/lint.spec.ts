@@ -18,6 +18,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	buildHookOutput,
 	clearCache,
+	clearLintAttempts,
 	DEFAULT_CACHE_BUST,
 	findEntryPoints,
 	findSourceRoot,
@@ -1399,6 +1400,19 @@ describe(lint, () => {
 				".claude/state/lint-attempts.json",
 				'{"src/foo.ts":2}',
 			);
+		});
+	});
+
+	describe(clearLintAttempts, () => {
+		it("should delete file when exists", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+
+			clearLintAttempts();
+
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/lint-attempts.json");
 		});
 	});
 });
