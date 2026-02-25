@@ -1,5 +1,3 @@
-import { readStdinJson, writeStdoutJson } from "@constellos/claude-code-kit/runners";
-
 import process from "node:process";
 
 import {
@@ -12,6 +10,7 @@ import {
 	stopDecision,
 	writeStopAttempts,
 } from "../scripts/lint.ts";
+import { readStdinJson, writeStdoutJson } from "./io.ts";
 
 const settings = readSettings();
 

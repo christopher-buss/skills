@@ -1,9 +1,9 @@
-import { readStdinJson, writeStdoutJson } from "@constellos/claude-code-kit/runners";
 import type { PreToolUseInput } from "@constellos/claude-code-kit/types/hooks";
 
 import { basename } from "node:path";
 
 import { isProtectedFile } from "../scripts/lint.ts";
+import { readStdinJson, writeStdoutJson } from "./io.ts";
 
 const input = await readStdinJson<PreToolUseInput>();
 

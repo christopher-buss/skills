@@ -5,7 +5,10 @@ version: "0.2"
 language: en
 words:
   - cframe
+  - constellos
   - flecs
+  - hashery
+  - hookified
   - jecs
   - lintable
   - oxlint

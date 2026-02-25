@@ -1,20 +1,12 @@
-catalogMode: prefer
-cleanupUnusedCatalogs: true
-
-publicHoistPattern:
-  - "@typescript/*"
-
-shellEmulator: true
-
 catalog:
-  "@clack/prompts": ^0.11.0
-  "@constellos/claude-code-kit": ^0.4.0
-  "@isentinel/eslint-config": 5.0.0-beta.1
-  "@isentinel/tsconfig": ^1.2.0
-  "@types/node": ^25.0.10
-  "@typescript/native-preview": 7.0.0-dev.20260212.1
-  "@vitest/coverage-v8": ^4.0.18
-  "@vitest/eslint-plugin": ^1.6.9
+  '@clack/prompts': ^0.11.0
+  '@constellos/claude-code-kit': ^0.4.0
+  '@isentinel/eslint-config': 5.0.0-beta.1
+  '@isentinel/tsconfig': ^1.2.0
+  '@types/node': ^25.0.10
+  '@typescript/native-preview': 7.0.0-dev.20260212.1
+  '@vitest/coverage-v8': ^4.0.18
+  '@vitest/eslint-plugin': ^1.6.9
   better-typescript-lib: ^2.12.0
   eslint: ^9.39.2
   eslint-plugin-n: ^17.23.2
@@ -25,11 +17,21 @@ catalog:
   lint-staged: ^15.5.1
   madge: ^8.0.0
   simple-git-hooks: ^2.11.1
+  tsdown: ^0.20.3
   type-fest: ^5.4.4
   typescript: ^5.9.3
   vitest: ^4.0.18
+
+catalogMode: prefer
+
+cleanupUnusedCatalogs: true
 
 onlyBuiltDependencies:
   - esbuild
   - simple-git-hooks
   - unrs-resolver
+
+publicHoistPattern:
+  - '@typescript/*'
+
+shellEmulator: true

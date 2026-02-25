@@ -507,7 +507,8 @@ function endsWithSegment(haystack: string, needle: string): boolean {
 
 function findAttempts(file: string, lintAttempts: Record<string, number>): number {
 	if (file in lintAttempts) {
-		return lintAttempts[file] ?? 0;
+		// eslint-disable-next-line ts/no-non-null-assertion -- guarded by `in` check
+		return lintAttempts[file]!;
 	}
 
 	const normalized = file.replaceAll("\\", "/");

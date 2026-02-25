@@ -1,9 +1,9 @@
-import { readStdinJson, writeStdoutJson } from "@constellos/claude-code-kit/runners";
 import type { PostToolUseInput } from "@constellos/claude-code-kit/types/hooks";
 
 import process from "node:process";
 
 import { lint, readLintAttempts, readSettings, writeLintAttempts } from "../scripts/lint.ts";
+import { readStdinJson, writeStdoutJson } from "./io.ts";
 
 const settings = readSettings();
 

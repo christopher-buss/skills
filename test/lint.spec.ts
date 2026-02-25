@@ -1470,6 +1470,24 @@ describe(lint, () => {
 
 			expect(readStopAttempts()).toBe(0);
 		});
+
+		it("should parse valid JSON count", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue("2");
+
+			expect(readStopAttempts()).toBe(2);
+		});
+
+		it("should return 0 on corrupt JSON", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue("{bad");
+
+			expect(readStopAttempts()).toBe(0);
+		});
 	});
 
 	describe(writeStopAttempts, () => {
@@ -1586,6 +1604,19 @@ describe(lint, () => {
 			const result = stopDecision({
 				errorFiles: ["src/foo.ts"],
 				lintAttempts: { "D:/projects/skills/src/foo.ts": 3 },
+				maxLintAttempts: 3,
+				stopAttempts: 0,
+			});
+
+			expect(result).toBeUndefined();
+		});
+
+		it("should match when paths differ only by separator", () => {
+			expect.assertions(1);
+
+			const result = stopDecision({
+				errorFiles: ["src\\foo.ts"],
+				lintAttempts: { "src/foo.ts": 3 },
 				maxLintAttempts: 3,
 				stopAttempts: 0,
 			});
