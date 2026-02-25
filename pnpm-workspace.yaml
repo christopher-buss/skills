@@ -24,6 +24,7 @@ catalog:
   lint-staged: ^15.5.1
   madge: ^8.0.0
   simple-git-hooks: ^2.11.1
+  type-fest: ^5.4.4
   typescript: ^5.9.3
   vitest: ^4.0.18
 

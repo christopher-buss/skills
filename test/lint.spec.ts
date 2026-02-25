@@ -1,5 +1,10 @@
+import { createFromFile } from "file-entry-cache";
+import type { ChildProcess } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import process from "node:process";
+import type { PartialDeep } from "type-fest";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -19,6 +24,52 @@ import {
 	runEslint,
 	runOxlint,
 } from "../scripts/lint.js";
+
+function fromPartial<T>(mock: PartialDeep<NoInfer<T>>): T {
+	return mock as T;
+}
+
+vi.mock(import("node:child_process"), async () => {
+	return fromPartial({
+		execSync: vi.fn<typeof execSync>(),
+		spawn: vi.fn<typeof spawn>(),
+	});
+});
+
+vi.mock(import("node:fs"), async () => {
+	return fromPartial({
+		existsSync: vi.fn<typeof existsSync>(() => false),
+		readFileSync: vi.fn<typeof readFileSync>(),
+	});
+});
+
+vi.mock(import("file-entry-cache"), async () => {
+	return fromPartial({
+		createFromFile: vi.fn<typeof createFromFile>(() => {
+			return fromPartial({
+				reconcile: vi.fn<() => void>(),
+				removeEntry: vi.fn<(key: string) => void>(),
+			});
+		}),
+	});
+});
+
+const mockedExecSync = vi.mocked(execSync);
+const mockedSpawn = vi.mocked(spawn);
+const mockedExistsSync = vi.mocked(existsSync);
+const mockedReadFileSync = vi.mocked(readFileSync);
+const mockedCreateFromFile = vi.mocked(createFromFile);
+
+function fakeSpawnResult(): ChildProcess {
+	const self = fromPartial<ChildProcess>({
+		on(_event: string, handler: () => void) {
+			handler();
+			return self;
+		},
+		unref: () => {},
+	});
+	return self;
+}
 
 describe(lint, () => {
 	describe(isLintableFile, () => {
@@ -50,27 +101,27 @@ describe(lint, () => {
 			expect.assertions(1);
 
 			const existing = new Set([packageJson, sourceDirectory]);
-			const deps = { existsSync: (path: string) => existing.has(path) };
+			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
 
-			expect(findSourceRoot(join("/project", "src", "foo.ts"), deps)).toBe(sourceDirectory);
+			expect(findSourceRoot(join("/project", "src", "foo.ts"))).toBe(sourceDirectory);
 		});
 
 		it("should return project root when no src/ directory", () => {
 			expect.assertions(1);
 
 			const existing = new Set([packageJson]);
-			const deps = { existsSync: (path: string) => existing.has(path) };
+			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
 
-			expect(findSourceRoot(join("/project", "lib", "foo.ts"), deps)).toBe(join("/project"));
+			expect(findSourceRoot(join("/project", "lib", "foo.ts"))).toBe(join("/project"));
 		});
 
 		it("should walk up directories to find package.json", () => {
 			expect.assertions(1);
 
 			const existing = new Set([packageJson, sourceDirectory]);
-			const deps = { existsSync: (path: string) => existing.has(path) };
+			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
 
-			expect(findSourceRoot(join("/project", "src", "deep", "nested", "foo.ts"), deps)).toBe(
+			expect(findSourceRoot(join("/project", "src", "deep", "nested", "foo.ts"))).toBe(
 				join("/project", "src"),
 			);
 		});
@@ -78,9 +129,9 @@ describe(lint, () => {
 		it("should return undefined when no package.json found", () => {
 			expect.assertions(1);
 
-			const deps = { existsSync: () => false };
+			mockedExistsSync.mockReturnValue(false);
 
-			expect(findSourceRoot(join("/project", "src", "foo.ts"), deps)).toBeUndefined();
+			expect(findSourceRoot(join("/project", "src", "foo.ts"))).toBeUndefined();
 		});
 	});
 
@@ -90,17 +141,17 @@ describe(lint, () => {
 
 			const sourceRoot = join("/project", "src");
 			const existing = new Set([join(sourceRoot, "index.ts")]);
-			const deps = { existsSync: (path: string) => existing.has(path) };
+			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
 
-			expect(findEntryPoints(sourceRoot, deps)).toStrictEqual([join(sourceRoot, "index.ts")]);
+			expect(findEntryPoints(sourceRoot)).toStrictEqual([join(sourceRoot, "index.ts")]);
 		});
 
 		it("should return empty array when no candidates exist", () => {
 			expect.assertions(1);
 
-			const deps = { existsSync: () => false };
+			mockedExistsSync.mockReturnValue(false);
 
-			expect(findEntryPoints(join("/project", "src"), deps)).toStrictEqual([]);
+			expect(findEntryPoints(join("/project", "src"))).toStrictEqual([]);
 		});
 	});
 
@@ -139,18 +190,14 @@ describe(lint, () => {
 			expect.assertions(2);
 
 			const expectedGraph = { "app.ts": ["utils.ts"], "utils.ts": [] };
-			let capturedCommand = "";
+			mockedExecSync.mockReturnValue(JSON.stringify(expectedGraph));
 
-			const deps = {
-				execSync(command: string) {
-					capturedCommand = command;
-					return JSON.stringify(expectedGraph);
-				},
-			};
+			const result = getDependencyGraph("/src", ["/src/index.ts"]);
 
-			const result = getDependencyGraph("/src", ["/src/index.ts"], deps);
-
-			expect(capturedCommand).toBe('pnpm exec madge --json "/src/index.ts"');
+			expect(mockedExecSync).toHaveBeenCalledWith(
+				'pnpm exec madge --json "/src/index.ts"',
+				expect.objectContaining({ cwd: "/src" }),
+			);
 			expect(result).toStrictEqual(expectedGraph);
 		});
 	});
@@ -162,28 +209,19 @@ describe(lint, () => {
 		it("should be no-op for empty file list", () => {
 			expect.assertions(1);
 
-			const deps = {
-				createCache: () => ({ reconcile: () => {}, removeEntry: () => {} }),
-				existsSync: () => true,
-			};
+			invalidateCacheEntries([]);
 
-			// Should not throw
-			invalidateCacheEntries([], deps);
-
-			expect(true).toBe(true);
+			expect(mockedCreateFromFile).not.toHaveBeenCalled();
 		});
 
 		it("should be no-op when cache file does not exist", () => {
 			expect.assertions(1);
 
-			const deps = {
-				createCache: () => ({ reconcile: () => {}, removeEntry: () => {} }),
-				existsSync: () => false,
-			};
+			mockedExistsSync.mockReturnValue(false);
 
-			invalidateCacheEntries([testFilePath], deps);
+			invalidateCacheEntries([testFilePath]);
 
-			expect(true).toBe(true);
+			expect(mockedCreateFromFile).not.toHaveBeenCalled();
 		});
 
 		it("should remove entries and reconcile cache", () => {
@@ -192,21 +230,19 @@ describe(lint, () => {
 			const removed: Array<string> = [];
 			let isReconciled = false;
 
-			const deps = {
-				createCache: () => {
-					return {
-						reconcile() {
-							isReconciled = true;
-						},
-						removeEntry(key: string) {
-							removed.push(key);
-						},
-					};
-				},
-				existsSync: () => true,
-			};
+			mockedExistsSync.mockReturnValue(true);
+			mockedCreateFromFile.mockReturnValue(
+				fromPartial({
+					reconcile() {
+						isReconciled = true;
+					},
+					removeEntry(key: string) {
+						removed.push(key);
+					},
+				}),
+			);
 
-			invalidateCacheEntries(["/project/src/a.ts", "/project/src/b.ts"], deps);
+			invalidateCacheEntries(["/project/src/a.ts", "/project/src/b.ts"]);
 
 			expect(removed).toStrictEqual(["/project/src/a.ts", "/project/src/b.ts"]);
 			expect(isReconciled).toBe(true);
@@ -217,39 +253,36 @@ describe(lint, () => {
 		it("should run eslint_d with correct args and ESLINT_IN_EDITOR env", () => {
 			expect.assertions(2);
 
-			let capturedCommand = "";
-			let capturedEnvironment = {} as Record<string, string>;
+			mockedExecSync.mockClear();
+			mockedExecSync.mockReturnValue("");
 
-			const deps = {
-				execSync(command: string, options?: { env?: Record<string, string> }) {
-					capturedCommand = command;
-					capturedEnvironment = options?.env ?? {};
-					return "";
-				},
-			};
+			runEslint(testFilePath);
 
-			runEslint(testFilePath, deps);
+			const callArgs = mockedExecSync.mock.calls[0]!;
 
-			expect(capturedCommand).toBe(`pnpm exec eslint_d --cache "${testFilePath}"`);
-			expect(capturedEnvironment).toMatchObject({ ESLINT_IN_EDITOR: "true" });
+			expect(callArgs[0]).toBe(`pnpm exec eslint_d --cache "${testFilePath}"`);
+
+			const options = callArgs[1] as Record<string, unknown>;
+
+			expect(options["env"]).toMatchObject({
+				ESLINT_IN_EDITOR: "true",
+			});
 		});
 
 		it("should capture stdout/stderr/message on error", () => {
 			expect.assertions(1);
 
-			const deps = {
-				execSync() {
-					const error = new Error("Command failed") as Error & {
-						stderr: Buffer;
-						stdout: Buffer;
-					};
-					error.stdout = Buffer.from(`${testErrorLine}\n`);
-					error.stderr = Buffer.from("");
-					throw error;
-				},
+			const error = new Error("Command failed") as Error & {
+				stderr: Buffer;
+				stdout: Buffer;
 			};
+			error.stdout = Buffer.from(`${testErrorLine}\n`);
+			error.stderr = Buffer.from("");
+			mockedExecSync.mockImplementation(() => {
+				throw error;
+			});
 
-			const result = runEslint(testFilePath, deps);
+			const result = runEslint(testFilePath);
 
 			expect(result).toContain("no-unused-vars");
 		});
@@ -257,103 +290,80 @@ describe(lint, () => {
 		it("should fall back to stderr when stdout is empty", () => {
 			expect.assertions(1);
 
-			const deps = {
-				execSync() {
-					const error = new Error("fail") as Error & {
-						stderr: Buffer;
-						stdout: Buffer;
-					};
-					error.stdout = Buffer.from("");
-					error.stderr = Buffer.from("stderr output");
-					throw error;
-				},
+			const error = new Error("fail") as Error & {
+				stderr: Buffer;
+				stdout: Buffer;
 			};
+			error.stdout = Buffer.from("");
+			error.stderr = Buffer.from("stderr output");
+			mockedExecSync.mockImplementation(() => {
+				throw error;
+			});
 
-			expect(runEslint(testFilePath, deps)).toBe("stderr output");
+			expect(runEslint(testFilePath)).toBe("stderr output");
 		});
 
 		it("should fall back to message when error has no stdout/stderr properties", () => {
 			expect.assertions(1);
 
-			const deps = {
-				execSync() {
-					throw new Error("plain error");
-				},
-			};
+			mockedExecSync.mockImplementation(() => {
+				throw new Error("plain error");
+			});
 
-			expect(runEslint(testFilePath, deps)).toBe("plain error");
+			expect(runEslint(testFilePath)).toBe("plain error");
 		});
 
 		it("should return empty string when error has no properties", () => {
 			expect.assertions(1);
 
-			const deps = {
-				execSync() {
-					// eslint-disable-next-line ts/only-throw-error -- testing edge case
-					throw { stderr: Buffer.from(""), stdout: Buffer.from("") };
-				},
-			};
+			mockedExecSync.mockImplementation(() => {
+				// eslint-disable-next-line ts/only-throw-error -- testing edge case
+				throw { stderr: Buffer.from(""), stdout: Buffer.from("") };
+			});
 
-			expect(runEslint(testFilePath, deps)).toBe("");
+			expect(runEslint(testFilePath)).toBe("");
 		});
 
 		it("should fall back to message when stdout and stderr are empty", () => {
 			expect.assertions(1);
 
-			const deps = {
-				execSync() {
-					const error = new Error("error message") as Error & {
-						stderr: Buffer;
-						stdout: Buffer;
-					};
-					error.stdout = Buffer.from("");
-					error.stderr = Buffer.from("");
-					throw error;
-				},
+			const error = new Error("error message") as Error & {
+				stderr: Buffer;
+				stdout: Buffer;
 			};
+			error.stdout = Buffer.from("");
+			error.stderr = Buffer.from("");
+			mockedExecSync.mockImplementation(() => {
+				throw error;
+			});
 
-			expect(runEslint(testFilePath, deps)).toBe("error message");
+			expect(runEslint(testFilePath)).toBe("error message");
 		});
 	});
 
 	describe(restartDaemon, () => {
 		it("should spawn detached eslint_d restart and swallow errors", () => {
-			expect.assertions(2);
+			expect.assertions(1);
 
-			let capturedCommand = "";
-			let capturedArgs: Array<string> = [];
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
 
-			const self = {
-				on(_event: string, handler: () => void) {
-					handler();
-					return self;
-				},
-				unref: () => {},
-			};
-			const deps = {
-				spawn(command: string, args: Array<string>) {
-					capturedCommand = command;
-					capturedArgs = args;
-					return self;
-				},
-			};
+			restartDaemon();
 
-			restartDaemon(deps);
-
-			expect(capturedCommand).toBe("pnpm");
-			expect(capturedArgs).toStrictEqual(["exec", "eslint_d", "restart"]);
+			expect(mockedSpawn).toHaveBeenCalledWith(
+				"pnpm",
+				["exec", "eslint_d", "restart"],
+				expect.objectContaining({ detached: true }),
+			);
 		});
 
 		it("should swallow spawn errors", () => {
 			expect.assertions(1);
 
-			const deps = {
-				spawn() {
-					throw new Error("spawn failed");
-				},
-			};
+			mockedSpawn.mockImplementation(() => {
+				throw new Error("spawn failed");
+			});
 
-			restartDaemon(deps);
+			restartDaemon();
 
 			expect(true).toBe(true);
 		});
@@ -416,29 +426,27 @@ describe(lint, () => {
 		it("should return empty array when no changes", () => {
 			expect.assertions(1);
 
-			const deps = { execSync: () => "" };
+			mockedExecSync.mockReturnValue("");
 
-			expect(getChangedFiles(deps)).toStrictEqual([]);
+			expect(getChangedFiles()).toStrictEqual([]);
 		});
 
 		it("should parse git diff and untracked files into file list", () => {
 			expect.assertions(1);
 
-			const deps = {
-				execSync(command: string): string {
-					if (command.includes("git diff")) {
-						return "src/foo.ts\nsrc/bar.ts\n";
-					}
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("git diff")) {
+					return "src/foo.ts\nsrc/bar.ts\n";
+				}
 
-					if (command.includes("ls-files")) {
-						return "src/new.ts\n";
-					}
+				if (command.includes("ls-files")) {
+					return "src/new.ts\n";
+				}
 
-					return "";
-				},
-			};
+				return "";
+			});
 
-			expect(getChangedFiles(deps)).toStrictEqual(["src/foo.ts", "src/bar.ts", "src/new.ts"]);
+			expect(getChangedFiles()).toStrictEqual(["src/foo.ts", "src/bar.ts", "src/new.ts"]);
 		});
 	});
 
@@ -446,9 +454,9 @@ describe(lint, () => {
 		it("should return defaults when no file exists", () => {
 			expect.assertions(1);
 
-			const deps = { existsSync: () => false, readFileSync: () => "" };
+			mockedExistsSync.mockReturnValue(false);
 
-			expect(readSettings(deps)).toStrictEqual({
+			expect(readSettings()).toStrictEqual({
 				cacheBust: [],
 				eslint: true,
 				lint: true,
@@ -460,9 +468,10 @@ describe(lint, () => {
 		it("should return defaults when file has no frontmatter", () => {
 			expect.assertions(1);
 
-			const deps = { existsSync: () => true, readFileSync: () => "no frontmatter here" };
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue("no frontmatter here");
 
-			expect(readSettings(deps)).toStrictEqual({
+			expect(readSettings()).toStrictEqual({
 				cacheBust: [],
 				eslint: true,
 				lint: true,
@@ -474,19 +483,21 @@ describe(lint, () => {
 		it("should skip malformed lines in frontmatter", () => {
 			expect.assertions(1);
 
-			const content = '---\nno-colon-line\noxlint: "true"\n---\n';
-			const deps = { existsSync: () => true, readFileSync: () => content };
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue('---\nno-colon-line\noxlint: "true"\n---\n');
 
-			expect(readSettings(deps)).toMatchObject({ oxlint: true });
+			expect(readSettings()).toMatchObject({ oxlint: true });
 		});
 
 		it("should parse eslint and oxlint flags from frontmatter", () => {
 			expect.assertions(1);
 
-			const content = '---\nlint: "true"\neslint: "false"\noxlint: "true"\n---\n';
-			const deps = { existsSync: () => true, readFileSync: () => content };
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				'---\nlint: "true"\neslint: "false"\noxlint: "true"\n---\n',
+			);
 
-			expect(readSettings(deps)).toStrictEqual({
+			expect(readSettings()).toStrictEqual({
 				cacheBust: [],
 				eslint: false,
 				lint: true,
@@ -500,113 +511,92 @@ describe(lint, () => {
 		it("should run oxlint with correct command", () => {
 			expect.assertions(1);
 
-			let capturedCommand = "";
-			const deps = {
-				execSync(command: string) {
-					capturedCommand = command;
-					return "";
-				},
-			};
+			mockedExecSync.mockReturnValue("");
 
-			runOxlint("/project/src/foo.ts", deps);
+			runOxlint("/project/src/foo.ts");
 
-			expect(capturedCommand).toBe('pnpm exec oxlint "/project/src/foo.ts"');
+			expect(mockedExecSync).toHaveBeenCalledWith(
+				'pnpm exec oxlint "/project/src/foo.ts"',
+				expect.anything(),
+			);
 		});
 
 		it("should pass extra flags", () => {
 			expect.assertions(1);
 
-			let capturedCommand = "";
-			const deps = {
-				execSync(command: string) {
-					capturedCommand = command;
-					return "";
-				},
-			};
+			mockedExecSync.mockReturnValue("");
 
-			runOxlint("/project/src/foo.ts", deps, ["--fix"]);
+			runOxlint("/project/src/foo.ts", ["--fix"]);
 
-			expect(capturedCommand).toBe('pnpm exec oxlint --fix "/project/src/foo.ts"');
+			expect(mockedExecSync).toHaveBeenCalledWith(
+				'pnpm exec oxlint --fix "/project/src/foo.ts"',
+				expect.anything(),
+			);
 		});
 
 		it("should capture error output", () => {
 			expect.assertions(1);
 
-			const deps = {
-				execSync() {
-					const error = new Error("fail") as Error & {
-						stderr: Buffer;
-						stdout: Buffer;
-					};
-					error.stdout = Buffer.from("  1:5  error  no-unused-vars\n");
-					error.stderr = Buffer.from("");
-					throw error;
-				},
+			const error = new Error("fail") as Error & {
+				stderr: Buffer;
+				stdout: Buffer;
 			};
+			error.stdout = Buffer.from("  1:5  error  no-unused-vars\n");
+			error.stderr = Buffer.from("");
+			mockedExecSync.mockImplementation(() => {
+				throw error;
+			});
 
-			expect(runOxlint("/project/src/foo.ts", deps)).toContain("no-unused-vars");
+			expect(runOxlint("/project/src/foo.ts")).toContain("no-unused-vars");
 		});
 
 		it("should return undefined on success", () => {
 			expect.assertions(1);
 
-			const deps = { execSync: () => "" };
+			mockedExecSync.mockReturnValue("");
 
-			expect(runOxlint("/project/src/foo.ts", deps)).toBeUndefined();
+			expect(runOxlint("/project/src/foo.ts")).toBeUndefined();
 		});
 
 		it("should return empty string when error has no properties", () => {
 			expect.assertions(1);
 
-			const deps = {
-				execSync() {
-					// eslint-disable-next-line ts/only-throw-error -- testing edge case
-					throw { stderr: Buffer.from(""), stdout: Buffer.from("") };
-				},
-			};
+			mockedExecSync.mockImplementation(() => {
+				// eslint-disable-next-line ts/only-throw-error -- testing edge case
+				throw { stderr: Buffer.from(""), stdout: Buffer.from("") };
+			});
 
-			expect(runOxlint("/project/src/foo.ts", deps)).toBe("");
+			expect(runOxlint("/project/src/foo.ts")).toBe("");
 		});
 	});
 
 	describe(main, () => {
-		const spawnResult = { on: () => spawnResult, unref: () => {} };
-		const baseDeps = {
-			createCache: () => ({ reconcile: () => {}, removeEntry: () => {} }),
-			execSync: () => "",
-			existsSync: () => false,
-			spawn: () => spawnResult,
-		};
-
 		it("should invalidate cache for changed files before linting", () => {
 			expect.assertions(1);
 
 			vi.spyOn(process, "exit").mockReturnValue(undefined as never);
 			vi.spyOn(process.stderr, "write").mockReturnValue(true);
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
 
 			const removed: Array<string> = [];
+			mockedExistsSync.mockReturnValue(true);
+			mockedCreateFromFile.mockReturnValue(
+				fromPartial({
+					reconcile: () => {},
+					removeEntry(key: string) {
+						removed.push(key);
+					},
+				}),
+			);
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("git diff")) {
+					return "src/changed.ts\n";
+				}
 
-			const deps = {
-				...baseDeps,
-				createCache: () => {
-					return {
-						reconcile: () => {},
-						removeEntry(key: string) {
-							removed.push(key);
-						},
-					};
-				},
-				execSync(command: string): string {
-					if (command.includes("git diff")) {
-						return "src/changed.ts\n";
-					}
+				return "";
+			});
 
-					return "";
-				},
-				existsSync: () => true,
-			};
-
-			main(["."], deps);
+			main(["."]);
 
 			expect(removed).toContain("src/changed.ts");
 
@@ -618,8 +608,11 @@ describe(lint, () => {
 
 			const exitSpy = vi.spyOn(process, "exit").mockReturnValue(undefined as never);
 			const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
+			mockedExecSync.mockReturnValue("");
+			mockedExistsSync.mockReturnValue(false);
 
-			main(["."], baseDeps);
+			main(["."]);
 
 			expect(exitSpy).not.toHaveBeenCalled();
 			expect(stderrSpy).not.toHaveBeenCalled();
@@ -631,20 +624,17 @@ describe(lint, () => {
 			expect.assertions(1);
 
 			const exitSpy = vi.spyOn(process, "exit").mockReturnValue(undefined as never);
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
+			mockedExistsSync.mockReturnValue(false);
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("eslint_d")) {
+					throw new Error("lint failed");
+				}
 
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("eslint_d")) {
-						throw new Error("lint failed");
-					}
+				return "";
+			});
 
-					return "";
-				},
-				spawn: () => spawnResult,
-			};
-
-			main(["."], deps);
+			main(["."]);
 
 			expect(exitSpy).toHaveBeenCalledWith(1);
 
@@ -656,26 +646,23 @@ describe(lint, () => {
 
 			vi.spyOn(process, "exit").mockReturnValue(undefined as never);
 			const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
+			mockedExistsSync.mockReturnValue(false);
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("eslint_d")) {
+					const error = new Error("fail") as Error & {
+						stderr: Buffer;
+						stdout: Buffer;
+					};
+					error.stdout = Buffer.from("[@config] noise only\n");
+					error.stderr = Buffer.from("");
+					throw error;
+				}
 
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("eslint_d")) {
-						const error = new Error("fail") as Error & {
-							stderr: Buffer;
-							stdout: Buffer;
-						};
-						error.stdout = Buffer.from("[@config] noise only\n");
-						error.stderr = Buffer.from("");
-						throw error;
-					}
+				return "";
+			});
 
-					return "";
-				},
-				spawn: () => spawnResult,
-			};
-
-			main(["."], deps);
+			main(["."]);
 
 			expect(stderrSpy).not.toHaveBeenCalled();
 
@@ -687,27 +674,25 @@ describe(lint, () => {
 
 			const exitSpy = vi.spyOn(process, "exit").mockReturnValue(undefined as never);
 			const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
+			mockedExistsSync.mockReturnValue(false);
 
 			const noisy = "[@config] some noise\nsrc/foo.ts\n  1:5  error  bad\n";
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("eslint_d")) {
-						const error = new Error("fail") as Error & {
-							stderr: Buffer;
-							stdout: Buffer;
-						};
-						error.stdout = Buffer.from(noisy);
-						error.stderr = Buffer.from("");
-						throw error;
-					}
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("eslint_d")) {
+					const error = new Error("fail") as Error & {
+						stderr: Buffer;
+						stdout: Buffer;
+					};
+					error.stdout = Buffer.from(noisy);
+					error.stderr = Buffer.from("");
+					throw error;
+				}
 
-					return "";
-				},
-				spawn: () => spawnResult,
-			};
+				return "";
+			});
 
-			main(["."], deps);
+			main(["."]);
 
 			expect(exitSpy).toHaveBeenCalledWith(1);
 			expect(stderrSpy).toHaveBeenCalledWith(expect.not.stringContaining("@config"));
@@ -720,19 +705,16 @@ describe(lint, () => {
 
 			const exitSpy = vi.spyOn(process, "exit").mockReturnValue(undefined as never);
 			vi.spyOn(process.stderr, "write").mockReturnValue(true);
+			mockedExistsSync.mockReturnValue(false);
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("oxlint")) {
+					throw new Error("oxlint error");
+				}
 
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("oxlint")) {
-						throw new Error("oxlint error");
-					}
+				return "";
+			});
 
-					return "";
-				},
-			};
-
-			main(["."], deps, {
+			main(["."], {
 				cacheBust: [],
 				eslint: false,
 				lint: true,
@@ -750,25 +732,23 @@ describe(lint, () => {
 
 			vi.spyOn(process, "exit").mockReturnValue(undefined as never);
 			vi.spyOn(process.stderr, "write").mockReturnValue(true);
+			mockedExistsSync.mockReturnValue(false);
 
 			let didRunOxlint = false;
 			let didRunEslint = false;
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("oxlint")) {
-						didRunOxlint = true;
-					}
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("oxlint")) {
+					didRunOxlint = true;
+				}
 
-					if (command.includes("eslint_d")) {
-						didRunEslint = true;
-					}
+				if (command.includes("eslint_d")) {
+					didRunEslint = true;
+				}
 
-					return "";
-				},
-			};
+				return "";
+			});
 
-			main(["."], deps, {
+			main(["."], {
 				cacheBust: [],
 				eslint: false,
 				lint: true,
@@ -784,18 +764,10 @@ describe(lint, () => {
 	});
 
 	describe(lint, () => {
-		const spawnResult = { on: () => spawnResult, unref: () => {} };
-		const baseDeps = {
-			createCache: () => ({ reconcile: () => {}, removeEntry: () => {} }),
-			execSync: () => "",
-			existsSync: () => false,
-			spawn: () => spawnResult,
-		};
-
 		it("should skip non-lintable files with early exit", () => {
 			expect.assertions(1);
 
-			const result = lint("readme.txt", baseDeps);
+			const result = lint("readme.txt");
 
 			expect(result).toBeUndefined();
 		});
@@ -803,27 +775,23 @@ describe(lint, () => {
 		it("should return undefined when eslint output has no error lines", () => {
 			expect.assertions(1);
 
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("eslint_d")) {
-						const error = new Error("fail") as Error & {
-							stderr: Buffer;
-							stdout: Buffer;
-						};
-						error.stdout = Buffer.from("  1:5  warning  no-console\n");
-						error.stderr = Buffer.from("");
-						throw error;
-					}
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
+			mockedExistsSync.mockReturnValue(false);
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("eslint_d")) {
+					const error = new Error("fail") as Error & {
+						stderr: Buffer;
+						stdout: Buffer;
+					};
+					error.stdout = Buffer.from("  1:5  warning  no-console\n");
+					error.stderr = Buffer.from("");
+					throw error;
+				}
 
-					return "";
-				},
-				spawn() {
-					return spawnResult;
-				},
-			};
+				return "";
+			});
 
-			const result = lint(join("/project", "src", "foo.ts"), deps);
+			const result = lint(join("/project", "src", "foo.ts"));
 
 			expect(result).toBeUndefined();
 		});
@@ -841,27 +809,24 @@ describe(lint, () => {
 				projectSource,
 			]);
 
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("eslint_d")) {
-						didRunEslint = true;
-					}
+			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("eslint_d")) {
+					didRunEslint = true;
+				}
 
-					if (command.includes("madge")) {
-						return '{"app.ts":["foo.ts"]}';
-					}
+				if (command.includes("madge")) {
+					return '{"app.ts":["foo.ts"]}';
+				}
 
-					return "";
-				},
-				existsSync: (path: string) => existing.has(path),
-				spawn() {
-					didRestartDaemon = true;
-					return spawnResult;
-				},
-			};
+				return "";
+			});
+			mockedSpawn.mockImplementation(() => {
+				didRestartDaemon = true;
+				return fakeSpawnResult();
+			});
 
-			lint(join("/project", "src", "foo.ts"), deps);
+			lint(join("/project", "src", "foo.ts"));
 
 			expect(didRunEslint).toBe(true);
 			expect(didRestartDaemon).toBe(true);
@@ -870,17 +835,15 @@ describe(lint, () => {
 		it("should skip importers when no entry points found", () => {
 			expect.assertions(1);
 
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
 			const existing = new Set([
 				join(resolve("/project"), "package.json"),
 				resolve("/project", "src"),
 			]);
+			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
+			mockedExecSync.mockReturnValue("");
 
-			const deps = {
-				...baseDeps,
-				existsSync: (path: string) => existing.has(path),
-			};
-
-			const result = lint(join("/project", "src", "foo.ts"), deps);
+			const result = lint(join("/project", "src", "foo.ts"));
 
 			expect(result).toBeUndefined();
 		});
@@ -888,6 +851,7 @@ describe(lint, () => {
 		it("should gracefully handle madge failure in importer resolution", () => {
 			expect.assertions(1);
 
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
 			const projectSource = resolve("/project", "src");
 			const existing = new Set([
 				join(projectSource, "index.ts"),
@@ -895,19 +859,16 @@ describe(lint, () => {
 				projectSource,
 			]);
 
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("madge")) {
-						throw new Error("madge not found");
-					}
+			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("madge")) {
+					throw new Error("madge not found");
+				}
 
-					return "";
-				},
-				existsSync: (path: string) => existing.has(path),
-			};
+				return "";
+			});
 
-			const result = lint(join("/project", "src", "foo.ts"), deps);
+			const result = lint(join("/project", "src", "foo.ts"));
 
 			expect(result).toBeUndefined();
 		});
@@ -915,31 +876,27 @@ describe(lint, () => {
 		it("should return formatted hook output on lint failure", () => {
 			expect.assertions(1);
 
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("eslint_d")) {
-						const error = new Error("fail") as Error & {
-							stderr: Buffer;
-							stdout: Buffer;
-						};
-						error.stdout = Buffer.from(`${testErrorLine}\n`);
-						error.stderr = Buffer.from("");
-						throw error;
-					}
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
+			mockedExistsSync.mockReturnValue(false);
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("eslint_d")) {
+					const error = new Error("fail") as Error & {
+						stderr: Buffer;
+						stdout: Buffer;
+					};
+					error.stdout = Buffer.from(`${testErrorLine}\n`);
+					error.stderr = Buffer.from("");
+					throw error;
+				}
 
-					if (command.includes("madge")) {
-						return "{}";
-					}
+				if (command.includes("madge")) {
+					return "{}";
+				}
 
-					return "";
-				},
-				spawn() {
-					return spawnResult;
-				},
-			};
+				return "";
+			});
 
-			const result = lint(join("/project", "src", "foo.ts"), deps);
+			const result = lint(join("/project", "src", "foo.ts"));
 
 			expect(result).toMatchObject({
 				hookSpecificOutput: {
@@ -951,25 +908,23 @@ describe(lint, () => {
 		it("should return errors from oxlint when enabled", () => {
 			expect.assertions(1);
 
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("oxlint")) {
-						const error = new Error("fail") as Error & {
-							stderr: Buffer;
-							stdout: Buffer;
-						};
-						error.stdout = Buffer.from(`${testErrorLine}\n`);
-						error.stderr = Buffer.from("");
-						throw error;
-					}
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
+			mockedExistsSync.mockReturnValue(false);
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("oxlint")) {
+					const error = new Error("fail") as Error & {
+						stderr: Buffer;
+						stdout: Buffer;
+					};
+					error.stdout = Buffer.from(`${testErrorLine}\n`);
+					error.stderr = Buffer.from("");
+					throw error;
+				}
 
-					return "";
-				},
-				spawn: () => spawnResult,
-			};
+				return "";
+			});
 
-			const result = lint(join("/project", "src", "foo.ts"), deps, [], {
+			const result = lint(join("/project", "src", "foo.ts"), [], {
 				cacheBust: [],
 				eslint: false,
 				lint: true,
@@ -985,20 +940,19 @@ describe(lint, () => {
 		it("should skip oxlint when disabled (default settings)", () => {
 			expect.assertions(1);
 
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
+			mockedExistsSync.mockReturnValue(false);
+
 			let didRunOxlint = false;
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("oxlint")) {
-						didRunOxlint = true;
-					}
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("oxlint")) {
+					didRunOxlint = true;
+				}
 
-					return "";
-				},
-				spawn: () => spawnResult,
-			};
+				return "";
+			});
 
-			lint(join("/project", "src", "foo.ts"), deps);
+			lint(join("/project", "src", "foo.ts"));
 
 			expect(didRunOxlint).toBe(false);
 		});
@@ -1006,20 +960,19 @@ describe(lint, () => {
 		it("should run oxlint when enabled in settings", () => {
 			expect.assertions(1);
 
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
+			mockedExistsSync.mockReturnValue(false);
+
 			let didRunOxlint = false;
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("oxlint")) {
-						didRunOxlint = true;
-					}
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("oxlint")) {
+					didRunOxlint = true;
+				}
 
-					return "";
-				},
-				spawn: () => spawnResult,
-			};
+				return "";
+			});
 
-			lint(join("/project", "src", "foo.ts"), deps, [], {
+			lint(join("/project", "src", "foo.ts"), [], {
 				cacheBust: [],
 				eslint: true,
 				lint: true,
@@ -1035,22 +988,21 @@ describe(lint, () => {
 
 			let didRunEslint = false;
 			let didRestartDaemon = false;
-			const deps = {
-				...baseDeps,
-				execSync(command: string): string {
-					if (command.includes("eslint_d")) {
-						didRunEslint = true;
-					}
 
-					return "";
-				},
-				spawn() {
-					didRestartDaemon = true;
-					return spawnResult;
-				},
-			};
+			mockedExistsSync.mockReturnValue(false);
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("eslint_d")) {
+					didRunEslint = true;
+				}
 
-			lint(join("/project", "src", "foo.ts"), deps, [], {
+				return "";
+			});
+			mockedSpawn.mockImplementation(() => {
+				didRestartDaemon = true;
+				return fakeSpawnResult();
+			});
+
+			lint(join("/project", "src", "foo.ts"), [], {
 				cacheBust: [],
 				eslint: false,
 				lint: true,
@@ -1067,10 +1019,12 @@ describe(lint, () => {
 		it("should parse cacheBust into array", () => {
 			expect.assertions(1);
 
-			const content = "---\ncache-bust: eslint.config.ts, tsconfig.json\n---\n";
-			const deps = { existsSync: () => true, readFileSync: () => content };
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				"---\ncache-bust: eslint.config.ts, tsconfig.json\n---\n",
+			);
 
-			expect(readSettings(deps)).toMatchObject({
+			expect(readSettings()).toMatchObject({
 				cacheBust: ["eslint.config.ts", "tsconfig.json"],
 			});
 		});
@@ -1082,28 +1036,28 @@ describe(lint, () => {
 		it("should parse runner from frontmatter", () => {
 			expect.assertions(1);
 
-			const content = "---\nrunner: npx\n---\n";
-			const deps = { existsSync: () => true, readFileSync: () => content };
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue("---\nrunner: npx\n---\n");
 
-			expect(readSettings(deps)).toMatchObject({ runner: "npx" });
+			expect(readSettings()).toMatchObject({ runner: "npx" });
 		});
 
 		it("should default runner to pnpm exec", () => {
 			expect.assertions(1);
 
-			const content = "---\neslint: true\n---\n";
-			const deps = { existsSync: () => true, readFileSync: () => content };
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue("---\neslint: true\n---\n");
 
-			expect(readSettings(deps)).toMatchObject({ runner: "pnpm exec" });
+			expect(readSettings()).toMatchObject({ runner: "pnpm exec" });
 		});
 
 		it("should strip quotes from runner value", () => {
 			expect.assertions(1);
 
-			const content = '---\nrunner: "yarn dlx"\n---\n';
-			const deps = { existsSync: () => true, readFileSync: () => content };
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue('---\nrunner: "yarn dlx"\n---\n');
 
-			expect(readSettings(deps)).toMatchObject({ runner: "yarn dlx" });
+			expect(readSettings()).toMatchObject({ runner: "yarn dlx" });
 		});
 	});
 
@@ -1111,99 +1065,68 @@ describe(lint, () => {
 		it("should use custom runner in eslint command", () => {
 			expect.assertions(1);
 
-			let capturedCommand = "";
-			const deps = {
-				execSync(command: string) {
-					capturedCommand = command;
-					return "";
-				},
-			};
+			mockedExecSync.mockReturnValue("");
 
-			runEslint(testFilePath, deps, [], "npx");
+			runEslint(testFilePath, [], "npx");
 
-			expect(capturedCommand).toBe(`npx eslint_d --cache "${testFilePath}"`);
+			expect(mockedExecSync).toHaveBeenCalledWith(
+				`npx eslint_d --cache "${testFilePath}"`,
+				expect.anything(),
+			);
 		});
 
 		it("should use custom runner in oxlint command", () => {
 			expect.assertions(1);
 
-			let capturedCommand = "";
-			const deps = {
-				execSync(command: string) {
-					capturedCommand = command;
-					return "";
-				},
-			};
+			mockedExecSync.mockReturnValue("");
 
-			runOxlint(testFilePath, deps, [], "npx");
+			runOxlint(testFilePath, [], "npx");
 
-			expect(capturedCommand).toBe(`npx oxlint "${testFilePath}"`);
+			expect(mockedExecSync).toHaveBeenCalledWith(
+				`npx oxlint "${testFilePath}"`,
+				expect.anything(),
+			);
 		});
 
 		it("should split multi-word runner for spawn in restartDaemon", () => {
-			expect.assertions(2);
+			expect.assertions(1);
 
-			let capturedCommand = "";
-			let capturedArgs: Array<string> = [];
-			const self = {
-				on() {
-					return self;
-				},
-				unref: () => {},
-			};
-			const deps = {
-				spawn(command: string, args: Array<string>) {
-					capturedCommand = command;
-					capturedArgs = args;
-					return self;
-				},
-			};
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
 
-			restartDaemon(deps, "yarn dlx");
+			restartDaemon("yarn dlx");
 
-			expect(capturedCommand).toBe("yarn");
-			expect(capturedArgs).toStrictEqual(["dlx", "eslint_d", "restart"]);
+			expect(mockedSpawn).toHaveBeenLastCalledWith(
+				"yarn",
+				["dlx", "eslint_d", "restart"],
+				expect.anything(),
+			);
 		});
 
 		it("should handle single-word runner for spawn", () => {
-			expect.assertions(2);
+			expect.assertions(1);
 
-			let capturedCommand = "";
-			let capturedArgs: Array<string> = [];
-			const self = {
-				on() {
-					return self;
-				},
-				unref: () => {},
-			};
-			const deps = {
-				spawn(command: string, args: Array<string>) {
-					capturedCommand = command;
-					capturedArgs = args;
-					return self;
-				},
-			};
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
 
-			restartDaemon(deps, "npx");
+			restartDaemon("npx");
 
-			expect(capturedCommand).toBe("npx");
-			expect(capturedArgs).toStrictEqual(["eslint_d", "restart"]);
+			expect(mockedSpawn).toHaveBeenLastCalledWith(
+				"npx",
+				["eslint_d", "restart"],
+				expect.anything(),
+			);
 		});
 
 		it("should use custom runner in getDependencyGraph", () => {
 			expect.assertions(1);
 
-			let capturedCommand = "";
-			const deps = {
-				execSync(command: string) {
-					capturedCommand = command;
-					return "{}";
-				},
-			};
+			mockedExecSync.mockReturnValue("{}");
 
-			getDependencyGraph("/src", ["/src/index.ts"], deps, "npx");
+			getDependencyGraph("/src", ["/src/index.ts"], "npx");
 
-			expect(capturedCommand).toBe('npx madge --json "/src/index.ts"');
+			expect(mockedExecSync).toHaveBeenCalledWith(
+				'npx madge --json "/src/index.ts"',
+				expect.anything(),
+			);
 		});
 	});
 
