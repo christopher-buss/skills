@@ -1,6 +1,6 @@
 import { createFromFile } from "file-entry-cache";
 import { execSync, spawn } from "node:child_process";
-import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import { existsSync, globSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import process from "node:process";
 
@@ -124,8 +124,12 @@ export function findSourceRoot(filePath: string): string | undefined {
 	return undefined;
 }
 
-export function shouldBustCache(bustFiles: Array<string>): boolean {
-	if (bustFiles.length === 0) {
+export function resolveBustFiles(patterns: Array<string>): Array<string> {
+	return patterns.flatMap((pattern) => globSync(pattern));
+}
+
+export function shouldBustCache(patterns: Array<string>): boolean {
+	if (patterns.length === 0) {
 		return false;
 	}
 
@@ -133,8 +137,13 @@ export function shouldBustCache(bustFiles: Array<string>): boolean {
 		return false;
 	}
 
+	const files = resolveBustFiles(patterns);
+	if (files.length === 0) {
+		return false;
+	}
+
 	const cacheMtime = statSync(ESLINT_CACHE_PATH).mtimeMs;
-	return bustFiles.some((file) => existsSync(file) && statSync(file).mtimeMs > cacheMtime);
+	return files.some((file) => statSync(file).mtimeMs > cacheMtime);
 }
 
 export function clearCache(): void {
