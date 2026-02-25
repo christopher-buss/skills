@@ -1145,7 +1145,16 @@ describe(lint, () => {
 			expect(shouldBustCache(["eslint.config.ts"])).toBe(true);
 		});
 
-		it.todo("should return false when cache newer than bust file");
+		it("should return false when cache newer than bust file", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedStatSync.mockImplementation((path) => {
+				return fromPartial({ mtimeMs: (path as string) === ".eslintcache" ? 200 : 100 });
+			});
+
+			expect(shouldBustCache(["eslint.config.ts"])).toBe(false);
+		});
 
 		it.todo("should return false when cache does not exist");
 	});
