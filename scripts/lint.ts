@@ -49,6 +49,7 @@ const SETTINGS_FILE = ".claude/sentinel.local.md";
 export const DEFAULT_CACHE_BUST = ["*.config.*", "**/tsconfig*.json"];
 
 const DEFAULT_MAX_LINT_ATTEMPTS = 3;
+const DEFAULT_MAX_STOP_ATTEMPTS = 3;
 
 const DEFAULT_SETTINGS = {
 	cacheBust: [...DEFAULT_CACHE_BUST],
@@ -207,6 +208,12 @@ export function stopDecision(input: StopDecisionInput): StopDecisionResult | und
 	);
 	if (isAllMaxed) {
 		return undefined;
+	}
+
+	if (input.stopAttempts >= DEFAULT_MAX_STOP_ATTEMPTS) {
+		return {
+			reason: `Could not fix lint errors in: ${input.errorFiles.join(", ")}`,
+		};
 	}
 
 	return {
