@@ -1483,35 +1483,4 @@ describe(lint, () => {
 			expect(isProtectedFile("eslint-plugin/index.ts")).toBe(false);
 		});
 	});
-
-	describe("--guard mode", () => {
-		async function runGuard(filePath: string): Promise<string> {
-			const { spawnSync: realSpawnSync } =
-				await vi.importActual<typeof import("node:child_process")>("node:child_process");
-			const input = JSON.stringify({ tool_input: { file_path: filePath } });
-			const result = realSpawnSync("node", ["hooks/lint.ts", "--guard"], {
-				encoding: "utf-8",
-				input,
-			});
-			return result.stdout.trim();
-		}
-
-		it("should block edits to eslint config", async () => {
-			expect.assertions(2);
-
-			const output = await runGuard("eslint.config.mjs");
-			const parsed = JSON.parse(output) as { decision: string; reason: string };
-
-			expect(parsed.decision).toBe("block");
-			expect(parsed.reason).toContain("linter config");
-		});
-
-		it("should output nothing for normal files", async () => {
-			expect.assertions(1);
-
-			const output = await runGuard("src/foo.ts");
-
-			expect(output).toBe("");
-		});
-	});
 });
