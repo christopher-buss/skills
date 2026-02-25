@@ -1,6 +1,6 @@
 import { createFromFile } from "file-entry-cache";
 import { execSync, spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import process from "node:process";
 
@@ -124,6 +124,19 @@ export function findSourceRoot(filePath: string): string | undefined {
 	return undefined;
 }
 
+export function shouldBustCache(bustFiles: Array<string>): boolean {
+	if (bustFiles.length === 0) {
+		return false;
+	}
+
+	if (!existsSync(ESLINT_CACHE_PATH)) {
+		return false;
+	}
+
+	const cacheMtime = statSync(ESLINT_CACHE_PATH).mtimeMs;
+	return bustFiles.some((file) => existsSync(file) && statSync(file).mtimeMs > cacheMtime);
+}
+
 export function invalidateCacheEntries(filePaths: Array<string>): void {
 	if (filePaths.length === 0) {
 		return;
@@ -189,6 +202,7 @@ export function restartDaemon(runner = DEFAULT_SETTINGS.runner): void {
 	try {
 		spawn(command, [...prefixArgs, "eslint_d", "restart"], {
 			detached: true,
+			env: { ...process.env, ESLINT_IN_EDITOR: "true" },
 			stdio: "ignore",
 		})
 			// eslint-disable-next-line ts/no-empty-function -- intentionally swallow
