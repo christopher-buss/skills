@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs";
+import { basename } from "node:path";
 import process from "node:process";
 
-import { lint, readLintAttempts, readSettings, writeLintAttempts } from "../scripts/lint.ts";
+import {
+	isProtectedFile,
+	lint,
+	readLintAttempts,
+	readSettings,
+	writeLintAttempts,
+} from "../scripts/lint.ts";
 
 interface HookInput {
 	// eslint-disable-next-line flawless/naming-convention -- Upstream-defined input shape
@@ -19,6 +26,24 @@ function isHookInput(value: unknown): value is HookInput {
 	// eslint-disable-next-line flawless/naming-convention -- Upstream-defined input shape
 	const { tool_input } = value as { tool_input: unknown };
 	return typeof tool_input === "object" && tool_input !== null && "file_path" in tool_input;
+}
+
+if (process.argv.includes("--guard")) {
+	const guardInput: unknown = JSON.parse(readFileSync(0, "utf-8"));
+	if (isHookInput(guardInput)) {
+		const filename = basename(guardInput.tool_input.file_path);
+		if (isProtectedFile(filename)) {
+			// eslint-disable-next-line no-console -- Hook protocol requires stdout JSON
+			console.log(
+				JSON.stringify({
+					decision: "block",
+					reason: "Modifying linter config is forbidden. Report to user if a rule blocks your task.",
+				}),
+			);
+		}
+	}
+
+	process.exit(0);
 }
 
 const settings = readSettings();
