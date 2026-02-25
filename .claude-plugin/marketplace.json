@@ -10,9 +10,9 @@
 	},
 	"plugins": [
 		{
-			"name": "roblox",
+			"name": "sentinel",
 			"source": "./",
-			"description": "Skills for roblox-ts, ECS development with jecs, and general development workflows including eslint_d lint hook"
+			"description": "General development workflows including eslint_d lint hook"
 		}
 	]
 }

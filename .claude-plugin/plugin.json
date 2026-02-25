@@ -1,6 +1,6 @@
 {
-	"name": "roblox",
-	"description": "Skills for roblox-ts, ECS development with jecs, and general development workflows",
+	"name": "sentinel",
+	"description": "General development workflows for typescript projects, including linting with eslint_d and more",
 	"version": "1.0.0",
 	"author": {
 		"name": "Christopher Buss",
@@ -10,13 +10,8 @@
 	"homepage": "https://github.com/christopher-buss/skills",
 	"repository": "https://github.com/christopher-buss/skills",
 	"license": "MIT",
-	"keywords": [
-		"skills",
-		"tdd",
-		"roblox",
-		"roblox-ts",
-		"collaboration",
-		"best-practices",
-		"workflows"
-	]
+	"keywords": ["tdd", "typescript", "collaboration", "best-practices", "workflows"],
+	"commands": "./commands/",
+	"skills": "./no-op/",
+	"outputStyles": "./output-styles/"
 }
