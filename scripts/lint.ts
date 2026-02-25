@@ -251,8 +251,12 @@ export function lint(
 		return undefined;
 	}
 
-	const importers = findImporters(filePath, settings.runner);
-	invalidateCacheEntries(importers);
+	if (shouldBustCache(settings.cacheBust)) {
+		clearCache();
+	} else {
+		const importers = findImporters(filePath, settings.runner);
+		invalidateCacheEntries(importers);
+	}
 
 	const outputs: Array<string> = [];
 
