@@ -496,6 +496,18 @@ function parseFrontmatter(content: string): Map<string, string> {
 	return fields;
 }
 
+function endsWithSegment(haystack: string, needle: string): boolean {
+	if (haystack === needle) {
+		return true;
+	}
+
+	if (!needle.includes("/")) {
+		return false;
+	}
+
+	return haystack.endsWith(`/${needle}`);
+}
+
 function findAttempts(file: string, lintAttempts: Record<string, number>): number {
 	if (file in lintAttempts) {
 		return lintAttempts[file] ?? 0;
@@ -504,7 +516,10 @@ function findAttempts(file: string, lintAttempts: Record<string, number>): numbe
 	const normalized = file.replaceAll("\\", "/");
 	for (const [key, count] of Object.entries(lintAttempts)) {
 		const normalizedKey = key.replaceAll("\\", "/");
-		if (normalizedKey.endsWith(normalized) || normalized.endsWith(normalizedKey)) {
+		if (
+			endsWithSegment(normalizedKey, normalized) ||
+			endsWithSegment(normalized, normalizedKey)
+		) {
 			return count;
 		}
 	}
