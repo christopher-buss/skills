@@ -1150,13 +1150,19 @@ describe(lint, () => {
 
 			mockedExistsSync.mockReturnValue(true);
 			mockedStatSync.mockImplementation((path) => {
-				return fromPartial({ mtimeMs: (path as string) === ".eslintcache" ? 200 : 100 });
+				return fromPartial({ mtimeMs: path === ".eslintcache" ? 200 : 100 });
 			});
 
 			expect(shouldBustCache(["eslint.config.ts"])).toBe(false);
 		});
 
-		it.todo("should return false when cache does not exist");
+		it("should return false when cache does not exist", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockImplementation((path) => path !== ".eslintcache");
+
+			expect(shouldBustCache(["eslint.config.ts"])).toBe(false);
+		});
 	});
 
 	describe("clearCache", () => {
