@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import process from "node:process";
 
-import { lint, readSettings } from "../scripts/lint.ts";
+import { lint, readLintAttempts, readSettings, writeLintAttempts } from "../scripts/lint.ts";
 
 interface HookInput {
 	// eslint-disable-next-line flawless/naming-convention -- Upstream-defined input shape
@@ -32,9 +32,25 @@ if (!isHookInput(input)) {
 	process.exit(0);
 }
 
-const result = lint(input.tool_input.file_path, ["--fix"], settings);
+function run(filePath: string): void {
+	const attempts = readLintAttempts();
+	const result = lint(filePath, ["--fix"], settings);
 
-if (result !== undefined) {
-	// eslint-disable-next-line no-console -- Hook protocol requires stdout JSON
-	console.log(JSON.stringify(result));
+	if (result !== undefined) {
+		const count = (attempts[filePath] ?? 0) + 1;
+		attempts[filePath] = count;
+		writeLintAttempts(attempts);
+
+		if (count >= settings.maxLintAttempts) {
+			result.hookSpecificOutput.additionalContext = `CRITICAL: ${filePath} failed linting ${count} times. STOP editing this file and report lint errors to user.\n${result.hookSpecificOutput.additionalContext}`;
+		}
+
+		// eslint-disable-next-line no-console -- Hook protocol requires stdout JSON
+		console.log(JSON.stringify(result));
+	} else if (filePath in attempts) {
+		delete attempts[filePath];
+		writeLintAttempts(attempts);
+	}
 }
+
+run(input.tool_input.file_path);
