@@ -1540,6 +1540,19 @@ describe(lint, () => {
 			expect(result?.decision).toBe("block");
 			expect(result?.reason).toContain("src/foo.ts");
 		});
+
+		it("should allow stop when all erroring files maxed out", () => {
+			expect.assertions(1);
+
+			const result = stopDecision({
+				errorFiles: ["src/foo.ts"],
+				lintAttempts: { "src/foo.ts": 3 },
+				maxLintAttempts: 3,
+				stopAttempts: 0,
+			});
+
+			expect(result).toBeUndefined();
+		});
 	});
 
 	describe(isProtectedFile, () => {
