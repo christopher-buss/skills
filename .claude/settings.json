@@ -33,6 +33,26 @@
 					}
 				]
 			}
+		],
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node hooks/clear-lint-state.ts"
+					}
+				]
+			}
+		],
+		"PreCompact": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node hooks/clear-lint-state.ts"
+					}
+				]
+			}
 		]
 	},
 	"outputStyle": "XP Programmer",
