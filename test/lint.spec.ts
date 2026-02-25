@@ -40,6 +40,7 @@ import {
 	runOxlint,
 	shouldBustCache,
 	writeLintAttempts,
+	writeStopAttempts,
 } from "../scripts/lint.js";
 
 function fromPartial<T>(mock: PartialDeep<NoInfer<T>>): T {
@@ -1466,6 +1467,23 @@ describe(lint, () => {
 			mockedExistsSync.mockReturnValue(false);
 
 			expect(readStopAttempts()).toBe(0);
+		});
+	});
+
+	describe(writeStopAttempts, () => {
+		it("should create dir and write count", () => {
+			expect.assertions(2);
+
+			mockedMkdirSync.mockClear();
+			mockedWriteFileSync.mockClear();
+
+			writeStopAttempts(2);
+
+			expect(mockedMkdirSync).toHaveBeenCalledWith(".claude/state", { recursive: true });
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/stop-attempts.json",
+				"2",
+			);
 		});
 	});
 
