@@ -1470,5 +1470,11 @@ describe(lint, () => {
 
 			expect(isProtectedFile("oxlint.config.ts")).toBe(true);
 		});
+
+		it("should approve normal source files", () => {
+			expect.assertions(1);
+
+			expect(isProtectedFile("src/index.ts")).toBe(false);
+		});
 	});
 });
