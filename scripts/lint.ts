@@ -1,6 +1,14 @@
 import { createFromFile } from "file-entry-cache";
 import { execSync, spawn } from "node:child_process";
-import { existsSync, globSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import {
+	existsSync,
+	globSync,
+	mkdirSync,
+	readFileSync,
+	statSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import process from "node:process";
 
@@ -22,6 +30,7 @@ interface HookOutput {
 	systemMessage: string;
 }
 
+const LINT_STATE_PATH = ".claude/state/lint-attempts.json";
 const ESLINT_CACHE_PATH = ".eslintcache";
 const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts"];
 const ENTRY_CANDIDATES = ["index.ts", "cli.ts", "main.ts"];
@@ -124,6 +133,23 @@ export function findSourceRoot(filePath: string): string | undefined {
 	}
 
 	return undefined;
+}
+
+export function readLintAttempts(): Record<string, number> {
+	if (!existsSync(LINT_STATE_PATH)) {
+		return {};
+	}
+
+	try {
+		return JSON.parse(readFileSync(LINT_STATE_PATH, "utf-8")) as Record<string, number>;
+	} catch {
+		return {};
+	}
+}
+
+export function writeLintAttempts(attempts: Record<string, number>): void {
+	mkdirSync(dirname(LINT_STATE_PATH), { recursive: true });
+	writeFileSync(LINT_STATE_PATH, JSON.stringify(attempts));
 }
 
 export function resolveBustFiles(patterns: Array<string>): Array<string> {

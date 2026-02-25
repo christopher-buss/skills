@@ -1,7 +1,15 @@
 import { createFromFile } from "file-entry-cache";
 import type { ChildProcess } from "node:child_process";
 import { execSync, spawn } from "node:child_process";
-import { existsSync, globSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import {
+	existsSync,
+	globSync,
+	mkdirSync,
+	readFileSync,
+	statSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import process from "node:process";
 import type { PartialDeep } from "type-fest";
@@ -21,12 +29,14 @@ import {
 	isLintableFile,
 	lint,
 	main,
+	readLintAttempts,
 	readSettings,
 	resolveBustFiles,
 	restartDaemon,
 	runEslint,
 	runOxlint,
 	shouldBustCache,
+	writeLintAttempts,
 } from "../scripts/lint.js";
 
 function fromPartial<T>(mock: PartialDeep<NoInfer<T>>): T {
@@ -44,9 +54,11 @@ vi.mock(import("node:fs"), async () => {
 	return fromPartial({
 		existsSync: vi.fn<typeof existsSync>(() => false),
 		globSync: vi.fn<typeof globSync>(() => []),
+		mkdirSync: vi.fn<typeof mkdirSync>(),
 		readFileSync: vi.fn<typeof readFileSync>(),
 		statSync: vi.fn<typeof statSync>(),
 		unlinkSync: vi.fn<typeof unlinkSync>(),
+		writeFileSync: vi.fn<typeof writeFileSync>(),
 	});
 });
 
@@ -70,6 +82,8 @@ const mockedGlobSync = vi.mocked(globSync) as unknown as ReturnType<
 const mockedReadFileSync = vi.mocked(readFileSync);
 const mockedStatSync = vi.mocked(statSync);
 const mockedUnlinkSync = vi.mocked(unlinkSync);
+const mockedMkdirSync = vi.mocked(mkdirSync);
+const mockedWriteFileSync = vi.mocked(writeFileSync);
 const mockedCreateFromFile = vi.mocked(createFromFile);
 
 function fakeSpawnResult(): ChildProcess {
@@ -1340,6 +1354,51 @@ describe(lint, () => {
 			expect(mockedUnlinkSync).toHaveBeenCalledWith(".eslintcache");
 
 			vi.restoreAllMocks();
+		});
+	});
+
+	describe(readLintAttempts, () => {
+		it("should return empty object when file missing", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(false);
+
+			expect(readLintAttempts()).toStrictEqual({});
+		});
+
+		it("should parse valid JSON", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue('{"src/foo.ts":2}');
+
+			expect(readLintAttempts()).toStrictEqual({ "src/foo.ts": 2 });
+		});
+
+		it("should return empty object on corrupt JSON", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue("{bad json");
+
+			expect(readLintAttempts()).toStrictEqual({});
+		});
+	});
+
+	describe(writeLintAttempts, () => {
+		it("should create dir and write JSON", () => {
+			expect.assertions(2);
+
+			mockedMkdirSync.mockClear();
+			mockedWriteFileSync.mockClear();
+
+			writeLintAttempts({ "src/foo.ts": 2 });
+
+			expect(mockedMkdirSync).toHaveBeenCalledWith(".claude/state", { recursive: true });
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/lint-attempts.json",
+				'{"src/foo.ts":2}',
+			);
 		});
 	});
 });
