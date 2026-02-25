@@ -1,7 +1,7 @@
 import { createFromFile } from "file-entry-cache";
 import type { ChildProcess } from "node:child_process";
 import { execSync, spawn } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { join, resolve } from "node:path";
 import process from "node:process";
 import type { PartialDeep } from "type-fest";
@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	buildHookOutput,
+	clearCache,
 	findEntryPoints,
 	findSourceRoot,
 	formatErrors,
@@ -42,6 +43,7 @@ vi.mock(import("node:fs"), async () => {
 		existsSync: vi.fn<typeof existsSync>(() => false),
 		readFileSync: vi.fn<typeof readFileSync>(),
 		statSync: vi.fn<typeof statSync>(),
+		unlinkSync: vi.fn<typeof unlinkSync>(),
 	});
 });
 
@@ -61,6 +63,7 @@ const mockedSpawn = vi.mocked(spawn);
 const mockedExistsSync = vi.mocked(existsSync);
 const mockedReadFileSync = vi.mocked(readFileSync);
 const mockedStatSync = vi.mocked(statSync);
+const mockedUnlinkSync = vi.mocked(unlinkSync);
 const mockedCreateFromFile = vi.mocked(createFromFile);
 
 function fakeSpawnResult(): ChildProcess {
@@ -1139,7 +1142,7 @@ describe(lint, () => {
 
 			mockedExistsSync.mockReturnValue(true);
 			mockedStatSync.mockImplementation((path) => {
-				return fromPartial({ mtimeMs: (path as string) === ".eslintcache" ? 100 : 200 });
+				return fromPartial({ mtimeMs: path === ".eslintcache" ? 100 : 200 });
 			});
 
 			expect(shouldBustCache(["eslint.config.ts"])).toBe(true);
@@ -1165,8 +1168,16 @@ describe(lint, () => {
 		});
 	});
 
-	describe("clearCache", () => {
-		it.todo("should delete cache file");
+	describe(clearCache, () => {
+		it("should delete cache file", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+
+			clearCache();
+
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".eslintcache");
+		});
 
 		it.todo("should no-op when cache missing");
 	});

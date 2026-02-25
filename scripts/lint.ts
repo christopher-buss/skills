@@ -1,6 +1,6 @@
 import { createFromFile } from "file-entry-cache";
 import { execSync, spawn } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import process from "node:process";
 
@@ -135,6 +135,12 @@ export function shouldBustCache(bustFiles: Array<string>): boolean {
 
 	const cacheMtime = statSync(ESLINT_CACHE_PATH).mtimeMs;
 	return bustFiles.some((file) => existsSync(file) && statSync(file).mtimeMs > cacheMtime);
+}
+
+export function clearCache(): void {
+	if (existsSync(ESLINT_CACHE_PATH)) {
+		unlinkSync(ESLINT_CACHE_PATH);
+	}
 }
 
 export function invalidateCacheEntries(filePaths: Array<string>): void {
