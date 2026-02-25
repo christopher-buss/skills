@@ -748,6 +748,7 @@ describe(lint, () => {
 				cacheBust: [],
 				eslint: false,
 				lint: true,
+				maxLintAttempts: 3,
 				oxlint: true,
 				runner: "pnpm exec",
 			});
@@ -782,6 +783,7 @@ describe(lint, () => {
 				cacheBust: [],
 				eslint: false,
 				lint: true,
+				maxLintAttempts: 3,
 				oxlint: true,
 				runner: "pnpm exec",
 			});
@@ -958,6 +960,7 @@ describe(lint, () => {
 				cacheBust: [],
 				eslint: false,
 				lint: true,
+				maxLintAttempts: 3,
 				oxlint: true,
 				runner: "pnpm exec",
 			});
@@ -1006,6 +1009,7 @@ describe(lint, () => {
 				cacheBust: [],
 				eslint: true,
 				lint: true,
+				maxLintAttempts: 3,
 				oxlint: true,
 				runner: "pnpm exec",
 			});
@@ -1036,6 +1040,7 @@ describe(lint, () => {
 				cacheBust: [],
 				eslint: false,
 				lint: true,
+				maxLintAttempts: 3,
 				oxlint: false,
 				runner: "pnpm exec",
 			});
@@ -1349,6 +1354,7 @@ describe(lint, () => {
 				cacheBust: ["eslint.config.ts"],
 				eslint: true,
 				lint: true,
+				maxLintAttempts: 3,
 				oxlint: false,
 				runner: "pnpm exec",
 			});
@@ -1371,6 +1377,7 @@ describe(lint, () => {
 				cacheBust: ["eslint.config.ts"],
 				eslint: true,
 				lint: true,
+				maxLintAttempts: 3,
 				oxlint: false,
 				runner: "pnpm exec",
 			});
