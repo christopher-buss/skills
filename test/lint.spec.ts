@@ -487,6 +487,7 @@ describe(lint, () => {
 				cacheBust: [...DEFAULT_CACHE_BUST],
 				eslint: true,
 				lint: true,
+				maxLintAttempts: 3,
 				oxlint: false,
 				runner: "pnpm exec",
 			});
@@ -502,6 +503,7 @@ describe(lint, () => {
 				cacheBust: [...DEFAULT_CACHE_BUST],
 				eslint: true,
 				lint: true,
+				maxLintAttempts: 3,
 				oxlint: false,
 				runner: "pnpm exec",
 			});
@@ -528,6 +530,7 @@ describe(lint, () => {
 				cacheBust: [...DEFAULT_CACHE_BUST],
 				eslint: false,
 				lint: true,
+				maxLintAttempts: 3,
 				oxlint: true,
 				runner: "pnpm exec",
 			});
@@ -1093,6 +1096,17 @@ describe(lint, () => {
 			mockedReadFileSync.mockReturnValue('---\nrunner: "yarn dlx"\n---\n');
 
 			expect(readSettings()).toMatchObject({ runner: "yarn dlx" });
+		});
+	});
+
+	describe("readSettings maxLintAttempts", () => {
+		it("should parse maxLintAttempts from frontmatter", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue("---\nmax-lint-attempts: 5\n---\n");
+
+			expect(readSettings()).toMatchObject({ maxLintAttempts: 5 });
 		});
 	});
 
