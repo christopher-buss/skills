@@ -28,6 +28,7 @@ import {
 	invalidateCacheEntries,
 	invertGraph,
 	isLintableFile,
+	isProtectedFile,
 	lint,
 	main,
 	readLintAttempts,
@@ -1454,6 +1455,14 @@ describe(lint, () => {
 			clearLintAttempts();
 
 			expect(mockedUnlinkSync).not.toHaveBeenCalled();
+		});
+	});
+
+	describe(isProtectedFile, () => {
+		it("should block eslint config files", () => {
+			expect.assertions(1);
+
+			expect(isProtectedFile("eslint.config.mjs")).toBe(true);
 		});
 	});
 });

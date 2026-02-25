@@ -31,6 +31,12 @@ interface HookOutput {
 	systemMessage: string;
 }
 
+const PROTECTED_PREFIXES = ["eslint.config."];
+
+export function isProtectedFile(filename: string): boolean {
+	return PROTECTED_PREFIXES.some((prefix) => filename.startsWith(prefix));
+}
+
 const LINT_STATE_PATH = ".claude/state/lint-attempts.json";
 const ESLINT_CACHE_PATH = ".eslintcache";
 const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts"];
