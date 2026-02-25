@@ -6,7 +6,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node hooks/lint-guard.ts"
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/lint-guard.ts"
 					}
 				]
 			}
@@ -17,7 +17,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node hooks/lint.ts"
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/lint.ts"
 					}
 				]
 			}
@@ -28,7 +28,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node hooks/lint-stop.ts"
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/lint-stop.ts"
 					}
 				]
 			}
@@ -39,7 +39,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node hooks/clear-lint-state.ts"
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/clear-lint-state.ts"
 					}
 				]
 			}
