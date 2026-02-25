@@ -22,6 +22,17 @@
 				]
 			}
 		],
+		"Stop": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node hooks/lint-stop.ts"
+					}
+				]
+			}
+		],
 		"SessionStart": [
 			{
 				"matcher": "startup|resume|clear|compact",
