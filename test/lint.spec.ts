@@ -1553,6 +1553,20 @@ describe(lint, () => {
 
 			expect(result).toBeUndefined();
 		});
+
+		it("should allow stop after 3 stop attempts with user message", () => {
+			expect.assertions(2);
+
+			const result = stopDecision({
+				errorFiles: ["src/foo.ts"],
+				lintAttempts: {},
+				maxLintAttempts: 3,
+				stopAttempts: 3,
+			});
+
+			expect(result?.decision).toBeUndefined();
+			expect(result?.reason).toContain("Could not fix lint errors");
+		});
 	});
 
 	describe(isProtectedFile, () => {
