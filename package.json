@@ -36,6 +36,7 @@
 		"lint-staged": "catalog:",
 		"madge": "catalog:",
 		"simple-git-hooks": "catalog:",
+		"type-fest": "catalog:",
 		"typescript": "catalog:",
 		"vitest": "catalog:"
 	},

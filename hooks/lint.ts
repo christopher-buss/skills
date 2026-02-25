@@ -1,6 +1,4 @@
-import { createFromFile } from "file-entry-cache";
-import { execSync, spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import process from "node:process";
 
 import { lint, readSettings } from "../scripts/lint.ts";
@@ -23,7 +21,7 @@ function isHookInput(value: unknown): value is HookInput {
 	return typeof tool_input === "object" && tool_input !== null && "file_path" in tool_input;
 }
 
-const settings = readSettings({ existsSync, readFileSync });
+const settings = readSettings();
 
 if (!settings.lint) {
 	process.exit(0);
@@ -34,19 +32,7 @@ if (!isHookInput(input)) {
 	process.exit(0);
 }
 
-const result = lint(
-	input.tool_input.file_path,
-	{
-		createCache: createFromFile,
-		execSync(command: string, options?: object): string {
-			return execSync(command, { encoding: "utf-8", ...options });
-		},
-		existsSync,
-		spawn,
-	},
-	["--fix"],
-	settings,
-);
+const result = lint(input.tool_input.file_path, ["--fix"], settings);
 
 if (result !== undefined) {
 	// eslint-disable-next-line no-console -- Hook protocol requires stdout JSON

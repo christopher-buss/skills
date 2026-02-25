@@ -12,36 +12,7 @@ export interface LintSettings {
 	runner: string;
 }
 
-export interface SettingsDeps {
-	existsSync(path: string): boolean;
-	readFileSync(path: string, encoding: BufferEncoding): string;
-}
-
-export interface LintDeps extends CacheDeps, ExecDeps, FileSystemDeps, SpawnDeps {}
-
 export type DependencyGraph = Record<string, Array<string>>;
-
-interface FileSystemDeps {
-	existsSync(path: string): boolean;
-}
-
-interface CacheDeps {
-	createCache(path: string): { reconcile(): void; removeEntry(key: string): void };
-	existsSync(path: string): boolean;
-}
-
-interface ExecDeps {
-	execSync(command: string, options?: object): string;
-}
-
-interface SpawnResult {
-	on(event: string, handler: () => void): SpawnResult;
-	unref(): void;
-}
-
-interface SpawnDeps {
-	spawn(command: string, args: Array<string>, options?: object): SpawnResult;
-}
 
 interface HookOutput {
 	hookSpecificOutput: {
@@ -66,12 +37,12 @@ const DEFAULT_SETTINGS = {
 	runner: "pnpm exec",
 } satisfies LintSettings;
 
-export function readSettings(deps: SettingsDeps): LintSettings {
-	if (!deps.existsSync(SETTINGS_FILE)) {
+export function readSettings(): LintSettings {
+	if (!existsSync(SETTINGS_FILE)) {
 		return { ...DEFAULT_SETTINGS };
 	}
 
-	const content = deps.readFileSync(SETTINGS_FILE, "utf-8");
+	const content = readFileSync(SETTINGS_FILE, "utf-8");
 	const fields = parseFrontmatter(content);
 
 	const cacheBustRaw = fields.get("cache-bust") ?? "";
@@ -91,10 +62,10 @@ export function readSettings(deps: SettingsDeps): LintSettings {
 	};
 }
 
-export function getChangedFiles(deps: ExecDeps): Array<string> {
-	const options = { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] };
-	const changed = deps.execSync("git diff --name-only --diff-filter=d HEAD", options);
-	const untracked = deps.execSync("git ls-files --others --exclude-standard", options);
+export function getChangedFiles(): Array<string> {
+	const options = { encoding: "utf-8" as const, stdio: "pipe" as const };
+	const changed = execSync("git diff --name-only --diff-filter=d HEAD", options);
+	const untracked = execSync("git ls-files --others --exclude-standard", options);
 	return [...changed.trim().split("\n"), ...untracked.trim().split("\n")].filter(Boolean);
 }
 
@@ -102,20 +73,19 @@ export function isLintableFile(filePath: string, extensions = DEFAULT_EXTENSIONS
 	return extensions.some((extension) => filePath.endsWith(extension));
 }
 
-export function findEntryPoints(sourceRoot: string, deps: FileSystemDeps): Array<string> {
+export function findEntryPoints(sourceRoot: string): Array<string> {
 	return ENTRY_CANDIDATES.map((name) => join(sourceRoot, name)).filter((path) => {
-		return deps.existsSync(path);
+		return existsSync(path);
 	});
 }
 
 export function getDependencyGraph(
 	sourceRoot: string,
 	entryPoints: Array<string>,
-	deps: ExecDeps,
 	runner = DEFAULT_SETTINGS.runner,
 ): DependencyGraph {
 	const entryArguments = entryPoints.map((ep) => `"${ep}"`).join(" ");
-	const output = deps.execSync(`${runner} madge --json ${entryArguments}`, {
+	const output = execSync(`${runner} madge --json ${entryArguments}`, {
 		cwd: sourceRoot,
 		encoding: "utf-8",
 		stdio: ["pipe", "pipe", "pipe"],
@@ -136,12 +106,12 @@ export function invertGraph(graph: DependencyGraph, target: string): Array<strin
 	return importers;
 }
 
-export function findSourceRoot(filePath: string, deps: FileSystemDeps): string | undefined {
+export function findSourceRoot(filePath: string): string | undefined {
 	let current = dirname(filePath);
 	while (current !== dirname(current)) {
-		if (deps.existsSync(join(current, "package.json"))) {
+		if (existsSync(join(current, "package.json"))) {
 			const sourceDirectory = join(current, "src");
-			if (deps.existsSync(sourceDirectory)) {
+			if (existsSync(sourceDirectory)) {
 				return sourceDirectory;
 			}
 
@@ -154,16 +124,16 @@ export function findSourceRoot(filePath: string, deps: FileSystemDeps): string |
 	return undefined;
 }
 
-export function invalidateCacheEntries(filePaths: Array<string>, deps: CacheDeps): void {
+export function invalidateCacheEntries(filePaths: Array<string>): void {
 	if (filePaths.length === 0) {
 		return;
 	}
 
-	if (!deps.existsSync(ESLINT_CACHE_PATH)) {
+	if (!existsSync(ESLINT_CACHE_PATH)) {
 		return;
 	}
 
-	const cache = deps.createCache(ESLINT_CACHE_PATH);
+	const cache = createFromFile(ESLINT_CACHE_PATH);
 	for (const file of filePaths) {
 		cache.removeEntry(file);
 	}
@@ -173,13 +143,12 @@ export function invalidateCacheEntries(filePaths: Array<string>, deps: CacheDeps
 
 export function runOxlint(
 	filePath: string,
-	deps: ExecDeps,
 	extraFlags: Array<string> = [],
 	runner = DEFAULT_SETTINGS.runner,
 ): string | undefined {
 	const flags = extraFlags.length > 0 ? `${extraFlags.join(" ")} ` : "";
 	try {
-		deps.execSync(`${runner} oxlint ${flags}"${filePath}"`, {
+		execSync(`${runner} oxlint ${flags}"${filePath}"`, {
 			stdio: "pipe",
 		});
 		return undefined;
@@ -195,13 +164,12 @@ export function runOxlint(
 
 export function runEslint(
 	filePath: string,
-	deps: ExecDeps,
 	extraFlags: Array<string> = [],
 	runner = DEFAULT_SETTINGS.runner,
 ): string | undefined {
 	const flags = ["--cache", ...extraFlags].join(" ");
 	try {
-		deps.execSync(`${runner} eslint_d ${flags} "${filePath}"`, {
+		execSync(`${runner} eslint_d ${flags} "${filePath}"`, {
 			env: { ...process.env, ESLINT_IN_EDITOR: "true" },
 			stdio: "pipe",
 		});
@@ -216,10 +184,10 @@ export function runEslint(
 	}
 }
 
-export function restartDaemon(deps: SpawnDeps, runner = DEFAULT_SETTINGS.runner): void {
+export function restartDaemon(runner = DEFAULT_SETTINGS.runner): void {
 	const [command = "pnpm", ...prefixArgs] = runner.split(/\s+/);
 	try {
-		deps.spawn(command, [...prefixArgs, "eslint_d", "restart"], {
+		spawn(command, [...prefixArgs, "eslint_d", "restart"], {
 			detached: true,
 			stdio: "ignore",
 		})
@@ -256,7 +224,6 @@ export function buildHookOutput(filePath: string, errors: Array<string>): HookOu
 
 export function lint(
 	filePath: string,
-	deps: LintDeps,
 	extraFlags: Array<string> = [],
 	settings: LintSettings = DEFAULT_SETTINGS,
 ): HookOutput | undefined {
@@ -264,27 +231,27 @@ export function lint(
 		return undefined;
 	}
 
-	const importers = findImporters(filePath, deps, settings.runner);
-	invalidateCacheEntries(importers, deps);
+	const importers = findImporters(filePath, settings.runner);
+	invalidateCacheEntries(importers);
 
 	const outputs: Array<string> = [];
 
 	if (settings.oxlint) {
-		const output = runOxlint(filePath, deps, extraFlags, settings.runner);
+		const output = runOxlint(filePath, extraFlags, settings.runner);
 		if (output !== undefined) {
 			outputs.push(output);
 		}
 	}
 
 	if (settings.eslint) {
-		const output = runEslint(filePath, deps, extraFlags, settings.runner);
+		const output = runEslint(filePath, extraFlags, settings.runner);
 		if (output !== undefined) {
 			outputs.push(output);
 		}
 	}
 
 	if (settings.eslint) {
-		restartDaemon(deps, settings.runner);
+		restartDaemon(settings.runner);
 	}
 
 	if (outputs.length > 0) {
@@ -298,27 +265,23 @@ export function lint(
 	return undefined;
 }
 
-export function main(
-	targets: Array<string>,
-	deps: LintDeps,
-	settings: LintSettings = DEFAULT_SETTINGS,
-): void {
-	const changedFiles = getChangedFiles(deps);
-	invalidateCacheEntries(changedFiles, deps);
+export function main(targets: Array<string>, settings: LintSettings = DEFAULT_SETTINGS): void {
+	const changedFiles = getChangedFiles();
+	invalidateCacheEntries(changedFiles);
 
 	let hasErrors = false;
 	for (const target of targets) {
 		const outputs: Array<string> = [];
 
 		if (settings.oxlint) {
-			const output = runOxlint(target, deps, ["--color"], settings.runner);
+			const output = runOxlint(target, ["--color"], settings.runner);
 			if (output !== undefined) {
 				outputs.push(output);
 			}
 		}
 
 		if (settings.eslint) {
-			const output = runEslint(target, deps, ["--color"], settings.runner);
+			const output = runEslint(target, ["--color"], settings.runner);
 			if (output !== undefined) {
 				outputs.push(output);
 			}
@@ -338,7 +301,7 @@ export function main(
 	}
 
 	if (settings.eslint) {
-		restartDaemon(deps, settings.runner);
+		restartDaemon(settings.runner);
 	}
 
 	if (hasErrors) {
@@ -369,24 +332,20 @@ function parseFrontmatter(content: string): Map<string, string> {
 	return fields;
 }
 
-function findImporters(
-	filePath: string,
-	deps: LintDeps,
-	runner = DEFAULT_SETTINGS.runner,
-): Array<string> {
+function findImporters(filePath: string, runner = DEFAULT_SETTINGS.runner): Array<string> {
 	const absPath = resolve(filePath);
-	const sourceRoot = findSourceRoot(absPath, deps);
+	const sourceRoot = findSourceRoot(absPath);
 	if (sourceRoot === undefined) {
 		return [];
 	}
 
-	const entryPoints = findEntryPoints(sourceRoot, deps);
+	const entryPoints = findEntryPoints(sourceRoot);
 	if (entryPoints.length === 0) {
 		return [];
 	}
 
 	try {
-		const graph = getDependencyGraph(sourceRoot, entryPoints, deps, runner);
+		const graph = getDependencyGraph(sourceRoot, entryPoints, runner);
 		const targetRelative = relative(sourceRoot, absPath).replaceAll("\\", "/");
 		return invertGraph(graph, targetRelative).map((file) => join(sourceRoot, file));
 	} catch {
@@ -397,15 +356,7 @@ function findImporters(
 /* v8 ignore start -- CLI entrypoint */
 const IS_CLI_INVOCATION = process.argv[1]?.endsWith("scripts/lint.ts") === true;
 if (IS_CLI_INVOCATION) {
-	const deps = {
-		createCache: createFromFile,
-		execSync(command: string, options?: object): string {
-			return execSync(command, { encoding: "utf-8", ...options });
-		},
-		existsSync,
-		spawn,
-	};
-	const settings = readSettings({ existsSync, readFileSync });
+	const settings = readSettings();
 	const targets = process.argv.length > 2 ? process.argv.slice(2) : ["."];
-	main(targets, deps, settings);
+	main(targets, settings);
 }
