@@ -1,7 +1,7 @@
 import { createFromFile } from "file-entry-cache";
 import type { ChildProcess } from "node:child_process";
 import { execSync, spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import process from "node:process";
 import type { PartialDeep } from "type-fest";
@@ -23,6 +23,7 @@ import {
 	restartDaemon,
 	runEslint,
 	runOxlint,
+	shouldBustCache,
 } from "../scripts/lint.js";
 
 function fromPartial<T>(mock: PartialDeep<NoInfer<T>>): T {
@@ -40,6 +41,7 @@ vi.mock(import("node:fs"), async () => {
 	return fromPartial({
 		existsSync: vi.fn<typeof existsSync>(() => false),
 		readFileSync: vi.fn<typeof readFileSync>(),
+		statSync: vi.fn<typeof statSync>(),
 	});
 });
 
@@ -58,6 +60,7 @@ const mockedExecSync = vi.mocked(execSync);
 const mockedSpawn = vi.mocked(spawn);
 const mockedExistsSync = vi.mocked(existsSync);
 const mockedReadFileSync = vi.mocked(readFileSync);
+const mockedStatSync = vi.mocked(statSync);
 const mockedCreateFromFile = vi.mocked(createFromFile);
 
 function fakeSpawnResult(): ChildProcess {
@@ -1130,8 +1133,17 @@ describe(lint, () => {
 		});
 	});
 
-	describe("shouldBustCache", () => {
-		it.todo("should return true when bust file newer than cache");
+	describe(shouldBustCache, () => {
+		it("should return true when bust file newer than cache", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedStatSync.mockImplementation((path) => {
+				return fromPartial({ mtimeMs: (path as string) === ".eslintcache" ? 100 : 200 });
+			});
+
+			expect(shouldBustCache(["eslint.config.ts"])).toBe(true);
+		});
 
 		it.todo("should return false when cache newer than bust file");
 
