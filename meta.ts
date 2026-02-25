@@ -17,7 +17,7 @@ export const submodules = {
 };
 
 /** Already generated skills, sync with their `skills/` directory. */
-export const vendors: Record<string, VendorSkillMeta> = {
+export const vendors = {
 	humanizer: {
 		skills: {
 			".": "humanizer",
@@ -31,7 +31,7 @@ export const vendors: Record<string, VendorSkillMeta> = {
 		},
 		source: "https://github.com/obra/superpowers",
 	},
-};
+} satisfies Record<string, VendorSkillMeta>;
 
 /** Hand-written skills. */
 export const manual = ["isentinel", "ecs-design"];

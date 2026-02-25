@@ -66,11 +66,11 @@ interface ChangeRecord<T> {
 }
 
 function trackComponent<T>(component: Entity<T>): ChangeRecord<T> {
-	const record: ChangeRecord<T> = {
+	const record = {
 		added: new Map(),
 		changed: new Map(),
 		removed: new Set(),
-	};
+	} satisfies ChangeRecord<T>;
 
 	world.added(component, (entity, _, value) => {
 		record.added.set(entity, value);
@@ -130,7 +130,7 @@ for (const component of world.each(Networked)) {
 
 // Send delta each frame
 function sendDelta(): void {
-	const delta: Record<string, unknown> = {};
+	const delta = {} satisfies Record<string, unknown>;
 
 	for (const [component, storage] of storages) {
 		if (storage.size() > 0) {
