@@ -34,8 +34,6 @@ for (const file of files) {
 	}
 }
 
-writeStopAttempts(readStopAttempts() + 1);
-
 const result = stopDecision({
 	errorFiles,
 	lintAttempts: readLintAttempts(),
@@ -43,7 +41,16 @@ const result = stopDecision({
 	stopAttempts: readStopAttempts(),
 });
 
-if (result !== undefined) {
-	// eslint-disable-next-line no-console -- Hook protocol requires stdout JSON
-	console.log(JSON.stringify(result));
+if (result === undefined) {
+	process.exit(0);
 }
+
+if (result.resetStopAttempts) {
+	writeStopAttempts(0);
+	process.exit(0);
+}
+
+writeStopAttempts(readStopAttempts() + 1);
+
+// eslint-disable-next-line no-console -- Hook protocol requires stdout JSON
+console.log(JSON.stringify(result));
