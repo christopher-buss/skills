@@ -290,8 +290,12 @@ export function lint(
 }
 
 export function main(targets: Array<string>, settings: LintSettings = DEFAULT_SETTINGS): void {
-	const changedFiles = getChangedFiles();
-	invalidateCacheEntries(changedFiles);
+	if (shouldBustCache(settings.cacheBust)) {
+		clearCache();
+	} else {
+		const changedFiles = getChangedFiles();
+		invalidateCacheEntries(changedFiles);
+	}
 
 	let hasErrors = false;
 	for (const target of targets) {

@@ -1212,6 +1212,27 @@ describe(lint, () => {
 			expect(mockedUnlinkSync).toHaveBeenCalledWith(".eslintcache");
 		});
 
-		it.todo("should clear full cache in main when bust triggered");
+		it("should clear full cache in main when bust triggered", () => {
+			expect.assertions(1);
+
+			vi.spyOn(process, "exit").mockReturnValue(undefined as never);
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedStatSync.mockImplementation((path) => {
+				return fromPartial({ mtimeMs: (path as string) === ".eslintcache" ? 100 : 200 });
+			});
+
+			main(["."], {
+				cacheBust: ["eslint.config.ts"],
+				eslint: true,
+				lint: true,
+				oxlint: false,
+				runner: "pnpm exec",
+			});
+
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".eslintcache");
+
+			vi.restoreAllMocks();
+		});
 	});
 });
