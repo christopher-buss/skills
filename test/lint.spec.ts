@@ -1414,5 +1414,16 @@ describe(lint, () => {
 
 			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/lint-attempts.json");
 		});
+
+		it("should no-op when file missing", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(false);
+
+			clearLintAttempts();
+
+			expect(mockedUnlinkSync).not.toHaveBeenCalled();
+		});
 	});
 });
