@@ -1,5 +1,5 @@
 {
-	"name": "skills",
+	"name": "isentinel",
 	"owner": {
 		"name": "Christopher Buss",
 		"email": "christopher.buss@pm.me"
@@ -10,7 +10,7 @@
 	},
 	"plugins": [
 		{
-			"name": "sentinel",
+			"name": "roblox",
 			"source": "./",
 			"description": "Skills for roblox-ts, ECS development with jecs, and general development workflows including eslint_d lint hook"
 		}
