@@ -31,10 +31,12 @@ interface HookOutput {
 	systemMessage: string;
 }
 
-const PROTECTED_PREFIXES = ["eslint.config.", "oxlint.config."];
+const PROTECTED_PATTERNS = ["eslint.config.", "oxlint.config.", ".eslintrc", ".oxlintrc."];
 
 export function isProtectedFile(filename: string): boolean {
-	return PROTECTED_PREFIXES.some((prefix) => filename.startsWith(prefix));
+	return PROTECTED_PATTERNS.some(
+		(pattern) => filename.startsWith(pattern) || filename === pattern,
+	);
 }
 
 const LINT_STATE_PATH = ".claude/state/lint-attempts.json";

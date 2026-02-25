@@ -1622,16 +1622,26 @@ describe(lint, () => {
 	});
 
 	describe(isProtectedFile, () => {
-		it("should block eslint config files", () => {
+		it("should block eslint flat config files", () => {
 			expect.assertions(1);
 
 			expect(isProtectedFile("eslint.config.mjs")).toBe(true);
 		});
 
+		it("should block legacy eslintrc files", () => {
+			expect.assertions(4);
+
+			expect(isProtectedFile(".eslintrc")).toBe(true);
+			expect(isProtectedFile(".eslintrc.js")).toBe(true);
+			expect(isProtectedFile(".eslintrc.json")).toBe(true);
+			expect(isProtectedFile(".eslintrc.yaml")).toBe(true);
+		});
+
 		it("should block oxlint config files", () => {
-			expect.assertions(1);
+			expect.assertions(2);
 
 			expect(isProtectedFile("oxlint.config.ts")).toBe(true);
+			expect(isProtectedFile(".oxlintrc.json")).toBe(true);
 		});
 
 		it("should approve normal source files", () => {
