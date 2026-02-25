@@ -9,6 +9,7 @@ words:
   - jecs
   - lintable
   - oxlint
+  - oxlintrc
   - pnpmfile
   - regen
   - turborepo
