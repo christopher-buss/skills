@@ -40,6 +40,7 @@ import {
 	runEslint,
 	runOxlint,
 	shouldBustCache,
+	stopDecision,
 	writeLintAttempts,
 	writeStopAttempts,
 } from "../scripts/lint.js";
@@ -1509,6 +1510,21 @@ describe(lint, () => {
 			clearStopAttempts();
 
 			expect(mockedUnlinkSync).not.toHaveBeenCalled();
+		});
+	});
+
+	describe(stopDecision, () => {
+		it("should allow stop when no error files", () => {
+			expect.assertions(1);
+
+			const result = stopDecision({
+				errorFiles: [],
+				lintAttempts: {},
+				maxLintAttempts: 3,
+				stopAttempts: 0,
+			});
+
+			expect(result).toBeUndefined();
 		});
 	});
 

@@ -59,6 +59,18 @@ const DEFAULT_SETTINGS = {
 	runner: "pnpm exec",
 } satisfies LintSettings;
 
+export interface StopDecisionResult {
+	decision?: "block";
+	reason: string;
+}
+
+interface StopDecisionInput {
+	errorFiles: Array<string>;
+	lintAttempts: Record<string, number>;
+	maxLintAttempts: number;
+	stopAttempts: number;
+}
+
 export function readSettings(): LintSettings {
 	if (!existsSync(SETTINGS_FILE)) {
 		return { ...DEFAULT_SETTINGS };
@@ -183,6 +195,14 @@ export function readStopAttempts(): number {
 export function writeStopAttempts(count: number): void {
 	mkdirSync(dirname(STOP_STATE_PATH), { recursive: true });
 	writeFileSync(STOP_STATE_PATH, JSON.stringify(count));
+}
+
+export function stopDecision(input: StopDecisionInput): StopDecisionResult | undefined {
+	if (input.errorFiles.length === 0) {
+		return undefined;
+	}
+
+	return undefined;
 }
 
 export function clearStopAttempts(): void {
