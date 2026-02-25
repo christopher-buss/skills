@@ -16,6 +16,7 @@ export interface LintSettings {
 	cacheBust: Array<string>;
 	eslint: boolean;
 	lint: boolean;
+	maxLintAttempts: number;
 	oxlint: boolean;
 	runner: string;
 }
@@ -40,10 +41,13 @@ const SETTINGS_FILE = ".claude/sentinel.local.md";
 
 export const DEFAULT_CACHE_BUST = ["*.config.*", "**/tsconfig*.json"];
 
+const DEFAULT_MAX_LINT_ATTEMPTS = 3;
+
 const DEFAULT_SETTINGS = {
 	cacheBust: [...DEFAULT_CACHE_BUST],
 	eslint: true,
 	lint: true,
+	maxLintAttempts: DEFAULT_MAX_LINT_ATTEMPTS,
 	oxlint: false,
 	runner: "pnpm exec",
 } satisfies LintSettings;
@@ -64,10 +68,15 @@ export function readSettings(): LintSettings {
 				.filter(Boolean)
 		: [];
 
+	const maxAttemptsRaw = fields.get("max-lint-attempts");
+	const maxLintAttempts =
+		maxAttemptsRaw !== undefined ? Number(maxAttemptsRaw) : DEFAULT_MAX_LINT_ATTEMPTS;
+
 	return {
 		cacheBust: [...DEFAULT_CACHE_BUST, ...userPatterns],
 		eslint: fields.get("eslint") !== "false",
 		lint: fields.get("lint") !== "false",
+		maxLintAttempts,
 		oxlint: fields.get("oxlint") === "true",
 		runner: fields.get("runner") ?? DEFAULT_SETTINGS.runner,
 	};
