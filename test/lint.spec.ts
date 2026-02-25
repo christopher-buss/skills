@@ -1505,5 +1505,13 @@ describe(lint, () => {
 			expect(parsed.decision).toBe("block");
 			expect(parsed.reason).toContain("linter config");
 		});
+
+		it("should output nothing for normal files", async () => {
+			expect.assertions(1);
+
+			const output = await runGuard("src/foo.ts");
+
+			expect(output).toBe("");
+		});
 	});
 });
