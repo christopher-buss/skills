@@ -1554,6 +1554,19 @@ describe(lint, () => {
 			expect(result).toBeUndefined();
 		});
 
+		it("should match attempts by basename when paths differ", () => {
+			expect.assertions(1);
+
+			const result = stopDecision({
+				errorFiles: ["src/foo.ts"],
+				lintAttempts: { "D:/projects/skills/src/foo.ts": 3 },
+				maxLintAttempts: 3,
+				stopAttempts: 0,
+			});
+
+			expect(result).toBeUndefined();
+		});
+
 		it("should allow stop after 3 stop attempts with user message", () => {
 			expect.assertions(2);
 
