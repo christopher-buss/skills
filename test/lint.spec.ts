@@ -33,6 +33,7 @@ import {
 	main,
 	readLintAttempts,
 	readSettings,
+	readStopAttempts,
 	resolveBustFiles,
 	restartDaemon,
 	runEslint,
@@ -1455,6 +1456,16 @@ describe(lint, () => {
 			clearLintAttempts();
 
 			expect(mockedUnlinkSync).not.toHaveBeenCalled();
+		});
+	});
+
+	describe(readStopAttempts, () => {
+		it("should return 0 when file missing", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(false);
+
+			expect(readStopAttempts()).toBe(0);
 		});
 	});
 

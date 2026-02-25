@@ -38,6 +38,7 @@ export function isProtectedFile(filename: string): boolean {
 }
 
 const LINT_STATE_PATH = ".claude/state/lint-attempts.json";
+const STOP_STATE_PATH = ".claude/state/stop-attempts.json";
 const ESLINT_CACHE_PATH = ".eslintcache";
 const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts"];
 const ENTRY_CANDIDATES = ["index.ts", "cli.ts", "main.ts"];
@@ -167,6 +168,18 @@ export function writeLintAttempts(attempts: Record<string, number>): void {
 	writeFileSync(LINT_STATE_PATH, JSON.stringify(attempts));
 }
 
+export function readStopAttempts(): number {
+	if (!existsSync(STOP_STATE_PATH)) {
+		return 0;
+	}
+
+	try {
+		return JSON.parse(readFileSync(STOP_STATE_PATH, "utf-8")) as number;
+	} catch {
+		return 0;
+	}
+}
+
 export function clearLintAttempts(): void {
 	if (existsSync(LINT_STATE_PATH)) {
 		unlinkSync(LINT_STATE_PATH);
@@ -177,7 +190,7 @@ export function resolveBustFiles(patterns: Array<string>): Array<string> {
 	const positive = patterns.filter((pattern) => !pattern.startsWith("!"));
 	const negative = patterns
 		.filter((pattern) => pattern.startsWith("!"))
-		.map((pat) => pat.slice(1));
+		.map((pattern) => pattern.slice(1));
 
 	const matched = positive.flatMap((pattern) => globSync(pattern));
 	if (negative.length === 0) {
