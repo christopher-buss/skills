@@ -14,13 +14,13 @@ Define a catalog in `pnpm-workspace.yaml`:
 
 ```yaml
 packages:
-    - "packages/*"
+  - "packages/*"
 
 catalog:
-    react: ^18.2.0
-    react-dom: ^18.2.0
-    typescript: ~5.3.0
-    vite: ^5.0.0
+  react: ^18.2.0
+  react-dom: ^18.2.0
+  typescript: ~5.3.0
+  vite: ^5.0.0
 ```
 
 Reference in `package.json` with `catalog:`:
@@ -44,25 +44,25 @@ Create multiple catalogs for different scenarios:
 
 ```yaml
 packages:
-    - "packages/*"
+  - "packages/*"
 
 # Default catalog
 catalog:
-    lodash: ^4.17.21
+  lodash: ^4.17.21
 
 # Named catalogs
 catalogs:
-    "@testing-library/react": ^14.0.0
-    react17:
-        react: ^17.0.2
-        react-dom: ^17.0.2
+  "@testing-library/react": ^14.0.0
+  react17:
+    react: ^17.0.2
+    react-dom: ^17.0.2
 
-    react18:
-        react: ^18.2.0
-        react-dom: ^18.2.0
+  react18:
+    react: ^18.2.0
+    react-dom: ^18.2.0
 
-    testing:
-    vitest: ^1.0.0
+  testing:
+  vitest: ^1.0.0
 ```
 
 Reference named catalogs:
@@ -124,8 +124,8 @@ If you're using overrides for version consistency:
 ```yaml
 # Before (using overrides)
 overrides:
-    react: ^18.2.0
-    react-dom: ^18.2.0
+  react: ^18.2.0
+  react-dom: ^18.2.0
 ```
 
 Migrate to catalogs for cleaner dependency management:
@@ -133,8 +133,8 @@ Migrate to catalogs for cleaner dependency management:
 ```yaml
 # After (using catalogs)
 catalog:
-    react: ^18.2.0
-    react-dom: ^18.2.0
+  react: ^18.2.0
+  react-dom: ^18.2.0
 ```
 
 Then update package.json files to use `catalog:`.
@@ -148,9 +148,9 @@ Then update package.json files to use `catalog:`.
 
 ```yaml
 catalog:
-    # External shared dependencies
-    lodash: ^4.17.21
-    zod: ^3.22.0
+  # External shared dependencies
+  lodash: ^4.17.21
+  zod: ^3.22.0
 
 # Internal packages use workspace: protocol instead
 ```

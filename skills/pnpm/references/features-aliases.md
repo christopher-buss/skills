@@ -135,7 +135,7 @@ Force all transitive dependencies to use an alias:
 ```yaml
 # pnpm-workspace.yaml
 overrides:
-    underscore: "npm:lodash@^4.17.21"
+  underscore: "npm:lodash@^4.17.21"
 ```
 
 This replaces all `underscore` imports (including in dependencies) with lodash.

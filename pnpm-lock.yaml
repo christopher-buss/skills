@@ -13,8 +13,8 @@ catalogs:
       specifier: ^0.4.0
       version: 0.4.0
     '@isentinel/eslint-config':
-      specifier: 5.0.0-beta.1
-      version: 5.0.0-beta.1
+      specifier: 5.0.0-beta.4
+      version: 5.0.0-beta.4
     '@isentinel/tsconfig':
       specifier: ^1.2.0
       version: 1.2.0
@@ -85,7 +85,7 @@ importers:
         version: 0.4.0
       '@isentinel/eslint-config':
         specifier: 'catalog:'
-        version: 5.0.0-beta.1(@types/estree@1.0.8)(@typescript-eslint/utils@8.56.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(@vitest/eslint-plugin@1.6.9(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)(vitest@4.0.18(@types/node@25.0.10)(jiti@2.6.1)(yaml@2.8.2)))(eslint-plugin-n@17.23.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-plugin-react-naming-convention@2.7.4(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+        version: 5.0.0-beta.4(@types/estree@1.0.8)(@typescript-eslint/utils@8.56.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(@vitest/eslint-plugin@1.6.9(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)(vitest@4.0.18(@types/node@25.0.10)(jiti@2.6.1)(yaml@2.8.2)))(eslint-plugin-n@17.23.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-plugin-react-naming-convention@2.7.4(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@5.9.3)
@@ -839,8 +839,8 @@ packages:
   '@isentinel/dict-roblox@1.0.3':
     resolution: {integrity: sha512-XR1KVHZLyyamVobUICxTlDkB3gfLVuV34mdFQeIL7DfCtNI2uCeuZm6g6J63AQzUrqsCIUF166Ogf+TL0przdg==}
 
-  '@isentinel/eslint-config@5.0.0-beta.1':
-    resolution: {integrity: sha512-3dBr0XM+A5TamgjbRU9mchATRnRtDkx7jNiG27Q8vKFFs3Gk3y5heANpiVfZZbfinhwxNjHKqkQ1zzui9tb/Lg==}
+  '@isentinel/eslint-config@5.0.0-beta.4':
+    resolution: {integrity: sha512-TE+ZPzW8QWAmhu5NYJe0yhVjJB/67xqbyyyOP9zSpzjkaiY4DwWRWsxzheQtMktkwsE+lJeVga0kv97us+/lcg==}
     engines: {node: '>=22.16.0'}
     hasBin: true
     peerDependencies:
@@ -2004,9 +2004,6 @@ packages:
     peerDependencies:
       typescript: '>=4.5.2'
 
-  binary-searching@2.0.5:
-    resolution: {integrity: sha512-v4N2l3RxL+m4zDxyxz3Ne2aTmiPn8ZUpKFpdPtO+ItW1NcTCXA7JeHG5GMBSvoKSkQZ9ycS+EouDVxYB9ufKWA==}
-
   birecord@0.1.1:
     resolution: {integrity: sha512-VUpsf/qykW0heRlC8LooCq28Kxn3mAqKohhDG/49rrsQ1dT1CXyj/pgXS+5BSRzFTR/3DyIBOqQOrGyZOh71Aw==}
 
@@ -2517,20 +2514,6 @@ packages:
     resolution: {integrity: sha512-ayMo1GvrQ/sF/bz1aOAiH0jv9eAqU2Z+a1ycoWz/uFFK5NxQDq49BDKQtBumcOUBf2VHyiTW4a8u+6KVqoIWzQ==}
     peerDependencies:
       eslint: ^9.0.0
-
-  eslint-plugin-prettier@5.5.5:
-    resolution: {integrity: sha512-hscXkbqUZ2sPithAuLm5MXL+Wph+U7wHngPBv9OMWwlP8iaflyxpjTYZkmdgB4/vPIhemRlBEoLrH7UC1n7aUw==}
-    engines: {node: ^14.18.0 || >=16.0.0}
-    peerDependencies:
-      '@types/eslint': '>=8.0.0'
-      eslint: '>=8.0.0'
-      eslint-config-prettier: '>= 7.0.0 <10.0.0 || >=10.1.0'
-      prettier: '>=3.0.0'
-    peerDependenciesMeta:
-      '@types/eslint':
-        optional: true
-      eslint-config-prettier:
-        optional: true
 
   eslint-plugin-promise@7.2.1:
     resolution: {integrity: sha512-SWKjd+EuvWkYaS+uN2csvj0KoP43YTu7+phKQ5v+xw6+A0gutVX2yqCeCkC3uLCJFiPfR2dD8Es5L7yUsmvEaA==}
@@ -3473,12 +3456,6 @@ packages:
   prettier-linter-helpers@1.0.1:
     resolution: {integrity: sha512-SxToR7P8Y2lWmv/kTzVLC1t/GDI2WGjMwNhLLE9qtH8Q13C+aEmuRlzDst4Up4s0Wc8sF2M+J57iB3cMLqftfg==}
     engines: {node: '>=6.0.0'}
-
-  prettier-plugin-jsdoc@1.8.0:
-    resolution: {integrity: sha512-byW8EBZ1DSA3CPdDGBXfcdqqhh2eq0+HlIOPTGZ6rf9O2p/AwBmtS0e49ot5ZeOdcszj81FyzbyHr/VS0eYpCg==}
-    engines: {node: '>=14.13.1 || >=16.0.0'}
-    peerDependencies:
-      prettier: ^3.0.0
 
   prettier@3.8.1:
     resolution: {integrity: sha512-UOnG6LftzbdaHZcKoPFtOcCKztrQ57WkHDeRD9t/PTQtmT0NHSeWWepj6pS0z/N7+08BHFDQVUrfmfMRcZwbMg==}
@@ -4733,7 +4710,7 @@ snapshots:
 
   '@isentinel/dict-roblox@1.0.3': {}
 
-  '@isentinel/eslint-config@5.0.0-beta.1(@types/estree@1.0.8)(@typescript-eslint/utils@8.56.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(@vitest/eslint-plugin@1.6.9(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)(vitest@4.0.18(@types/node@25.0.10)(jiti@2.6.1)(yaml@2.8.2)))(eslint-plugin-n@17.23.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-plugin-react-naming-convention@2.7.4(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)':
+  '@isentinel/eslint-config@5.0.0-beta.4(@types/estree@1.0.8)(@typescript-eslint/utils@8.56.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(@vitest/eslint-plugin@1.6.9(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)(vitest@4.0.18(@types/node@25.0.10)(jiti@2.6.1)(yaml@2.8.2)))(eslint-plugin-n@17.23.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-plugin-react-naming-convention@2.7.4(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)':
     dependencies:
       '@antfu/install-pkg': 1.1.0
       '@clack/prompts': 1.0.1
@@ -4767,7 +4744,6 @@ snapshots:
       eslint-plugin-package-json: 0.89.1(@types/estree@1.0.8)(eslint@9.39.2(jiti@2.6.1))(jsonc-eslint-parser@3.1.0)
       eslint-plugin-perfectionist: 5.6.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       eslint-plugin-pnpm: 1.5.0(eslint@9.39.2(jiti@2.6.1))
-      eslint-plugin-prettier: 5.5.5(eslint-config-prettier@10.1.8(eslint@9.39.2(jiti@2.6.1)))(eslint@9.39.2(jiti@2.6.1))(prettier@3.8.1)
       eslint-plugin-promise: 7.2.1(eslint@9.39.2(jiti@2.6.1))
       eslint-plugin-react-naming-convention: 2.7.4(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       eslint-plugin-roblox-ts: 1.4.0(@typescript-eslint/parser@8.56.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
@@ -4783,7 +4759,6 @@ snapshots:
       local-pkg: 1.1.2
       oxfmt: 0.35.0
       prettier: 3.8.1
-      prettier-plugin-jsdoc: 1.8.0(prettier@3.8.1)
       toml-eslint-parser: 1.0.3
       yaml-eslint-parser: 2.0.0
       yargs: 18.0.0
@@ -4792,7 +4767,6 @@ snapshots:
       eslint-plugin-n: 17.23.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
     transitivePeerDependencies:
       - '@eslint/json'
-      - '@types/eslint'
       - '@types/estree'
       - '@typescript-eslint/utils'
       - supports-color
@@ -5772,8 +5746,6 @@ snapshots:
       '@typescript/lib-webworker': '@better-typescript-lib/webworker@2.12.0(typescript@5.9.3)'
       typescript: 5.9.3
 
-  binary-searching@2.0.5: {}
-
   birecord@0.1.1: {}
 
   birpc@4.0.0: {}
@@ -6351,15 +6323,6 @@ snapshots:
       tinyglobby: 0.2.15
       yaml: 2.8.2
       yaml-eslint-parser: 2.0.0
-
-  eslint-plugin-prettier@5.5.5(eslint-config-prettier@10.1.8(eslint@9.39.2(jiti@2.6.1)))(eslint@9.39.2(jiti@2.6.1))(prettier@3.8.1):
-    dependencies:
-      eslint: 9.39.2(jiti@2.6.1)(supports-color@7.2.0)
-      prettier: 3.8.1
-      prettier-linter-helpers: 1.0.1
-      synckit: 0.11.12
-    optionalDependencies:
-      eslint-config-prettier: 10.1.8(eslint@9.39.2(jiti@2.6.1))
 
   eslint-plugin-promise@7.2.1(eslint@9.39.2(jiti@2.6.1)):
     dependencies:
@@ -7592,15 +7555,6 @@ snapshots:
   prettier-linter-helpers@1.0.1:
     dependencies:
       fast-diff: 1.3.0
-
-  prettier-plugin-jsdoc@1.8.0(prettier@3.8.1):
-    dependencies:
-      binary-searching: 2.0.5
-      comment-parser: 1.4.5
-      mdast-util-from-markdown: 2.0.2
-      prettier: 3.8.1
-    transitivePeerDependencies:
-      - supports-color
 
   prettier@3.8.1: {}
 

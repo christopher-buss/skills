@@ -129,7 +129,7 @@ pnpm install
 
     ```yaml
     packages:
-        - "packages/*"
+      - "packages/*"
     ```
 
 2. Update internal dependencies to use workspace protocol:
@@ -161,7 +161,7 @@ pnpm install
 
     ```yaml
     packages:
-        - "packages/*"
+      - "packages/*"
     ```
 
 3. Update `package.json` - remove Yarn workspace config if not needed:

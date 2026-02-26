@@ -18,20 +18,20 @@ Define overrides in `pnpm-workspace.yaml` (recommended) or `package.json`:
 
 ```yaml
 packages:
-    - "packages/*"
+  - "packages/*"
 
 overrides:
-    # Override nested dependency
-    express>cookie: ^0.6.0
+  # Override nested dependency
+  express>cookie: ^0.6.0
 
-    # Override specific version range
-    foo@^1.0.0: ^1.2.3
+  # Override specific version range
+  foo@^1.0.0: ^1.2.3
 
-    # Override all versions of a package
-    lodash: ^4.17.21
+  # Override all versions of a package
+  lodash: ^4.17.21
 
-    # Override to different package
-    underscore: "npm:lodash@^4.17.21"
+  # Override to different package
+  underscore: "npm:lodash@^4.17.21"
 ```
 
 ### In package.json
@@ -54,7 +54,7 @@ overrides:
 
 ```yaml
 overrides:
-    lodash: ^4.17.21
+  lodash: ^4.17.21
 ```
 
 Forces all lodash installations to use ^4.17.21.
@@ -63,7 +63,7 @@ Forces all lodash installations to use ^4.17.21.
 
 ```yaml
 overrides:
-    foo@^1.0.0: ^1.2.3
+  foo@^1.0.0: ^1.2.3
 ```
 
 Only override foo when the requested version matches ^1.0.0.
@@ -72,8 +72,8 @@ Only override foo when the requested version matches ^1.0.0.
 
 ```yaml
 overrides:
-    express>cookie: ^0.6.0
-    foo@1.x>bar@^2.0.0>qux: ^1.0.0
+  express>cookie: ^0.6.0
+  foo@1.x>bar@^2.0.0>qux: ^1.0.0
 ```
 
 Override cookie only when it's a dependency of express.
@@ -82,19 +82,19 @@ Override cookie only when it's a dependency of express.
 
 ```yaml
 overrides:
-    # Use git
-    other-pkg: "github:user/repo#commit"
-    # Use local file
-    some-pkg: "file:./local-pkg"
-    # Replace underscore with lodash
-    underscore: "npm:lodash@^4.17.21"
+  # Use git
+  other-pkg: "github:user/repo#commit"
+  # Use local file
+  some-pkg: "file:./local-pkg"
+  # Replace underscore with lodash
+  underscore: "npm:lodash@^4.17.21"
 ```
 
 ### Remove a dependency
 
 ```yaml
 overrides:
-    unwanted-pkg: "-"
+  unwanted-pkg: "-"
 ```
 
 The `-` removes the package entirely.
@@ -107,9 +107,9 @@ Force patched version of vulnerable package:
 
 ```yaml
 overrides:
-    json5: ^2.2.3
-    # Fix CVE in transitive dependency
-    minimist: ^1.2.6
+  json5: ^2.2.3
+  # Fix CVE in transitive dependency
+  minimist: ^1.2.6
 ```
 
 ### Deduplicate Dependencies
@@ -118,22 +118,22 @@ Force single version when multiple are installed:
 
 ```yaml
 overrides:
-    react: ^18.2.0
-    react-dom: ^18.2.0
+  react: ^18.2.0
+  react-dom: ^18.2.0
 ```
 
 ### Fix Peer Dependency Issues
 
 ```yaml
 overrides:
-    "@types/react": ^18.2.0
+  "@types/react": ^18.2.0
 ```
 
 ### Replace Deprecated Package
 
 ```yaml
 overrides:
-    request: "npm:@cypress/request@^3.0.0"
+  request: "npm:@cypress/request@^3.0.0"
 ```
 
 ## Hooks Alternative

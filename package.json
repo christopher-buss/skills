@@ -1,7 +1,12 @@
 {
 	"private": true,
 	"description": "Curated skills and configurations for AI-assisted development",
-	"keywords": ["roblox", "ai", "claude", "skills"],
+	"keywords": [
+		"roblox",
+		"ai",
+		"claude",
+		"skills"
+	],
 	"author": "Christopher Buss <christopher.buss@pm.me> (https://github.com/christopher-buss)",
 	"type": "module",
 	"scripts": {
@@ -19,7 +24,6 @@
 	"lint-staged": {
 		"*.{js,ts,mjs,mts}": "eslint --fix"
 	},
-
 	"devDependencies": {
 		"@clack/prompts": "catalog:",
 		"@constellos/claude-code-kit": "catalog:",

@@ -17,22 +17,22 @@ name: CI
 on: [push, pull_request]
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - uses: pnpm/action-setup@v4
-              with:
-                  version: 9
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
-            - uses: actions/setup-node@v4
-              with:
-                  cache: pnpm
-                  node-version: 20
-            - run: pnpm install --frozen-lockfile
-            - run: pnpm test
-            - run: pnpm build
+      - uses: actions/setup-node@v4
+        with:
+          cache: pnpm
+          node-version: 20
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
 ```
 
 ### With Store Caching
@@ -42,20 +42,20 @@ For larger projects, cache the pnpm store:
 ```yaml
 - uses: pnpm/action-setup@v4
   with:
-      version: 9
+    version: 9
 
 - name: Get pnpm store directory
   run: |
-      echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+    echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
   shell: bash
 - name: Setup pnpm cache
   uses: actions/cache@v4
   with:
-      key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-      path: ${{ env.STORE_PATH }}
-      restore-keys: |
-          ${{ runner.os }}-pnpm-store-
+    key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+    path: ${{ env.STORE_PATH }}
+    restore-keys: |
+      ${{ runner.os }}-pnpm-store-
 
 - run: pnpm install --frozen-lockfile
 ```
@@ -64,21 +64,21 @@ For larger projects, cache the pnpm store:
 
 ```yaml
 jobs:
-    steps:
-        - uses: actions/checkout@v4
-        - uses: pnpm/action-setup@v4
-        - cache: pnpm
-          node-version: ${{ matrix.node }}
-          uses: actions/setup-node@v4
-          with:
-        - run: pnpm install --frozen-lockfile
-        - run: pnpm test
-    strategy:
-        matrix:
-        node: [18, 20, 22]
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    test:
-        runs-on: ${{ matrix.os }}
+  steps:
+    - uses: actions/checkout@v4
+    - uses: pnpm/action-setup@v4
+    - cache: pnpm
+      node-version: ${{ matrix.node }}
+      uses: actions/setup-node@v4
+      with:
+    - run: pnpm install --frozen-lockfile
+    - run: pnpm test
+  strategy:
+    matrix:
+    node: [18, 20, 22]
+    os: [ubuntu-latest, windows-latest, macos-latest]
+  test:
+    runs-on: ${{ matrix.os }}
 ```
 
 ## GitLab CI
@@ -87,38 +87,38 @@ jobs:
 image: node:20
 
 stages:
-    - install
-    - test
-    - build
+  - install
+  - test
+  - build
 
 variables:
-    PATH: $PNPM_HOME:$PATH
+  PATH: $PNPM_HOME:$PATH
 
-    PNPM_HOME: /root/.local/share/pnpm
+  PNPM_HOME: /root/.local/share/pnpm
 before_script:
-    - corepack enable
-    - corepack prepare pnpm@latest --activate
+  - corepack enable
+  - corepack prepare pnpm@latest --activate
 
 cache:
-    key: ${CI_COMMIT_REF_SLUG}
-    paths:
-        - .pnpm-store
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .pnpm-store
 
 install:
-    script:
-        - pnpm config set store-dir .pnpm-store
-        - pnpm install --frozen-lockfile
+  script:
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install --frozen-lockfile
 
-    stage: install
+  stage: install
 test:
-    script:
-        - pnpm test
+  script:
+    - pnpm test
 
-    stage: test
+  stage: test
 build:
-    script:
-        - pnpm build
-    stage: build
+  script:
+    - pnpm build
+  stage: build
 ```
 
 ## Docker
@@ -235,37 +235,37 @@ Use Corepack to manage pnpm version:
 ```yaml
 - name: Build changed packages
   run: |
-      pnpm --filter "...[origin/main]" build
+    pnpm --filter "...[origin/main]" build
 ```
 
 ### Parallel Jobs per Package
 
 ```yaml
 jobs:
-    detect-changes:
-        outputs:
-            packages: ${{ steps.changes.outputs.packages }}
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
-            - id: changes
-              run: |
-                  echo "packages=$(pnpm --filter '...[origin/main]' list --json | jq -c '[.[].name]')" >> $GITHUB_OUTPUT
+  detect-changes:
+    outputs:
+      packages: ${{ steps.changes.outputs.packages }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changes
+        run: |
+          echo "packages=$(pnpm --filter '...[origin/main]' list --json | jq -c '[.[].name]')" >> $GITHUB_OUTPUT
 
-    test:
-        if: needs.detect-changes.outputs.packages != '[]'
-        needs: detect-changes
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-            - uses: pnpm/action-setup@v4
-            - run: pnpm install --frozen-lockfile
-            - run: pnpm --filter ${{ matrix.package }} test
-        strategy:
-            matrix:
-                package: ${{ fromJson(needs.detect-changes.outputs.packages) }}
+  test:
+    if: needs.detect-changes.outputs.packages != '[]'
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter ${{ matrix.package }} test
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.detect-changes.outputs.packages) }}
 ```
 
 ## Best Practices Summary

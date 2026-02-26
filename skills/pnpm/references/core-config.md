@@ -17,36 +17,36 @@ root.
 ```yaml
 # Define workspace packages
 packages:
-    - "packages/*"
-    - "apps/*"
-    - "!**/test/**" # Exclude pattern
+  - "packages/*"
+  - "apps/*"
+  - "!**/test/**" # Exclude pattern
 
 # Catalog for shared dependency versions
 catalog:
-    react: ^18.2.0
-    typescript: ~5.3.0
+  react: ^18.2.0
+  typescript: ~5.3.0
 
 # Named catalogs for different dependency groups
 catalogs:
-    react17:
-        react: ^17.0.2
-        react-dom: ^17.0.2
-    react18:
-        react: ^18.2.0
-        react-dom: ^18.2.0
+  react17:
+    react: ^17.0.2
+    react-dom: ^17.0.2
+  react18:
+    react: ^18.2.0
+    react-dom: ^18.2.0
 
 # Override resolutions (preferred location)
 overrides:
-    foo@^1.0.0>bar: ^2.0.0
-    lodash: ^4.17.21
+  foo@^1.0.0>bar: ^2.0.0
+  lodash: ^4.17.21
 
 # pnpm settings (alternative to .npmrc)
 settings:
-    auto-install-peers: true
-    link-workspace-packages: true
-    prefer-workspace-packages: true
-    shared-workspace-lockfile: true
-    strict-peer-dependencies: false
+  auto-install-peers: true
+  link-workspace-packages: true
+  prefer-workspace-packages: true
+  shared-workspace-lockfile: true
+  strict-peer-dependencies: false
 ```
 
 ## .npmrc Settings

@@ -144,7 +144,7 @@ For CI/CD, you can share the store:
 # GitHub Actions example
 - uses: pnpm/action-setup@v4
   with:
-      run_install: false
+    run_install: false
 
 - name: Get pnpm store directory
   run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
@@ -152,8 +152,8 @@ For CI/CD, you can share the store:
   shell: bash
 - uses: actions/cache@v4
   with:
-      key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-      path: ${{ env.STORE_PATH }}
+    key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+    path: ${{ env.STORE_PATH }}
 ```
 
 ## Troubleshooting

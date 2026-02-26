@@ -14,14 +14,14 @@ Create `pnpm-workspace.yaml` at the repository root:
 
 ```yaml
 packages:
-    # Include all packages in packages/ directory
-    - "packages/*"
-    # Include all apps
-    - "apps/*"
-    # Include nested packages
-    - "tools/*/packages/*"
-    # Exclude test directories
-    - "!**/test/**"
+  # Include all packages in packages/ directory
+  - "packages/*"
+  # Include all apps
+  - "apps/*"
+  # Include nested packages
+  - "tools/*/packages/*"
+  # Exclude test directories
+  - "!**/test/**"
 ```
 
 ## Workspace Protocol
