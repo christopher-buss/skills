@@ -56,6 +56,10 @@
 					{
 						"type": "command",
 						"command": "node hooks/lint-stop.ts"
+					},
+					{
+						"type": "command",
+						"command": "node hooks/type-check-stop.ts"
 					}
 				]
 			}

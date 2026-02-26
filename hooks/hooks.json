@@ -29,6 +29,10 @@
 					{
 						"type": "command",
 						"command": "node ${CLAUDE_PLUGIN_ROOT}/dist/hooks/lint-stop.mjs"
+					},
+					{
+						"type": "command",
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/dist/hooks/type-check-stop.mjs"
 					}
 				]
 			}

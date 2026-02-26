@@ -18,6 +18,7 @@ export default defineConfig({
 		"hooks/lint-guard.ts",
 		"hooks/lint-stop.ts",
 		"hooks/clear-lint-state.ts",
+		"hooks/type-check-stop.ts",
 	],
 	fixedExtension: true,
 	hash: false,
