@@ -1,5 +1,7 @@
+import { createFilesMatcher, parseTsconfig } from "get-tsconfig";
 import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PartialDeep } from "type-fest";
 import { describe, expect, it, vi } from "vitest";
@@ -9,8 +11,12 @@ import {
 	findTsconfigForFile,
 	formatTypeErrors,
 	isTypeCheckable,
+	readTsconfigCache,
+	resolveTsconfig,
+	resolveViaReferences,
 	runTypeCheck,
 	typeCheck,
+	writeTsconfigCache,
 } from "../scripts/type-check.js";
 
 function fromPartial<T>(mock: PartialDeep<NoInfer<T>>): T {
@@ -26,12 +32,166 @@ vi.mock(import("node:child_process"), async () => {
 const mockedExecSync = vi.mocked(execSync);
 
 vi.mock(import("node:fs"), async () => {
-	return {
+	return fromPartial({
 		existsSync: vi.fn<typeof existsSync>(() => false),
-	};
+		mkdirSync: vi.fn<typeof mkdirSync>(),
+		readFileSync: vi.fn<typeof readFileSync>(),
+		writeFileSync: vi.fn<typeof writeFileSync>(),
+	});
 });
 
 const mockedExistsSync = vi.mocked(existsSync);
+const mockedReadFileSync = vi.mocked(readFileSync);
+const mockedMkdirSync = vi.mocked(mkdirSync);
+const mockedWriteFileSync = vi.mocked(writeFileSync);
+
+vi.mock(import("node:crypto"), async () => {
+	return fromPartial({
+		createHash: vi.fn<typeof createHash>(),
+	});
+});
+
+const mockedCreateHash = vi.mocked(createHash);
+
+vi.mock(import("get-tsconfig"), async () => {
+	return fromPartial({
+		createFilesMatcher: vi.fn<typeof createFilesMatcher>(),
+		parseTsconfig: vi.fn<typeof parseTsconfig>(),
+	});
+});
+
+const mockedParseTsconfig = vi.mocked(parseTsconfig);
+
+describe(readTsconfigCache, () => {
+	it("should return undefined when no cache file exists", () => {
+		expect.assertions(1);
+
+		mockedExistsSync.mockReturnValue(false);
+
+		expect(readTsconfigCache(join("/project"))).toBeUndefined();
+	});
+
+	it("should return parsed cache when file exists", () => {
+		expect.assertions(1);
+
+		const projectDirectory = join("/project");
+		const cachePath = join(projectDirectory, ".claude", "state", "tsconfig-cache.json");
+		const cache = { hash: "abc123", tsconfig: "/project/tsconfig.json" };
+
+		mockedExistsSync.mockImplementation((path) => path === cachePath);
+		mockedReadFileSync.mockReturnValue(JSON.stringify(cache));
+
+		expect(readTsconfigCache(projectDirectory)).toStrictEqual(cache);
+	});
+});
+
+describe(writeTsconfigCache, () => {
+	it("should create state directory and write cache file", () => {
+		expect.assertions(2);
+
+		const projectDirectory = join("/project");
+
+		writeTsconfigCache(projectDirectory, "abc123", "/project/tsconfig.json");
+
+		expect(mockedMkdirSync).toHaveBeenCalledWith(join(projectDirectory, ".claude", "state"), {
+			recursive: true,
+		});
+		expect(mockedWriteFileSync).toHaveBeenCalledWith(
+			join(projectDirectory, ".claude", "state", "tsconfig-cache.json"),
+			JSON.stringify({ hash: "abc123", tsconfig: "/project/tsconfig.json" }),
+		);
+	});
+});
+
+describe(resolveTsconfig, () => {
+	it("should fall back to findTsconfigForFile on cache miss and write cache", () => {
+		expect.assertions(2);
+
+		const projectDirectory = join("/project");
+		const tsconfig = join(projectDirectory, "tsconfig.json");
+
+		// No cache file exists, but tsconfig exists for the walk
+		mockedExistsSync.mockImplementation((path) => path === tsconfig);
+		mockedParseTsconfig.mockReturnValue(fromPartial({ references: undefined }));
+
+		const mockDigest = vi.fn<() => string>().mockReturnValue("new-hash");
+		const mockUpdate = vi
+			.fn<(data: string) => { digest: typeof mockDigest }>()
+			.mockReturnValue({ digest: mockDigest });
+		mockedCreateHash.mockReturnValue({ update: mockUpdate } as never);
+		mockedReadFileSync.mockReturnValue("tsconfig content");
+
+		const result = resolveTsconfig(join(projectDirectory, "src", "foo.ts"), projectDirectory);
+
+		expect(result).toBe(tsconfig);
+		expect(mockedWriteFileSync).toHaveBeenCalledWith(
+			join(projectDirectory, ".claude", "state", "tsconfig-cache.json"),
+			expect.any(String),
+		);
+	});
+
+	it("should use cached tsconfig when hash matches", () => {
+		expect.assertions(1);
+
+		const projectDirectory = join("/project");
+		const tsconfig = join(projectDirectory, "tsconfig.json");
+		const cachePath = join(projectDirectory, ".claude", "state", "tsconfig-cache.json");
+
+		// Cache file exists with matching hash
+		mockedExistsSync.mockImplementation((path) => path === cachePath || path === tsconfig);
+		mockedReadFileSync.mockReturnValue(JSON.stringify({ hash: "cached-hash", tsconfig }));
+
+		const mockDigest = vi.fn<() => string>().mockReturnValue("cached-hash");
+		const mockUpdate = vi
+			.fn<(data: string) => { digest: typeof mockDigest }>()
+			.mockReturnValue({
+				digest: mockDigest,
+			});
+		mockedCreateHash.mockReturnValue({ update: mockUpdate } as never);
+
+		expect(resolveTsconfig(join(projectDirectory, "src", "foo.ts"), projectDirectory)).toBe(
+			tsconfig,
+		);
+	});
+});
+
+describe(resolveViaReferences, () => {
+	it("should return undefined when tsconfig has no references", () => {
+		expect.assertions(1);
+
+		mockedParseTsconfig.mockReturnValue(fromPartial({ references: undefined }));
+
+		expect(
+			resolveViaReferences("/project", "/project/tsconfig.json", "/project/src/foo.ts"),
+		).toBeUndefined();
+	});
+
+	it("should return referenced tsconfig when file matches", () => {
+		expect.assertions(1);
+
+		const projectDirectory = join("/project");
+		const rootTsconfig = join(projectDirectory, "tsconfig.json");
+		const refDirectory = join(projectDirectory, "packages", "app");
+		const refTsconfig = join(refDirectory, "tsconfig.json");
+		const targetFile = join(refDirectory, "src", "foo.ts");
+
+		mockedParseTsconfig.mockImplementation((configPath) => {
+			if (configPath === rootTsconfig) {
+				return fromPartial({ references: [{ path: "./packages/app" }] });
+			}
+
+			return fromPartial({});
+		});
+		mockedExistsSync.mockImplementation((path) => path === refTsconfig);
+
+		const mockedMatcher = vi
+			.fn<ReturnType<typeof createFilesMatcher>>()
+			.mockReturnValue(fromPartial({}));
+		vi.mocked(createFilesMatcher).mockReturnValue(mockedMatcher);
+
+		expect(resolveViaReferences(projectDirectory, rootTsconfig, targetFile)).toBe(refTsconfig);
+	});
+});
 
 describe(typeCheck, () => {
 	it("should return undefined for non-ts files", () => {
@@ -95,6 +255,35 @@ describe(findTsconfigForFile, () => {
 		expect(findTsconfigForFile(join("/project", "src", "foo.ts"), join("/project"))).toBe(
 			expected,
 		);
+	});
+
+	it("should resolve via references when root tsconfig has project references", () => {
+		expect.assertions(1);
+
+		const projectDirectory = join("/project");
+		const rootTsconfig = join(projectDirectory, "tsconfig.json");
+		const refTsconfig = join(projectDirectory, "configs", "app.json");
+		const targetFile = join(projectDirectory, "src", "foo.ts");
+
+		// Walk finds root tsconfig (no tsconfig in src/). Ref tsconfig is
+		// elsewhere.
+		mockedExistsSync.mockImplementation(
+			(path) => path === rootTsconfig || path === refTsconfig,
+		);
+		mockedParseTsconfig.mockImplementation((configPath) => {
+			if (configPath === rootTsconfig) {
+				return fromPartial({ references: [{ path: "./configs/app.json" }] });
+			}
+
+			return fromPartial({});
+		});
+
+		const mockedMatcher = vi
+			.fn<ReturnType<typeof createFilesMatcher>>()
+			.mockReturnValue(fromPartial({}));
+		vi.mocked(createFilesMatcher).mockReturnValue(mockedMatcher);
+
+		expect(findTsconfigForFile(targetFile, projectDirectory)).toBe(refTsconfig);
 	});
 });
 

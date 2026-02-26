@@ -1,15 +1,91 @@
 import type { PostToolUseHookOutput } from "@constellos/claude-code-kit/types/hooks";
 
+import { createFilesMatcher, parseTsconfig } from "get-tsconfig";
 import type { Buffer } from "node:buffer";
 import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const TYPE_CHECK_EXTENSIONS = [".ts", ".tsx"];
+const CACHE_PATH = join(".claude", "state", "tsconfig-cache.json");
+
+export interface TsconfigCache {
+	hash: string;
+	tsconfig: string;
+}
+
+export function readTsconfigCache(projectRoot: string): TsconfigCache | undefined {
+	const cachePath = join(projectRoot, CACHE_PATH);
+	if (!existsSync(cachePath)) {
+		return undefined;
+	}
+
+	const content = readFileSync(cachePath, "utf-8");
+	return JSON.parse(content) as unknown as TsconfigCache;
+}
+
+export function writeTsconfigCache(projectRoot: string, hash: string, tsconfig: string): void {
+	const stateDirectory = join(projectRoot, ".claude", "state");
+	mkdirSync(stateDirectory, { recursive: true });
+	writeFileSync(join(projectRoot, CACHE_PATH), JSON.stringify({ hash, tsconfig }));
+}
+
+export function resolveTsconfig(filePath: string, projectRoot: string): string | undefined {
+	const cache = readTsconfigCache(projectRoot);
+	if (cache !== undefined && existsSync(cache.tsconfig)) {
+		const currentHash = hashFileContent(cache.tsconfig);
+		if (currentHash === cache.hash) {
+			return cache.tsconfig;
+		}
+	}
+
+	const tsconfig = findTsconfigForFile(filePath, projectRoot);
+	if (tsconfig !== undefined) {
+		const hash = hashFileContent(tsconfig);
+		writeTsconfigCache(projectRoot, hash, tsconfig);
+	}
+
+	return tsconfig;
+}
+
+function hashFileContent(filePath: string): string {
+	const content = readFileSync(filePath, "utf-8");
+	return createHash("sha256").update(content).digest("hex");
+}
+
 const DEFAULT_RUNNER = "pnpm exec";
 
 export function isTypeCheckable(filePath: string): boolean {
 	return TYPE_CHECK_EXTENSIONS.some((extension) => filePath.endsWith(extension));
+}
+
+export function resolveViaReferences(
+	directory: string,
+	configPath: string,
+	targetFile: string,
+): string | undefined {
+	const config = parseTsconfig(configPath);
+	const { references } = config;
+	if (references === undefined || references.length === 0) {
+		return undefined;
+	}
+
+	for (const ref of references) {
+		const refPath = join(directory, ref.path);
+		const refConfigPath = refPath.endsWith(".json") ? refPath : join(refPath, "tsconfig.json");
+		if (!existsSync(refConfigPath)) {
+			continue;
+		}
+
+		const refConfig = parseTsconfig(refConfigPath);
+		const matcher = createFilesMatcher({ config: refConfig, path: refConfigPath });
+		if (matcher(targetFile) !== undefined) {
+			return refConfigPath;
+		}
+	}
+
+	return undefined;
 }
 
 export function findTsconfigForFile(targetFile: string, projectRoot: string): string | undefined {
@@ -18,7 +94,7 @@ export function findTsconfigForFile(targetFile: string, projectRoot: string): st
 	while (directory.length >= projectRoot.length) {
 		const candidate = join(directory, "tsconfig.json");
 		if (existsSync(candidate)) {
-			return candidate;
+			return resolveViaReferences(directory, candidate, targetFile) ?? candidate;
 		}
 
 		const parent = dirname(directory);
@@ -90,7 +166,7 @@ export function typeCheck(
 	}
 
 	const projectRoot = process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd();
-	const tsconfig = findTsconfigForFile(filePath, projectRoot);
+	const tsconfig = resolveTsconfig(filePath, projectRoot);
 	if (tsconfig === undefined) {
 		return undefined;
 	}
