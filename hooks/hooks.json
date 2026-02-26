@@ -18,6 +18,10 @@
 					{
 						"type": "command",
 						"command": "node ${CLAUDE_PLUGIN_ROOT}/dist/hooks/lint.mjs"
+					},
+					{
+						"type": "command",
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/dist/hooks/type-check.mjs"
 					}
 				]
 			}
