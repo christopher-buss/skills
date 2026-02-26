@@ -16,6 +16,7 @@ import {
 	resolveViaReferences,
 	runTypeCheck,
 	typeCheck,
+	typecheckStopDecision,
 	writeTsconfigCache,
 } from "../scripts/type-check.js";
 
@@ -419,5 +420,20 @@ describe(isTypeCheckable, () => {
 	it("should return false for .json files", () => {
 		expect.assertions(1);
 		expect(isTypeCheckable("tsconfig.json")).toBe(false);
+	});
+});
+
+describe(typecheckStopDecision, () => {
+	it("should return undefined when no errors", () => {
+		expect.assertions(1);
+
+		expect(
+			typecheckStopDecision({
+				errorFiles: [],
+				lintAttempts: {},
+				maxLintAttempts: 3,
+				stopAttempts: 0,
+			}),
+		).toBeUndefined();
 	});
 });

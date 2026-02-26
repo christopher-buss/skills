@@ -4,11 +4,13 @@ import { createFilesMatcher, parseTsconfig } from "get-tsconfig";
 import type { Buffer } from "node:buffer";
 import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 
 const TYPE_CHECK_EXTENSIONS = [".ts", ".tsx"];
 const CACHE_PATH = join(".claude", "state", "tsconfig-cache.json");
+const STOP_STATE_PATH = join(".claude", "state", "typecheck-stop-attempts.json");
+const DEFAULT_MAX_STOP_ATTEMPTS = 3;
 
 export interface TsconfigCache {
 	hashes: Record<string, string>;
@@ -141,11 +143,24 @@ export interface TypeCheckSettings {
 	typecheck: boolean;
 }
 
+export interface TypecheckStopDecisionResult {
+	decision?: "block";
+	reason?: string;
+	resetStopAttempts?: true;
+}
+
 interface TypeCheckOutputOptions {
 	dependencyErrors: Array<string>;
 	fileErrors: Array<string>;
 	totalDependencyErrors: number;
 	totalFileErrors: number;
+}
+
+interface TypecheckStopDecisionInput {
+	errorFiles: Array<string>;
+	lintAttempts: Record<string, number>;
+	maxLintAttempts: number;
+	stopAttempts: number;
 }
 
 export function partitionErrors(
@@ -237,4 +252,57 @@ export function typeCheck(
 		totalDependencyErrors: dependencyErrors.length,
 		totalFileErrors: fileErrors.length,
 	});
+}
+
+export function typecheckStopDecision(
+	input: TypecheckStopDecisionInput,
+): TypecheckStopDecisionResult | undefined {
+	if (input.errorFiles.length === 0) {
+		if (input.stopAttempts > 0) {
+			return { resetStopAttempts: true };
+		}
+
+		return undefined;
+	}
+
+	const isAllMaxed = input.errorFiles.every((file) => {
+		return (input.lintAttempts[file] ?? 0) >= input.maxLintAttempts;
+	});
+	if (isAllMaxed) {
+		return undefined;
+	}
+
+	if (input.stopAttempts >= DEFAULT_MAX_STOP_ATTEMPTS) {
+		return {
+			reason: `Could not fix type errors in: ${input.errorFiles.join(", ")}`,
+		};
+	}
+
+	return {
+		decision: "block",
+		reason: `Type errors remain in: ${input.errorFiles.join(", ")}. Fix them before stopping.`,
+	};
+}
+
+export function readTypecheckStopAttempts(): number {
+	if (!existsSync(STOP_STATE_PATH)) {
+		return 0;
+	}
+
+	try {
+		return JSON.parse(readFileSync(STOP_STATE_PATH, "utf-8")) as number;
+	} catch {
+		return 0;
+	}
+}
+
+export function writeTypecheckStopAttempts(count: number): void {
+	mkdirSync(dirname(STOP_STATE_PATH), { recursive: true });
+	writeFileSync(STOP_STATE_PATH, JSON.stringify(count));
+}
+
+export function clearTypecheckStopAttempts(): void {
+	if (existsSync(STOP_STATE_PATH)) {
+		unlinkSync(STOP_STATE_PATH);
+	}
 }
