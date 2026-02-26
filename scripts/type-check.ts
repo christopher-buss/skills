@@ -5,7 +5,7 @@ import type { Buffer } from "node:buffer";
 import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 
 const TYPE_CHECK_EXTENSIONS = [".ts", ".tsx"];
 const CACHE_PATH = join(".claude", "state", "tsconfig-cache.json");
@@ -139,6 +139,26 @@ const MAX_ERRORS = 5;
 export interface TypeCheckSettings {
 	runner: string;
 	typecheck: boolean;
+}
+
+export function partitionErrors(
+	errors: Array<string>,
+	filePath: string,
+	projectRoot: string,
+): { dependencyErrors: Array<string>; fileErrors: Array<string> } {
+	const relativePath = relative(projectRoot, filePath).replaceAll("\\", "/");
+	const fileErrors: Array<string> = [];
+	const dependencyErrors: Array<string> = [];
+
+	for (const error of errors) {
+		if (error.startsWith(relativePath)) {
+			fileErrors.push(error);
+		} else {
+			dependencyErrors.push(error);
+		}
+	}
+
+	return { dependencyErrors, fileErrors };
 }
 
 export function formatTypeErrors(output: string): Array<string> {

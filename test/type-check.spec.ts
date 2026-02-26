@@ -11,6 +11,7 @@ import {
 	findTsconfigForFile,
 	formatTypeErrors,
 	isTypeCheckable,
+	partitionErrors,
 	readTsconfigCache,
 	resolveTsconfig,
 	resolveViaReferences,
@@ -341,6 +342,28 @@ describe(formatTypeErrors, () => {
 		expect(formatTypeErrors(lines.join("\n"))).toStrictEqual([
 			"src/a.ts(1,1): error TS2322: Type mismatch",
 			"src/b.ts(2,1): error TS2345: Argument mismatch",
+		]);
+	});
+});
+
+describe(partitionErrors, () => {
+	it("should separate edited file errors from dependency errors", () => {
+		expect.assertions(2);
+
+		const errors = [
+			"src/foo.ts(1,1): error TS2322: Type mismatch",
+			"src/bar.ts(5,3): error TS2345: Argument mismatch",
+			"src/foo.ts(10,1): error TS2741: Missing property",
+		];
+
+		const result = partitionErrors(errors, join("/project", "src", "foo.ts"), join("/project"));
+
+		expect(result.fileErrors).toStrictEqual([
+			"src/foo.ts(1,1): error TS2322: Type mismatch",
+			"src/foo.ts(10,1): error TS2741: Missing property",
+		]);
+		expect(result.dependencyErrors).toStrictEqual([
+			"src/bar.ts(5,3): error TS2345: Argument mismatch",
 		]);
 	});
 });
