@@ -144,7 +144,8 @@ export interface TypeCheckSettings {
 interface TypeCheckOutputOptions {
 	dependencyErrors: Array<string>;
 	fileErrors: Array<string>;
-	truncated: boolean;
+	totalDependencyErrors: number;
+	totalFileErrors: number;
 }
 
 export function partitionErrors(
@@ -170,24 +171,27 @@ export function partitionErrors(
 export function buildTypeCheckOutput(options: TypeCheckOutputOptions): PostToolUseHookOutput {
 	const sections: Array<string> = [];
 
-	if (options.fileErrors.length > 0) {
+	if (options.totalFileErrors > 0) {
 		const text = options.fileErrors.join("\n");
-		const errorSuffix = options.fileErrors.length === 1 ? "error" : "errors";
+		const errorSuffix = options.totalFileErrors === 1 ? "error" : "errors";
 		sections.push(
-			`TypeScript found ${options.fileErrors.length} type ${errorSuffix} in edited file:\n${text}`,
+			`TypeScript found ${options.totalFileErrors} type ${errorSuffix} in edited file:\n${text}`,
 		);
 	}
 
-	if (options.dependencyErrors.length > 0) {
+	if (options.totalDependencyErrors > 0) {
 		const text = options.dependencyErrors.join("\n");
-		const errorSuffix = options.dependencyErrors.length === 1 ? "error" : "errors";
+		const errorSuffix = options.totalDependencyErrors === 1 ? "error" : "errors";
 		sections.push(
-			`TypeScript found ${options.dependencyErrors.length} type ${errorSuffix} in other files:\n${text}`,
+			`TypeScript found ${options.totalDependencyErrors} type ${errorSuffix} in other files:\n${text}`,
 		);
 	}
 
-	const suffix = options.truncated ? "\n..." : "";
-	const claudeSuffix = options.truncated ? "\n(run typecheck to view more)" : "";
+	const isTruncated =
+		options.fileErrors.length < options.totalFileErrors ||
+		options.dependencyErrors.length < options.totalDependencyErrors;
+	const suffix = isTruncated ? "\n..." : "";
+	const claudeSuffix = isTruncated ? "\n(run typecheck to view more)" : "";
 	const userMessage = sections.join("\n\n") + suffix;
 	const claudeMessage = sections.join("\n\n") + claudeSuffix;
 
@@ -225,9 +229,12 @@ export function typeCheck(
 		return undefined;
 	}
 
-	const isTruncated = allErrors.length > MAX_ERRORS;
-	const capped = allErrors.slice(0, MAX_ERRORS);
-	const { dependencyErrors, fileErrors } = partitionErrors(capped, filePath, projectRoot);
+	const { dependencyErrors, fileErrors } = partitionErrors(allErrors, filePath, projectRoot);
 
-	return buildTypeCheckOutput({ dependencyErrors, fileErrors, truncated: isTruncated });
+	return buildTypeCheckOutput({
+		dependencyErrors: dependencyErrors.slice(0, MAX_ERRORS),
+		fileErrors: fileErrors.slice(0, MAX_ERRORS),
+		totalDependencyErrors: dependencyErrors.length,
+		totalFileErrors: fileErrors.length,
+	});
 }

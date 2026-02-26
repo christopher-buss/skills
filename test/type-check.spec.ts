@@ -356,18 +356,44 @@ describe(buildTypeCheckOutput, () => {
 
 		const fileErrors = ["src/foo.ts(1,1): error TS2322: Type mismatch"];
 		const dependencyErrors = ["src/bar.ts(5,3): error TS2345: Argument mismatch"];
-		const result = buildTypeCheckOutput({ dependencyErrors, fileErrors, truncated: false });
+		const result = buildTypeCheckOutput({
+			dependencyErrors,
+			fileErrors,
+			totalDependencyErrors: 1,
+			totalFileErrors: 1,
+		});
 
 		expect(result.systemMessage).toContain("1 type error in edited file");
 		expect(result.systemMessage).toContain("1 type error in other files");
 	});
 
-	it("should only show dependency errors with softer message when no file errors", () => {
+	it("should show total counts when truncated", () => {
+		expect.assertions(2);
+
+		const fileErrors = ["src/foo.ts(1,1): error TS2322: Type mismatch"];
+		const dependencyErrors = ["src/bar.ts(5,3): error TS2345: Argument mismatch"];
+		const result = buildTypeCheckOutput({
+			dependencyErrors,
+			fileErrors,
+			totalDependencyErrors: 20,
+			totalFileErrors: 30,
+		});
+
+		expect(result.systemMessage).toContain("30 type errors in edited file");
+		expect(result.systemMessage).toContain("20 type errors in other files");
+	});
+
+	it("should only show dependency errors when no file errors", () => {
 		expect.assertions(2);
 
 		const fileErrors: Array<string> = [];
 		const dependencyErrors = ["src/bar.ts(5,3): error TS2345: Argument mismatch"];
-		const result = buildTypeCheckOutput({ dependencyErrors, fileErrors, truncated: false });
+		const result = buildTypeCheckOutput({
+			dependencyErrors,
+			fileErrors,
+			totalDependencyErrors: 1,
+			totalFileErrors: 0,
+		});
 
 		expect(result.systemMessage).not.toContain("in edited file");
 		expect(result.systemMessage).toContain("1 type error in other files");
