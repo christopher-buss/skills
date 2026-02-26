@@ -1,7 +1,6 @@
 ---
 description: Create a git commit following project standards
 argument-hint: [optional-commit-description]
-model: claude-haiku-4-5
 ---
 
 Create a git commit following project standards
