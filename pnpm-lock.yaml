@@ -13,8 +13,8 @@ catalogs:
       specifier: ^0.4.0
       version: 0.4.0
     '@isentinel/eslint-config':
-      specifier: 5.0.0-beta.4
-      version: 5.0.0-beta.4
+      specifier: 5.0.0-beta.5
+      version: 5.0.0-beta.5
     '@isentinel/tsconfig':
       specifier: ^1.2.0
       version: 1.2.0
@@ -48,6 +48,9 @@ catalogs:
     file-entry-cache:
       specifier: ^11.1.2
       version: 11.1.2
+    get-tsconfig:
+      specifier: ^4.13.6
+      version: 4.13.6
     jiti:
       specifier: ^2.6.1
       version: 2.6.1
@@ -85,7 +88,7 @@ importers:
         version: 0.4.0
       '@isentinel/eslint-config':
         specifier: 'catalog:'
-        version: 5.0.0-beta.4(@types/estree@1.0.8)(@typescript-eslint/utils@8.56.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(@vitest/eslint-plugin@1.6.9(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)(vitest@4.0.18(@types/node@25.0.10)(jiti@2.6.1)(yaml@2.8.2)))(eslint-plugin-n@17.23.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-plugin-react-naming-convention@2.7.4(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+        version: 5.0.0-beta.5(@types/estree@1.0.8)(@typescript-eslint/utils@8.56.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(@vitest/eslint-plugin@1.6.9(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)(vitest@4.0.18(@types/node@25.0.10)(jiti@2.6.1)(yaml@2.8.2)))(eslint-plugin-n@17.23.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-plugin-react-naming-convention@2.7.4(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       '@isentinel/tsconfig':
         specifier: 'catalog:'
         version: 1.2.0(typescript@5.9.3)
@@ -119,6 +122,9 @@ importers:
       file-entry-cache:
         specifier: 'catalog:'
         version: 11.1.2
+      get-tsconfig:
+        specifier: 'catalog:'
+        version: 4.13.6
       jiti:
         specifier: 'catalog:'
         version: 2.6.1
@@ -839,8 +845,8 @@ packages:
   '@isentinel/dict-roblox@1.0.3':
     resolution: {integrity: sha512-XR1KVHZLyyamVobUICxTlDkB3gfLVuV34mdFQeIL7DfCtNI2uCeuZm6g6J63AQzUrqsCIUF166Ogf+TL0przdg==}
 
-  '@isentinel/eslint-config@5.0.0-beta.4':
-    resolution: {integrity: sha512-TE+ZPzW8QWAmhu5NYJe0yhVjJB/67xqbyyyOP9zSpzjkaiY4DwWRWsxzheQtMktkwsE+lJeVga0kv97us+/lcg==}
+  '@isentinel/eslint-config@5.0.0-beta.5':
+    resolution: {integrity: sha512-qQwifpzVHqBDIYHVq5voYi2Jrf1L+f19hFIY4biyuczFAnd3P+lAiBfLh+W7IMh+EJr12j0YB+QmXm6FGJeiag==}
     engines: {node: '>=22.16.0'}
     hasBin: true
     peerDependencies:
@@ -2777,9 +2783,6 @@ packages:
     resolution: {integrity: sha512-VaUJspBffn/LMCJVoMvSAdmscJyS1auj5Zulnn5UoYcY531UWmdwhRWkcGKnGU93m5HSXP9LP2usOryrBtQowA==}
     engines: {node: '>=16'}
 
-  get-tsconfig@4.13.0:
-    resolution: {integrity: sha512-1VKTZJCwBrvbd+Wn3AOgQP/2Av+TfTCOlE4AcRJE72W1ksZXbAx8PPBR9RzgTeSPzlPMHrbANMH3LbltH73wxQ==}
-
   get-tsconfig@4.13.6:
     resolution: {integrity: sha512-shZT/QMiSHc/YBLxxOkMtgSid5HFoauqCE3/exfsEcwg1WkeqjG+V40yBbBrsD+jW2HDXcs28xOfcbm2jI8Ddw==}
 
@@ -4710,7 +4713,7 @@ snapshots:
 
   '@isentinel/dict-roblox@1.0.3': {}
 
-  '@isentinel/eslint-config@5.0.0-beta.4(@types/estree@1.0.8)(@typescript-eslint/utils@8.56.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(@vitest/eslint-plugin@1.6.9(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)(vitest@4.0.18(@types/node@25.0.10)(jiti@2.6.1)(yaml@2.8.2)))(eslint-plugin-n@17.23.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-plugin-react-naming-convention@2.7.4(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)':
+  '@isentinel/eslint-config@5.0.0-beta.5(@types/estree@1.0.8)(@typescript-eslint/utils@8.56.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(@vitest/eslint-plugin@1.6.9(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)(vitest@4.0.18(@types/node@25.0.10)(jiti@2.6.1)(yaml@2.8.2)))(eslint-plugin-n@17.23.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-plugin-react-naming-convention@2.7.4(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)':
     dependencies:
       '@antfu/install-pkg': 1.1.0
       '@clack/prompts': 1.0.1
@@ -6269,7 +6272,7 @@ snapshots:
       enhanced-resolve: 5.18.4
       eslint: 9.39.2(jiti@2.6.1)(supports-color@7.2.0)
       eslint-plugin-es-x: 7.8.0(eslint@9.39.2(jiti@2.6.1))
-      get-tsconfig: 4.13.0
+      get-tsconfig: 4.13.6
       globals: 15.15.0
       globrex: 0.1.2
       ignore: 5.3.2
@@ -6655,10 +6658,6 @@ snapshots:
   get-own-enumerable-property-symbols@3.0.2: {}
 
   get-stream@8.0.1: {}
-
-  get-tsconfig@4.13.0:
-    dependencies:
-      resolve-pkg-maps: 1.0.0
 
   get-tsconfig@4.13.6:
     dependencies:

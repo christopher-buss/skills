@@ -9,7 +9,7 @@ shellEmulator: true
 catalog:
   "@clack/prompts": ^0.11.0
   "@constellos/claude-code-kit": ^0.4.0
-  "@isentinel/eslint-config": 5.0.0-beta.4
+  "@isentinel/eslint-config": 5.0.0-beta.5
   "@isentinel/tsconfig": ^1.2.0
   "@types/node": ^25.0.10
   "@typescript/native-preview": 7.0.0-dev.20260212.1
@@ -21,6 +21,7 @@ catalog:
   eslint-plugin-pnpm: ^1.5.0
   eslint_d: ^14.3.0
   file-entry-cache: ^11.1.2
+  get-tsconfig: ^4.13.6
   jiti: ^2.6.1
   lint-staged: ^15.5.1
   madge: ^8.0.0

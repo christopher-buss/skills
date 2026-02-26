@@ -21,6 +21,7 @@ export interface LintSettings {
 	maxLintAttempts: number;
 	oxlint: boolean;
 	runner: string;
+	typecheck: boolean;
 }
 
 export type DependencyGraph = Record<string, Array<string>>;
@@ -54,6 +55,7 @@ const DEFAULT_SETTINGS = {
 	maxLintAttempts: DEFAULT_MAX_LINT_ATTEMPTS,
 	oxlint: false,
 	runner: "pnpm exec",
+	typecheck: true,
 } satisfies LintSettings;
 
 export interface StopDecisionResult {
@@ -96,6 +98,7 @@ export function readSettings(): LintSettings {
 		maxLintAttempts,
 		oxlint: fields.get("oxlint") === "true",
 		runner: fields.get("runner") ?? DEFAULT_SETTINGS.runner,
+		typecheck: fields.get("typecheck") !== "false",
 	};
 }
 

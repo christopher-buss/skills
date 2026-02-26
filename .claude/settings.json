@@ -41,6 +41,10 @@
 					{
 						"type": "command",
 						"command": "node hooks/lint.ts"
+					},
+					{
+						"type": "command",
+						"command": "node hooks/type-check.ts"
 					}
 				]
 			}

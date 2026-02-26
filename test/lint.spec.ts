@@ -516,6 +516,7 @@ describe(lint, () => {
 				maxLintAttempts: 3,
 				oxlint: false,
 				runner: "pnpm exec",
+				typecheck: true,
 			});
 		});
 
@@ -532,6 +533,7 @@ describe(lint, () => {
 				maxLintAttempts: 3,
 				oxlint: false,
 				runner: "pnpm exec",
+				typecheck: true,
 			});
 		});
 
@@ -559,6 +561,7 @@ describe(lint, () => {
 				maxLintAttempts: 3,
 				oxlint: true,
 				runner: "pnpm exec",
+				typecheck: true,
 			});
 		});
 	});
@@ -777,6 +780,7 @@ describe(lint, () => {
 				maxLintAttempts: 3,
 				oxlint: true,
 				runner: "pnpm exec",
+				typecheck: true,
 			});
 
 			expect(exitSpy).toHaveBeenCalledWith(1);
@@ -812,6 +816,7 @@ describe(lint, () => {
 				maxLintAttempts: 3,
 				oxlint: true,
 				runner: "pnpm exec",
+				typecheck: true,
 			});
 
 			expect(didRunOxlint).toBe(true);
@@ -1017,6 +1022,7 @@ describe(lint, () => {
 				maxLintAttempts: 3,
 				oxlint: true,
 				runner: "pnpm exec",
+				typecheck: true,
 			});
 
 			expect(result).toMatchObject({
@@ -1066,6 +1072,7 @@ describe(lint, () => {
 				maxLintAttempts: 3,
 				oxlint: true,
 				runner: "pnpm exec",
+				typecheck: true,
 			});
 
 			expect(didRunOxlint).toBe(true);
@@ -1097,6 +1104,7 @@ describe(lint, () => {
 				maxLintAttempts: 3,
 				oxlint: false,
 				runner: "pnpm exec",
+				typecheck: true,
 			});
 
 			expect(didRunEslint).toBe(false);
@@ -1411,6 +1419,7 @@ describe(lint, () => {
 				maxLintAttempts: 3,
 				oxlint: false,
 				runner: "pnpm exec",
+				typecheck: true,
 			});
 
 			expect(mockedUnlinkSync).toHaveBeenCalledWith(".eslintcache");
@@ -1434,6 +1443,7 @@ describe(lint, () => {
 				maxLintAttempts: 3,
 				oxlint: false,
 				runner: "pnpm exec",
+				typecheck: true,
 			});
 
 			expect(mockedUnlinkSync).toHaveBeenCalledWith(".eslintcache");

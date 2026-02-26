@@ -39,6 +39,7 @@
 		"eslint-plugin-pnpm": "catalog:",
 		"eslint_d": "catalog:",
 		"file-entry-cache": "catalog:",
+		"get-tsconfig": "catalog:",
 		"jiti": "catalog:",
 		"lint-staged": "catalog:",
 		"madge": "catalog:",
