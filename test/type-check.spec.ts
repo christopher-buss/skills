@@ -9,7 +9,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	buildTypeCheckOutput,
 	findTsconfigForFile,
-	formatTypeErrors,
 	isTypeCheckable,
 	partitionErrors,
 	readTsconfigCache,
@@ -239,7 +238,7 @@ describe(typeCheck, () => {
 		});
 
 		expect(result).toBeDefined();
-		expect(result?.systemMessage).toContain("1 type error(s)");
+		expect(result?.systemMessage).toContain("1 type error(s) in edited file");
 	});
 });
 
@@ -329,23 +328,6 @@ describe(runTypeCheck, () => {
 	});
 });
 
-describe(formatTypeErrors, () => {
-	it("should filter lines containing error TS and cap at 5", () => {
-		expect.assertions(1);
-
-		const lines = [
-			"src/a.ts(1,1): error TS2322: Type mismatch",
-			"some other output",
-			"src/b.ts(2,1): error TS2345: Argument mismatch",
-		];
-
-		expect(formatTypeErrors(lines.join("\n"))).toStrictEqual([
-			"src/a.ts(1,1): error TS2322: Type mismatch",
-			"src/b.ts(2,1): error TS2345: Argument mismatch",
-		]);
-	});
-});
-
 describe(partitionErrors, () => {
 	it("should separate edited file errors from dependency errors", () => {
 		expect.assertions(2);
@@ -369,15 +351,26 @@ describe(partitionErrors, () => {
 });
 
 describe(buildTypeCheckOutput, () => {
-	it("should return PostToolUseHookOutput with error details", () => {
-		expect.assertions(3);
+	it("should format file errors and dependency errors separately", () => {
+		expect.assertions(2);
 
-		const errors = ["src/foo.ts(1,1): error TS2322: Type mismatch"];
-		const result = buildTypeCheckOutput(1, errors, false);
+		const fileErrors = ["src/foo.ts(1,1): error TS2322: Type mismatch"];
+		const dependencyErrors = ["src/bar.ts(5,3): error TS2345: Argument mismatch"];
+		const result = buildTypeCheckOutput({ dependencyErrors, fileErrors, truncated: false });
 
-		expect(result.decision).toBeUndefined();
-		expect(result.systemMessage).toContain("1 type error(s)");
-		expect(result.hookSpecificOutput?.additionalContext).toContain("error TS2322");
+		expect(result.systemMessage).toContain("1 type error(s) in edited file");
+		expect(result.systemMessage).toContain("1 pre-existing type error(s) in dependencies");
+	});
+
+	it("should only show dependency errors with softer message when no file errors", () => {
+		expect.assertions(2);
+
+		const fileErrors: Array<string> = [];
+		const dependencyErrors = ["src/bar.ts(5,3): error TS2345: Argument mismatch"];
+		const result = buildTypeCheckOutput({ dependencyErrors, fileErrors, truncated: false });
+
+		expect(result.systemMessage).not.toContain("in edited file");
+		expect(result.systemMessage).toContain("1 pre-existing type error(s) in dependencies");
 	});
 });
 

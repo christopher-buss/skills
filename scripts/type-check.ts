@@ -141,6 +141,12 @@ export interface TypeCheckSettings {
 	typecheck: boolean;
 }
 
+interface TypeCheckOutputOptions {
+	dependencyErrors: Array<string>;
+	fileErrors: Array<string>;
+	truncated: boolean;
+}
+
 export function partitionErrors(
 	errors: Array<string>,
 	filePath: string,
@@ -161,21 +167,27 @@ export function partitionErrors(
 	return { dependencyErrors, fileErrors };
 }
 
-export function formatTypeErrors(output: string): Array<string> {
-	return output
-		.split("\n")
-		.filter((line) => /error TS/i.test(line))
-		.slice(0, MAX_ERRORS);
-}
+export function buildTypeCheckOutput(options: TypeCheckOutputOptions): PostToolUseHookOutput {
+	const sections: Array<string> = [];
 
-export function buildTypeCheckOutput(
-	errorCount: number,
-	errors: Array<string>,
-	truncated: boolean,
-): PostToolUseHookOutput {
-	const errorText = errors.join("\n");
-	const userMessage = `TypeScript found ${errorCount} type error(s):\n${errorText}${truncated ? "\n..." : ""}`;
-	const claudeMessage = `TypeScript found ${errorCount} type error(s):\n${errorText}${truncated ? "\n(run typecheck to view more)" : ""}`;
+	if (options.fileErrors.length > 0) {
+		const text = options.fileErrors.join("\n");
+		sections.push(
+			`TypeScript found ${options.fileErrors.length} type error(s) in edited file:\n${text}`,
+		);
+	}
+
+	if (options.dependencyErrors.length > 0) {
+		const text = options.dependencyErrors.join("\n");
+		sections.push(
+			`TypeScript found ${options.dependencyErrors.length} pre-existing type error(s) in dependencies:\n${text}`,
+		);
+	}
+
+	const suffix = options.truncated ? "\n..." : "";
+	const claudeSuffix = options.truncated ? "\n(run typecheck to view more)" : "";
+	const userMessage = sections.join("\n\n") + suffix;
+	const claudeMessage = sections.join("\n\n") + claudeSuffix;
 
 	return {
 		decision: undefined,
@@ -207,10 +219,13 @@ export function typeCheck(
 	}
 
 	const allErrors = output.split("\n").filter((line) => /error TS/i.test(line));
-	const errors = formatTypeErrors(output);
-	if (errors.length === 0) {
+	if (allErrors.length === 0) {
 		return undefined;
 	}
 
-	return buildTypeCheckOutput(allErrors.length, errors, allErrors.length > MAX_ERRORS);
+	const isTruncated = allErrors.length > MAX_ERRORS;
+	const capped = allErrors.slice(0, MAX_ERRORS);
+	const { dependencyErrors, fileErrors } = partitionErrors(capped, filePath, projectRoot);
+
+	return buildTypeCheckOutput({ dependencyErrors, fileErrors, truncated: isTruncated });
 }
