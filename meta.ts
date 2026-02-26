@@ -26,7 +26,6 @@ export const vendors = {
 	},
 	superpowers: {
 		skills: {
-			"writing-plans": "writing-plans",
 			"writing-skills": "writing-skills",
 		},
 		source: "https://github.com/obra/superpowers",
@@ -34,4 +33,4 @@ export const vendors = {
 } satisfies Record<string, VendorSkillMeta>;
 
 /** Hand-written skills. */
-export const manual = ["isentinel", "ecs-design"];
+export const manual = ["isentinel", "ecs-design", "roblox-ts", "test-driven-development"];
