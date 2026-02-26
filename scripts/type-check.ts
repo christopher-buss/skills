@@ -11,8 +11,9 @@ const TYPE_CHECK_EXTENSIONS = [".ts", ".tsx"];
 const CACHE_PATH = join(".claude", "state", "tsconfig-cache.json");
 
 export interface TsconfigCache {
-	hash: string;
-	tsconfig: string;
+	hashes: Record<string, string>;
+	mappings: Record<string, string>;
+	projectRoot: string;
 }
 
 export function readTsconfigCache(projectRoot: string): TsconfigCache | undefined {
@@ -25,25 +26,34 @@ export function readTsconfigCache(projectRoot: string): TsconfigCache | undefine
 	return JSON.parse(content) as unknown as TsconfigCache;
 }
 
-export function writeTsconfigCache(projectRoot: string, hash: string, tsconfig: string): void {
+export function writeTsconfigCache(projectRoot: string, cache: TsconfigCache): void {
 	const stateDirectory = join(projectRoot, ".claude", "state");
 	mkdirSync(stateDirectory, { recursive: true });
-	writeFileSync(join(projectRoot, CACHE_PATH), JSON.stringify({ hash, tsconfig }));
+	writeFileSync(join(projectRoot, CACHE_PATH), JSON.stringify(cache));
 }
 
 export function resolveTsconfig(filePath: string, projectRoot: string): string | undefined {
 	const cache = readTsconfigCache(projectRoot);
-	if (cache !== undefined && existsSync(cache.tsconfig)) {
-		const currentHash = hashFileContent(cache.tsconfig);
-		if (currentHash === cache.hash) {
-			return cache.tsconfig;
+
+	if (cache?.projectRoot === projectRoot) {
+		const cachedTsconfig = cache.mappings[filePath];
+		if (cachedTsconfig !== undefined && existsSync(cachedTsconfig)) {
+			const currentHash = hashFileContent(cachedTsconfig);
+			if (currentHash === cache.hashes[cachedTsconfig]) {
+				return cachedTsconfig;
+			}
 		}
 	}
 
 	const tsconfig = findTsconfigForFile(filePath, projectRoot);
 	if (tsconfig !== undefined) {
 		const hash = hashFileContent(tsconfig);
-		writeTsconfigCache(projectRoot, hash, tsconfig);
+		const updatedCache = {
+			hashes: { ...cache?.hashes, [tsconfig]: hash },
+			mappings: { ...cache?.mappings, [filePath]: tsconfig },
+			projectRoot,
+		} satisfies TsconfigCache;
+		writeTsconfigCache(projectRoot, updatedCache);
 	}
 
 	return tsconfig;

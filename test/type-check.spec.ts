@@ -76,7 +76,11 @@ describe(readTsconfigCache, () => {
 
 		const projectDirectory = join("/project");
 		const cachePath = join(projectDirectory, ".claude", "state", "tsconfig-cache.json");
-		const cache = { hash: "abc123", tsconfig: "/project/tsconfig.json" };
+		const cache = {
+			hashes: { "/project/tsconfig.json": "abc123" },
+			mappings: { "src/foo.ts": "/project/tsconfig.json" },
+			projectRoot: projectDirectory,
+		};
 
 		mockedExistsSync.mockImplementation((path) => path === cachePath);
 		mockedReadFileSync.mockReturnValue(JSON.stringify(cache));
@@ -86,19 +90,24 @@ describe(readTsconfigCache, () => {
 });
 
 describe(writeTsconfigCache, () => {
-	it("should create state directory and write cache file", () => {
+	it("should create state directory and write cache object", () => {
 		expect.assertions(2);
 
 		const projectDirectory = join("/project");
+		const cache = {
+			hashes: { "/project/tsconfig.json": "abc123" },
+			mappings: { "src/foo.ts": "/project/tsconfig.json" },
+			projectRoot: projectDirectory,
+		};
 
-		writeTsconfigCache(projectDirectory, "abc123", "/project/tsconfig.json");
+		writeTsconfigCache(projectDirectory, cache);
 
 		expect(mockedMkdirSync).toHaveBeenCalledWith(join(projectDirectory, ".claude", "state"), {
 			recursive: true,
 		});
 		expect(mockedWriteFileSync).toHaveBeenCalledWith(
 			join(projectDirectory, ".claude", "state", "tsconfig-cache.json"),
-			JSON.stringify({ hash: "abc123", tsconfig: "/project/tsconfig.json" }),
+			JSON.stringify(cache),
 		);
 	});
 });
@@ -108,6 +117,7 @@ describe(resolveTsconfig, () => {
 		expect.assertions(2);
 
 		const projectDirectory = join("/project");
+		const filePath = join(projectDirectory, "src", "foo.ts");
 		const tsconfig = join(projectDirectory, "tsconfig.json");
 
 		// No cache file exists, but tsconfig exists for the walk
@@ -121,7 +131,7 @@ describe(resolveTsconfig, () => {
 		mockedCreateHash.mockReturnValue({ update: mockUpdate } as never);
 		mockedReadFileSync.mockReturnValue("tsconfig content");
 
-		const result = resolveTsconfig(join(projectDirectory, "src", "foo.ts"), projectDirectory);
+		const result = resolveTsconfig(filePath, projectDirectory);
 
 		expect(result).toBe(tsconfig);
 		expect(mockedWriteFileSync).toHaveBeenCalledWith(
@@ -134,24 +144,25 @@ describe(resolveTsconfig, () => {
 		expect.assertions(1);
 
 		const projectDirectory = join("/project");
+		const filePath = join(projectDirectory, "src", "foo.ts");
 		const tsconfig = join(projectDirectory, "tsconfig.json");
 		const cachePath = join(projectDirectory, ".claude", "state", "tsconfig-cache.json");
+		const cache = {
+			hashes: { [tsconfig]: "cached-hash" },
+			mappings: { [filePath]: tsconfig },
+			projectRoot: projectDirectory,
+		};
 
-		// Cache file exists with matching hash
 		mockedExistsSync.mockImplementation((path) => path === cachePath || path === tsconfig);
-		mockedReadFileSync.mockReturnValue(JSON.stringify({ hash: "cached-hash", tsconfig }));
+		mockedReadFileSync.mockReturnValue(JSON.stringify(cache));
 
 		const mockDigest = vi.fn<() => string>().mockReturnValue("cached-hash");
 		const mockUpdate = vi
 			.fn<(data: string) => { digest: typeof mockDigest }>()
-			.mockReturnValue({
-				digest: mockDigest,
-			});
+			.mockReturnValue({ digest: mockDigest });
 		mockedCreateHash.mockReturnValue({ update: mockUpdate } as never);
 
-		expect(resolveTsconfig(join(projectDirectory, "src", "foo.ts"), projectDirectory)).toBe(
-			tsconfig,
-		);
+		expect(resolveTsconfig(filePath, projectDirectory)).toBe(tsconfig);
 	});
 });
 
@@ -206,6 +217,13 @@ describe(typeCheck, () => {
 		vi.stubEnv("CLAUDE_PROJECT_DIR", join("/project"));
 		const tsconfig = join("/project", "tsconfig.json");
 		mockedExistsSync.mockImplementation((path) => path === tsconfig);
+		mockedParseTsconfig.mockReturnValue(fromPartial({ references: undefined }));
+
+		const mockDigest = vi.fn<() => string>().mockReturnValue("hash");
+		const mockUpdate = vi
+			.fn<(data: string) => { digest: typeof mockDigest }>()
+			.mockReturnValue({ digest: mockDigest });
+		mockedCreateHash.mockReturnValue({ update: mockUpdate } as never);
 
 		const errorOutput = "src/foo.ts(1,1): error TS2322: Type mismatch";
 		mockedExecSync.mockImplementation(() => {
