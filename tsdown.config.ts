@@ -6,8 +6,10 @@ const bundleExternals = [
 	"file-entry-cache",
 	"flat-cache",
 	"flatted",
+	"get-tsconfig",
 	"hashery",
 	"hookified",
+	"resolve-pkg-maps",
 ];
 
 export default defineConfig({
