@@ -172,15 +172,17 @@ export function buildTypeCheckOutput(options: TypeCheckOutputOptions): PostToolU
 
 	if (options.fileErrors.length > 0) {
 		const text = options.fileErrors.join("\n");
+		const errorSuffix = options.fileErrors.length === 1 ? "error" : "errors";
 		sections.push(
-			`TypeScript found ${options.fileErrors.length} type error(s) in edited file:\n${text}`,
+			`TypeScript found ${options.fileErrors.length} type ${errorSuffix} in edited file:\n${text}`,
 		);
 	}
 
 	if (options.dependencyErrors.length > 0) {
 		const text = options.dependencyErrors.join("\n");
+		const errorSuffix = options.dependencyErrors.length === 1 ? "error" : "errors";
 		sections.push(
-			`TypeScript found ${options.dependencyErrors.length} pre-existing type error(s) in dependencies:\n${text}`,
+			`TypeScript found ${options.dependencyErrors.length} type ${errorSuffix} in other files:\n${text}`,
 		);
 	}
 

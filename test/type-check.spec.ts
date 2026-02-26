@@ -238,7 +238,7 @@ describe(typeCheck, () => {
 		});
 
 		expect(result).toBeDefined();
-		expect(result?.systemMessage).toContain("1 type error(s) in edited file");
+		expect(result?.systemMessage).toContain("1 type error in edited file");
 	});
 });
 
@@ -358,8 +358,8 @@ describe(buildTypeCheckOutput, () => {
 		const dependencyErrors = ["src/bar.ts(5,3): error TS2345: Argument mismatch"];
 		const result = buildTypeCheckOutput({ dependencyErrors, fileErrors, truncated: false });
 
-		expect(result.systemMessage).toContain("1 type error(s) in edited file");
-		expect(result.systemMessage).toContain("1 pre-existing type error(s) in dependencies");
+		expect(result.systemMessage).toContain("1 type error in edited file");
+		expect(result.systemMessage).toContain("1 type error in other files");
 	});
 
 	it("should only show dependency errors with softer message when no file errors", () => {
@@ -370,7 +370,7 @@ describe(buildTypeCheckOutput, () => {
 		const result = buildTypeCheckOutput({ dependencyErrors, fileErrors, truncated: false });
 
 		expect(result.systemMessage).not.toContain("in edited file");
-		expect(result.systemMessage).toContain("1 pre-existing type error(s) in dependencies");
+		expect(result.systemMessage).toContain("1 type error in other files");
 	});
 });
 
