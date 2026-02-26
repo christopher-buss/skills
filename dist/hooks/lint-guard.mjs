@@ -1,5 +1,5 @@
-import { m as isProtectedFile } from "../lint-BZbpmXUG.mjs";
-import { n as writeStdoutJson, t as readStdinJson } from "../io-BwovH54h.mjs";
+import { m as isProtectedFile } from "../lint.mjs";
+import { n as writeStdoutJson, t as readStdinJson } from "../io.mjs";
 import { basename } from "node:path";
 
 //#region hooks/lint-guard.ts

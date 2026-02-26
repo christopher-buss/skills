@@ -232,6 +232,27 @@ describe(lint, () => {
 			);
 			expect(result).toStrictEqual(expectedGraph);
 		});
+
+		it("should check madge availability before running the full command", () => {
+			expect.assertions(2);
+
+			const calls: Array<string> = [];
+			mockedExecSync.mockImplementation((cmd) => {
+				const command = String(cmd);
+				calls.push(command);
+				if (command.includes("madge")) {
+					throw new Error("Command not found: madge");
+				}
+
+				return "";
+			});
+
+			expect(() => getDependencyGraph("/src", ["/src/index.ts"])).toThrowError(
+				"Command not found: madge",
+			);
+			// Pre-check: should not go through the runner (pnpm exec)
+			expect(calls[0]).not.toContain("pnpm");
+		});
 	});
 
 	const testFilePath = "/project/src/foo.ts";
@@ -908,6 +929,34 @@ describe(lint, () => {
 			const result = lint(join("/project", "src", "foo.ts"));
 
 			expect(result).toBeUndefined();
+		});
+
+		it("should warn when madge is not available", () => {
+			expect.assertions(1);
+
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
+			const projectSource = resolve("/project", "src");
+			const existing = new Set([
+				join(projectSource, "index.ts"),
+				join(resolve("/project"), "package.json"),
+				projectSource,
+			]);
+
+			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("madge")) {
+					throw new Error("madge not found");
+				}
+
+				return "";
+			});
+
+			lint(join("/project", "src", "foo.ts"));
+
+			expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("madge"));
+
+			warnSpy.mockRestore();
 		});
 
 		it("should return formatted hook output on lint failure", () => {

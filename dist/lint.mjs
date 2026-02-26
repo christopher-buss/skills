@@ -3070,6 +3070,10 @@ function findEntryPoints(sourceRoot) {
 	});
 }
 function getDependencyGraph(sourceRoot, entryPoints, runner = DEFAULT_SETTINGS.runner) {
+	execSync("which madge", {
+		stdio: "pipe",
+		timeout: 1e3
+	});
 	const output = execSync(`${runner} madge --json ${entryPoints.map((ep) => `"${ep}"`).join(" ")}`, {
 		cwd: sourceRoot,
 		encoding: "utf-8",
@@ -3312,6 +3316,7 @@ function findImporters(filePath, runner = DEFAULT_SETTINGS.runner) {
 	try {
 		return invertGraph(getDependencyGraph(sourceRoot, entryPoints, runner), relative(sourceRoot, absPath).replaceAll("\\", "/")).map((file) => join(sourceRoot, file));
 	} catch {
+		console.warn("[lint] madge not available — skipping importer cache invalidation");
 		return [];
 	}
 }

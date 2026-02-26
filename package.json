@@ -22,7 +22,7 @@
 		"pre-commit": "pnpm lint-staged"
 	},
 	"lint-staged": {
-		"*.{js,ts,mjs,mts}": "eslint --fix"
+		"*.{ts,mts}": "eslint --fix"
 	},
 	"devDependencies": {
 		"@clack/prompts": "catalog:",

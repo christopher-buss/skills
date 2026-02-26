@@ -1,5 +1,5 @@
-import { E as writeLintAttempts, _ as readLintAttempts, h as lint, v as readSettings } from "../lint-BZbpmXUG.mjs";
-import { n as writeStdoutJson, t as readStdinJson } from "../io-BwovH54h.mjs";
+import { E as writeLintAttempts, _ as readLintAttempts, h as lint, v as readSettings } from "../lint.mjs";
+import { n as writeStdoutJson, t as readStdinJson } from "../io.mjs";
 import process from "node:process";
 
 //#region hooks/lint.ts

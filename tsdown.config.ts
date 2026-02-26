@@ -20,6 +20,7 @@ export default defineConfig({
 		"hooks/clear-lint-state.ts",
 	],
 	fixedExtension: true,
+	hash: false,
 	inlineOnly: bundleExternals,
 	shims: true,
 	target: ["node24"],

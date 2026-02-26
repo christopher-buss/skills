@@ -121,6 +121,8 @@ export function getDependencyGraph(
 	entryPoints: Array<string>,
 	runner = DEFAULT_SETTINGS.runner,
 ): DependencyGraph {
+	execSync("which madge", { stdio: "pipe", timeout: 1_000 });
+
 	const entryArguments = entryPoints.map((ep) => `"${ep}"`).join(" ");
 	const output = execSync(`${runner} madge --json ${entryArguments}`, {
 		cwd: sourceRoot,
@@ -542,6 +544,7 @@ function findImporters(filePath: string, runner = DEFAULT_SETTINGS.runner): Arra
 		const targetRelative = relative(sourceRoot, absPath).replaceAll("\\", "/");
 		return invertGraph(graph, targetRelative).map((file) => join(sourceRoot, file));
 	} catch {
+		console.warn("[lint] madge not available — skipping importer cache invalidation");
 		return [];
 	}
 }

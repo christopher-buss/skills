@@ -1,4 +1,4 @@
-import { a as clearStopAttempts, i as clearLintAttempts } from "../lint-BZbpmXUG.mjs";
+import { a as clearStopAttempts, i as clearLintAttempts } from "../lint.mjs";
 
 //#region hooks/clear-lint-state.ts
 clearLintAttempts();
