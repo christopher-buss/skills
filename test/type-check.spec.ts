@@ -436,4 +436,58 @@ describe(typecheckStopDecision, () => {
 			}),
 		).toBeUndefined();
 	});
+
+	it("should block when errors exist and attempts remain", () => {
+		expect.assertions(2);
+
+		const result = typecheckStopDecision({
+			errorFiles: ["src/foo.ts"],
+			lintAttempts: {},
+			maxLintAttempts: 3,
+			stopAttempts: 0,
+		});
+
+		expect(result?.decision).toBe("block");
+		expect(result?.reason).toContain("src/foo.ts");
+	});
+
+	it("should allow stop when all files maxed out on attempts", () => {
+		expect.assertions(1);
+
+		expect(
+			typecheckStopDecision({
+				errorFiles: ["src/foo.ts"],
+				lintAttempts: { "src/foo.ts": 3 },
+				maxLintAttempts: 3,
+				stopAttempts: 0,
+			}),
+		).toBeUndefined();
+	});
+
+	it("should allow stop after max stop attempts with reason", () => {
+		expect.assertions(2);
+
+		const result = typecheckStopDecision({
+			errorFiles: ["src/foo.ts"],
+			lintAttempts: {},
+			maxLintAttempts: 3,
+			stopAttempts: 3,
+		});
+
+		expect(result?.decision).toBeUndefined();
+		expect(result?.reason).toContain("Could not fix");
+	});
+
+	it("should reset stop attempts when errors resolved", () => {
+		expect.assertions(1);
+
+		const result = typecheckStopDecision({
+			errorFiles: [],
+			lintAttempts: {},
+			maxLintAttempts: 3,
+			stopAttempts: 2,
+		});
+
+		expect(result).toStrictEqual({ resetStopAttempts: true });
+	});
 });
