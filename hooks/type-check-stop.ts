@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import process from "node:process";
 
 import { getChangedFiles, readLintAttempts, readSettings } from "../scripts/lint.ts";
@@ -27,7 +28,8 @@ if (files.length === 0) {
 
 const errorFiles: Array<string> = [];
 for (const file of files) {
-	const tsconfig = resolveTsconfig(file, PROJECT_ROOT);
+	const absolutePath = join(PROJECT_ROOT, file);
+	const tsconfig = resolveTsconfig(absolutePath, PROJECT_ROOT);
 	if (tsconfig === undefined) {
 		continue;
 	}
