@@ -37,6 +37,107 @@ export function isProtectedFile(filename: string): boolean {
 
 const LINT_STATE_PATH = ".claude/state/lint-attempts.json";
 const STOP_STATE_PATH = ".claude/state/stop-attempts.json";
+const EDITED_FILES_PATH = ".claude/state/edited-files.json";
+
+type EditedFilesState = Record<string, Array<string>>;
+
+export function readEditedFiles(sessionId: string): Array<string> {
+	if (!existsSync(EDITED_FILES_PATH)) {
+		return [];
+	}
+
+	try {
+		const state = JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8")) as EditedFilesState;
+		return state[sessionId] ?? [];
+	} catch {
+		return [];
+	}
+}
+
+export function writeEditedFile(sessionId: string, filePath: string): void {
+	let state = {} satisfies EditedFilesState as EditedFilesState;
+	if (existsSync(EDITED_FILES_PATH)) {
+		try {
+			state = JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8")) as EditedFilesState;
+		} catch {
+			state = {} satisfies EditedFilesState as EditedFilesState;
+		}
+	}
+
+	const files = state[sessionId] ?? [];
+	if (!files.includes(filePath)) {
+		files.push(filePath);
+	}
+
+	state[sessionId] = files;
+	mkdirSync(dirname(EDITED_FILES_PATH), { recursive: true });
+	writeFileSync(EDITED_FILES_PATH, JSON.stringify(state));
+}
+
+export function clearEditedFiles(sessionId: string): void {
+	if (!existsSync(EDITED_FILES_PATH)) {
+		return;
+	}
+
+	try {
+		const state = JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8")) as EditedFilesState;
+		delete state[sessionId];
+
+		if (Object.keys(state).length === 0) {
+			unlinkSync(EDITED_FILES_PATH);
+		} else {
+			writeFileSync(EDITED_FILES_PATH, JSON.stringify(state));
+		}
+	} catch {
+		unlinkSync(EDITED_FILES_PATH);
+	}
+}
+
+export function getTransitiveDependents(
+	files: Array<string>,
+	sourceRoot: string,
+	runner = DEFAULT_SETTINGS.runner,
+): Array<string> {
+	const entryPoints = findEntryPoints(sourceRoot);
+	if (entryPoints.length === 0) {
+		return [];
+	}
+
+	const graph = getDependencyGraph(sourceRoot, entryPoints, runner);
+
+	const visited = new Set<string>();
+	const queue: Array<string> = [];
+
+	for (const file of files) {
+		const relativePath = relative(sourceRoot, resolve(file)).replaceAll("\\", "/");
+		if (!visited.has(relativePath)) {
+			visited.add(relativePath);
+			queue.push(relativePath);
+		}
+	}
+
+	let current = queue.shift();
+	while (current !== undefined) {
+		const importers = invertGraph(graph, current);
+		for (const importer of importers) {
+			if (!visited.has(importer)) {
+				visited.add(importer);
+				queue.push(importer);
+			}
+		}
+
+		current = queue.shift();
+	}
+
+	const originals = new Set(
+		files.map((file) => relative(sourceRoot, resolve(file)).replaceAll("\\", "/")),
+	);
+
+	return [...visited]
+		.filter((file) => !originals.has(file))
+		.map((file) => join(sourceRoot, file));
+}
+
 const ESLINT_CACHE_PATH = ".eslintcache";
 const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts"];
 const ENTRY_CANDIDATES = ["index.ts", "cli.ts", "main.ts"];
@@ -548,14 +649,9 @@ function findImporters(filePath: string, runner = DEFAULT_SETTINGS.runner): Arra
 		return [];
 	}
 
-	try {
-		const graph = getDependencyGraph(sourceRoot, entryPoints, runner);
-		const targetRelative = relative(sourceRoot, absPath).replaceAll("\\", "/");
-		return invertGraph(graph, targetRelative).map((file) => join(sourceRoot, file));
-	} catch {
-		console.warn("[lint] madge not available — skipping importer cache invalidation");
-		return [];
-	}
+	const graph = getDependencyGraph(sourceRoot, entryPoints, runner);
+	const targetRelative = relative(sourceRoot, absPath).replaceAll("\\", "/");
+	return invertGraph(graph, targetRelative).map((file) => join(sourceRoot, file));
 }
 
 /* v8 ignore start -- CLI entrypoint */

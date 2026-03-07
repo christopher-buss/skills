@@ -2,7 +2,12 @@ import type { PostToolUseInput } from "@constellos/claude-code-kit/types/hooks";
 
 import process from "node:process";
 
-import { readLintAttempts, readSettings, writeLintAttempts } from "../scripts/lint.ts";
+import {
+	readLintAttempts,
+	readSettings,
+	writeEditedFile,
+	writeLintAttempts,
+} from "../scripts/lint.ts";
 import { typeCheck } from "../scripts/type-check.ts";
 import { readStdinJson, writeStdoutJson } from "./io.ts";
 
@@ -39,3 +44,4 @@ function run(filePath: string): void {
 }
 
 run(input.tool_input.file_path);
+writeEditedFile(input.session_id, input.tool_input.file_path);

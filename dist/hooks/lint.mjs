@@ -1,4 +1,4 @@
-import { E as writeLintAttempts, _ as readLintAttempts, h as lint, v as readSettings } from "../lint.mjs";
+import { A as writeLintAttempts, _ as lint, b as readLintAttempts, k as writeEditedFile, x as readSettings } from "../lint.mjs";
 import { n as writeStdoutJson, t as readStdinJson } from "../io.mjs";
 import process from "node:process";
 
@@ -22,6 +22,7 @@ function run(filePath) {
 	}
 }
 run(input.tool_input.file_path);
+writeEditedFile(input.session_id, input.tool_input.file_path);
 
 //#endregion
 export {  };

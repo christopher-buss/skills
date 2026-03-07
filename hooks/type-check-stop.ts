@@ -1,7 +1,15 @@
-import { join } from "node:path";
+import type { StopInput } from "@constellos/claude-code-kit/types/hooks";
+
+import { join, resolve } from "node:path";
 import process from "node:process";
 
-import { getChangedFiles, readLintAttempts, readSettings } from "../scripts/lint.ts";
+import {
+	findSourceRoot,
+	getTransitiveDependents,
+	readEditedFiles,
+	readLintAttempts,
+	readSettings,
+} from "../scripts/lint.ts";
 import {
 	isTypeCheckable,
 	readTypecheckStopAttempts,
@@ -18,10 +26,32 @@ if (!settings.typecheck) {
 	process.exit(0);
 }
 
-await readStdinJson();
+const input = await readStdinJson<StopInput>();
+const SESSION_ID = input.session_id;
 
 const PROJECT_ROOT = process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd();
-const files = getChangedFiles().filter((file) => isTypeCheckable(file));
+
+const editedFiles = readEditedFiles(SESSION_ID);
+if (editedFiles.length === 0) {
+	process.exit(0);
+}
+
+const allFiles = new Set(editedFiles);
+const seenRoots = new Set<string>();
+for (const file of editedFiles) {
+	const absPath = resolve(file);
+	const sourceRoot = findSourceRoot(absPath);
+	if (sourceRoot === undefined || seenRoots.has(sourceRoot)) {
+		continue;
+	}
+
+	seenRoots.add(sourceRoot);
+	for (const dependent of getTransitiveDependents(editedFiles, sourceRoot, settings.runner)) {
+		allFiles.add(dependent);
+	}
+}
+
+const files = [...allFiles].filter((file) => isTypeCheckable(file));
 if (files.length === 0) {
 	process.exit(0);
 }

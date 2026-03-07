@@ -1,6 +1,6 @@
 import crypto$1 from "crypto";
-import fs from "fs";
-import path from "path";
+import xe from "fs";
+import Ie from "path";
 import { execSync, spawn } from "node:child_process";
 import { existsSync, globSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -2282,7 +2282,7 @@ var FlatCache = class extends Hookified {
 	*/
 	load(cacheId, cacheDir) {
 		try {
-			const filePath = path.resolve(`${cacheDir ?? this._cacheDir}/${cacheId ?? this._cacheId}`);
+			const filePath = Ie.resolve(`${cacheDir ?? this._cacheDir}/${cacheId ?? this._cacheId}`);
 			this.loadFile(filePath);
 			this.emit("load");
 		} catch (error) {
@@ -2295,8 +2295,8 @@ var FlatCache = class extends Hookified {
 	* @param  {String} pathToFile the path to the file containing the info for the cache
 	*/
 	loadFile(pathToFile) {
-		if (fs.existsSync(pathToFile)) {
-			const data = fs.readFileSync(pathToFile, "utf8");
+		if (xe.existsSync(pathToFile)) {
+			const data = xe.readFileSync(pathToFile, "utf8");
 			const items = this._parse(data);
 			if (Array.isArray(items)) {
 				for (const item of items) if (item && typeof item === "object" && "key" in item) if (item.expires) this._cache.set(item.key, item.value, { expire: item.expires });
@@ -2312,11 +2312,11 @@ var FlatCache = class extends Hookified {
 		}
 	}
 	loadFileStream(pathToFile, onProgress, onEnd, onError) {
-		if (fs.existsSync(pathToFile)) {
-			const total = fs.statSync(pathToFile).size;
+		if (xe.existsSync(pathToFile)) {
+			const total = xe.statSync(pathToFile).size;
 			let loaded = 0;
 			let streamData = "";
-			const readStream = fs.createReadStream(pathToFile, { encoding: "utf8" });
+			const readStream = xe.createReadStream(pathToFile, { encoding: "utf8" });
 			readStream.on("data", (chunk) => {
 				loaded += chunk.length;
 				streamData += chunk;
@@ -2363,7 +2363,7 @@ var FlatCache = class extends Hookified {
 	* @returns {String}
 	*/
 	get cacheFilePath() {
-		return path.resolve(`${this._cacheDir}/${this._cacheId}`);
+		return Ie.resolve(`${this._cacheDir}/${this._cacheId}`);
 	}
 	/**
 	* Returns the path to the cache directory
@@ -2371,7 +2371,7 @@ var FlatCache = class extends Hookified {
 	* @returns {String}
 	*/
 	get cacheDirPath() {
-		return path.resolve(this._cacheDir);
+		return Ie.resolve(this._cacheDir);
 	}
 	/**
 	* Returns an array with all the keys in the cache
@@ -2462,8 +2462,8 @@ var FlatCache = class extends Hookified {
 				const filePath = this.cacheFilePath;
 				const items = [...this._cache.items];
 				const data = this._stringify(items);
-				if (!fs.existsSync(this._cacheDir)) fs.mkdirSync(this._cacheDir, { recursive: true });
-				fs.writeFileSync(filePath, data);
+				if (!xe.existsSync(this._cacheDir)) xe.mkdirSync(this._cacheDir, { recursive: true });
+				xe.writeFileSync(filePath, data);
 				this._changesSinceLastSave = false;
 				this.emit("save");
 			}
@@ -2478,8 +2478,8 @@ var FlatCache = class extends Hookified {
 	*/
 	removeCacheFile() {
 		try {
-			if (fs.existsSync(this.cacheFilePath)) {
-				fs.rmSync(this.cacheFilePath);
+			if (xe.existsSync(this.cacheFilePath)) {
+				xe.rmSync(this.cacheFilePath);
 				return true;
 			}
 		} catch (error) {
@@ -2497,11 +2497,11 @@ var FlatCache = class extends Hookified {
 		try {
 			this._cache.clear();
 			this.stopAutoPersist();
-			if (includeCacheDirectory) fs.rmSync(this.cacheDirPath, {
+			if (includeCacheDirectory) xe.rmSync(this.cacheDirPath, {
 				recursive: true,
 				force: true
 			});
-			else fs.rmSync(this.cacheFilePath, {
+			else xe.rmSync(this.cacheFilePath, {
 				recursive: true,
 				force: true
 			});
@@ -2547,7 +2547,7 @@ function createFromFile$1(filePath, options) {
 //#endregion
 //#region node_modules/.pnpm/file-entry-cache@11.1.2/node_modules/file-entry-cache/dist/index.js
 function createFromFile(filePath, options) {
-	return create(path.basename(filePath), path.dirname(filePath), options);
+	return create(Ie.basename(filePath), Ie.dirname(filePath), options);
 }
 function create(cacheId, cacheDirectory, options) {
 	const opts = {
@@ -2560,7 +2560,7 @@ function create(cacheId, cacheDirectory, options) {
 	const fileEntryCache = new FileEntryCache(opts);
 	if (cacheDirectory) {
 		const cachePath = `${cacheDirectory}/${cacheId}`;
-		if (fs.existsSync(cachePath)) fileEntryCache.cache = createFromFile$1(cachePath, opts.cache);
+		if (xe.existsSync(cachePath)) fileEntryCache.cache = createFromFile$1(cachePath, opts.cache);
 	}
 	return fileEntryCache;
 }
@@ -2726,7 +2726,7 @@ var FileEntryCache = class {
 	* @returns {boolean} if the file path is a relative path, false otherwise
 	*/
 	isRelativePath(filePath) {
-		return !path.isAbsolute(filePath);
+		return !Ie.isAbsolute(filePath);
 	}
 	/**
 	* Delete the cache file from the disk
@@ -2803,7 +2803,7 @@ var FileEntryCache = class {
 		const useModifiedTimeValue = options?.useModifiedTime ?? this.useModifiedTime;
 		this._logger?.debug({ useModifiedTime: useModifiedTimeValue }, "Using modified time (mtime) setting");
 		try {
-			fstat = fs.statSync(absolutePath);
+			fstat = xe.statSync(absolutePath);
 			result.meta.size = fstat.size;
 			result.meta.mtime = fstat.mtime.getTime();
 			this._logger?.trace({
@@ -2811,7 +2811,7 @@ var FileEntryCache = class {
 				mtime: result.meta.mtime
 			}, "Read file stats");
 			if (useCheckSumValue) {
-				const buffer = fs.readFileSync(absolutePath);
+				const buffer = xe.readFileSync(absolutePath);
 				result.meta.hash = this.getHash(buffer);
 				this._logger?.trace({ hash: result.meta.hash }, "Calculated file hash");
 			}
@@ -2946,11 +2946,11 @@ var FileEntryCache = class {
 	getAbsolutePath(filePath) {
 		if (this.isRelativePath(filePath)) {
 			const sanitizedPath = filePath.replace(/\0/g, "");
-			const resolved = path.resolve(this._cwd, sanitizedPath);
+			const resolved = Ie.resolve(this._cwd, sanitizedPath);
 			if (this._restrictAccessToCwd) {
-				const normalizedResolved = path.normalize(resolved);
-				const normalizedCwd = path.normalize(this._cwd);
-				if (!(normalizedResolved === normalizedCwd || normalizedResolved.startsWith(normalizedCwd + path.sep))) throw new Error(`Path traversal attempt blocked: "${filePath}" resolves outside of working directory "${this._cwd}"`);
+				const normalizedResolved = Ie.normalize(resolved);
+				const normalizedCwd = Ie.normalize(this._cwd);
+				if (!(normalizedResolved === normalizedCwd || normalizedResolved.startsWith(normalizedCwd + Ie.sep))) throw new Error(`Path traversal attempt blocked: "${filePath}" resolves outside of working directory "${this._cwd}"`);
 			}
 			return resolved;
 		}
@@ -2968,11 +2968,11 @@ var FileEntryCache = class {
 	getAbsolutePathWithCwd(filePath, cwd) {
 		if (this.isRelativePath(filePath)) {
 			const sanitizedPath = filePath.replace(/\0/g, "");
-			const resolved = path.resolve(cwd, sanitizedPath);
+			const resolved = Ie.resolve(cwd, sanitizedPath);
 			if (this._restrictAccessToCwd) {
-				const normalizedResolved = path.normalize(resolved);
-				const normalizedCwd = path.normalize(cwd);
-				if (!(normalizedResolved === normalizedCwd || normalizedResolved.startsWith(normalizedCwd + path.sep))) throw new Error(`Path traversal attempt blocked: "${filePath}" resolves outside of working directory "${cwd}"`);
+				const normalizedResolved = Ie.normalize(resolved);
+				const normalizedCwd = Ie.normalize(cwd);
+				if (!(normalizedResolved === normalizedCwd || normalizedResolved.startsWith(normalizedCwd + Ie.sep))) throw new Error(`Path traversal attempt blocked: "${filePath}" resolves outside of working directory "${cwd}"`);
 			}
 			return resolved;
 		}
@@ -3009,6 +3009,64 @@ function isProtectedFile(filename) {
 }
 const LINT_STATE_PATH = ".claude/state/lint-attempts.json";
 const STOP_STATE_PATH = ".claude/state/stop-attempts.json";
+const EDITED_FILES_PATH = ".claude/state/edited-files.json";
+function readEditedFiles(sessionId) {
+	if (!existsSync(EDITED_FILES_PATH)) return [];
+	try {
+		return JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8"))[sessionId] ?? [];
+	} catch {
+		return [];
+	}
+}
+function writeEditedFile(sessionId, filePath) {
+	let state = {};
+	if (existsSync(EDITED_FILES_PATH)) try {
+		state = JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8"));
+	} catch {
+		state = {};
+	}
+	const files = state[sessionId] ?? [];
+	if (!files.includes(filePath)) files.push(filePath);
+	state[sessionId] = files;
+	mkdirSync(dirname(EDITED_FILES_PATH), { recursive: true });
+	writeFileSync(EDITED_FILES_PATH, JSON.stringify(state));
+}
+function clearEditedFiles(sessionId) {
+	if (!existsSync(EDITED_FILES_PATH)) return;
+	try {
+		const state = JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8"));
+		delete state[sessionId];
+		if (Object.keys(state).length === 0) unlinkSync(EDITED_FILES_PATH);
+		else writeFileSync(EDITED_FILES_PATH, JSON.stringify(state));
+	} catch {
+		unlinkSync(EDITED_FILES_PATH);
+	}
+}
+function getTransitiveDependents(files, sourceRoot, runner = DEFAULT_SETTINGS.runner) {
+	const entryPoints = findEntryPoints(sourceRoot);
+	if (entryPoints.length === 0) return [];
+	const graph = getDependencyGraph(sourceRoot, entryPoints, runner);
+	const visited = /* @__PURE__ */ new Set();
+	const queue = [];
+	for (const file of files) {
+		const relativePath = relative(sourceRoot, resolve(file)).replaceAll("\\", "/");
+		if (!visited.has(relativePath)) {
+			visited.add(relativePath);
+			queue.push(relativePath);
+		}
+	}
+	let current = queue.shift();
+	while (current !== void 0) {
+		const importers = invertGraph(graph, current);
+		for (const importer of importers) if (!visited.has(importer)) {
+			visited.add(importer);
+			queue.push(importer);
+		}
+		current = queue.shift();
+	}
+	const originals = new Set(files.map((file) => relative(sourceRoot, resolve(file)).replaceAll("\\", "/")));
+	return [...visited].filter((file) => !originals.has(file)).map((file) => join(sourceRoot, file));
+}
 const ESLINT_CACHE_PATH = ".eslintcache";
 const DEFAULT_EXTENSIONS = [
 	".ts",
@@ -3317,12 +3375,7 @@ function findImporters(filePath, runner = DEFAULT_SETTINGS.runner) {
 	if (sourceRoot === void 0) return [];
 	const entryPoints = findEntryPoints(sourceRoot);
 	if (entryPoints.length === 0) return [];
-	try {
-		return invertGraph(getDependencyGraph(sourceRoot, entryPoints, runner), relative(sourceRoot, absPath).replaceAll("\\", "/")).map((file) => join(sourceRoot, file));
-	} catch {
-		console.warn("[lint] madge not available — skipping importer cache invalidation");
-		return [];
-	}
+	return invertGraph(getDependencyGraph(sourceRoot, entryPoints, runner), relative(sourceRoot, absPath).replaceAll("\\", "/")).map((file) => join(sourceRoot, file));
 }
 if (process$1.argv[1]?.endsWith("scripts/lint.ts") === true) {
 	const settings = readSettings();
@@ -3330,4 +3383,4 @@ if (process$1.argv[1]?.endsWith("scripts/lint.ts") === true) {
 }
 
 //#endregion
-export { runOxlint as C, writeStopAttempts as D, writeLintAttempts as E, runEslint as S, stopDecision as T, readLintAttempts as _, clearStopAttempts as a, resolveBustFiles as b, formatErrors as c, invalidateCacheEntries as d, invertGraph as f, main as g, lint as h, clearLintAttempts as i, getChangedFiles as l, isProtectedFile as m, buildHookOutput as n, findEntryPoints as o, isLintableFile as p, clearCache as r, findSourceRoot as s, DEFAULT_CACHE_BUST as t, getDependencyGraph as u, readSettings as v, shouldBustCache as w, restartDaemon as x, readStopAttempts as y };
+export { writeLintAttempts as A, resolveBustFiles as C, shouldBustCache as D, runOxlint as E, stopDecision as O, readStopAttempts as S, runEslint as T, lint as _, clearLintAttempts as a, readLintAttempts as b, findSourceRoot as c, getDependencyGraph as d, getTransitiveDependents as f, isProtectedFile as g, isLintableFile as h, clearEditedFiles as i, writeStopAttempts as j, writeEditedFile as k, formatErrors as l, invertGraph as m, buildHookOutput as n, clearStopAttempts as o, invalidateCacheEntries as p, clearCache as r, findEntryPoints as s, DEFAULT_CACHE_BUST as t, getChangedFiles as u, main as v, restartDaemon as w, readSettings as x, readEditedFiles as y };

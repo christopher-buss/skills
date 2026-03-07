@@ -1,4 +1,4 @@
-import { m as isProtectedFile } from "../lint.mjs";
+import { g as isProtectedFile } from "../lint.mjs";
 import { n as writeStdoutJson, t as readStdinJson } from "../io.mjs";
 import { basename } from "node:path";
 

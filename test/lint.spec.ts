@@ -18,6 +18,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	buildHookOutput,
 	clearCache,
+	clearEditedFiles,
 	clearLintAttempts,
 	clearStopAttempts,
 	DEFAULT_CACHE_BUST,
@@ -26,12 +27,14 @@ import {
 	formatErrors,
 	getChangedFiles,
 	getDependencyGraph,
+	getTransitiveDependents,
 	invalidateCacheEntries,
 	invertGraph,
 	isLintableFile,
 	isProtectedFile,
 	lint,
 	main,
+	readEditedFiles,
 	readLintAttempts,
 	readSettings,
 	readStopAttempts,
@@ -41,6 +44,7 @@ import {
 	runOxlint,
 	shouldBustCache,
 	stopDecision,
+	writeEditedFile,
 	writeLintAttempts,
 	writeStopAttempts,
 } from "../scripts/lint.js";
@@ -916,7 +920,7 @@ describe(lint, () => {
 			expect(result).toBeUndefined();
 		});
 
-		it("should gracefully handle madge failure in importer resolution", () => {
+		it("should propagate madge failure in importer resolution", () => {
 			expect.assertions(1);
 
 			mockedSpawn.mockReturnValue(fakeSpawnResult());
@@ -936,37 +940,7 @@ describe(lint, () => {
 				return "";
 			});
 
-			const result = lint(join("/project", "src", "foo.ts"));
-
-			expect(result).toBeUndefined();
-		});
-
-		it("should warn when madge is not available", () => {
-			expect.assertions(1);
-
-			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-			mockedSpawn.mockReturnValue(fakeSpawnResult());
-			const projectSource = resolve("/project", "src");
-			const existing = new Set([
-				join(projectSource, "index.ts"),
-				join(resolve("/project"), "package.json"),
-				projectSource,
-			]);
-
-			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
-			mockedExecSync.mockImplementation((command) => {
-				if (command.includes("madge")) {
-					throw new Error("madge not found");
-				}
-
-				return "";
-			});
-
-			lint(join("/project", "src", "foo.ts"));
-
-			expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("madge"));
-
-			warnSpy.mockRestore();
+			expect(() => lint(join("/project", "src", "foo.ts"))).toThrowError("madge not found");
 		});
 
 		it("should return formatted hook output on lint failure", () => {
@@ -1754,6 +1728,214 @@ describe(lint, () => {
 			expect.assertions(1);
 
 			expect(isProtectedFile("eslint-plugin/index.ts")).toBe(false);
+		});
+	});
+
+	describe(readEditedFiles, () => {
+		it("should return empty array when file missing", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(false);
+
+			expect(readEditedFiles("session-1")).toStrictEqual([]);
+		});
+
+		it("should return files for the given session", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({ "session-1": ["src/foo.ts"], "session-2": ["src/bar.ts"] }),
+			);
+
+			expect(readEditedFiles("session-1")).toStrictEqual(["src/foo.ts"]);
+		});
+
+		it("should return empty array for unknown session", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(JSON.stringify({ "session-1": ["src/foo.ts"] }));
+
+			expect(readEditedFiles("session-unknown")).toStrictEqual([]);
+		});
+
+		it("should return empty array on corrupt JSON", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue("{bad json");
+
+			expect(readEditedFiles("session-1")).toStrictEqual([]);
+		});
+	});
+
+	describe(writeEditedFile, () => {
+		it("should create state file with session entry", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(false);
+
+			writeEditedFile("session-1", "src/foo.ts");
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/edited-files.json",
+				JSON.stringify({ "session-1": ["src/foo.ts"] }),
+			);
+		});
+
+		it("should append to existing session entry", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(JSON.stringify({ "session-1": ["src/foo.ts"] }));
+
+			writeEditedFile("session-1", "src/bar.ts");
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/edited-files.json",
+				JSON.stringify({ "session-1": ["src/foo.ts", "src/bar.ts"] }),
+			);
+		});
+
+		it("should deduplicate files within a session", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(JSON.stringify({ "session-1": ["src/foo.ts"] }));
+
+			writeEditedFile("session-1", "src/foo.ts");
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/edited-files.json",
+				JSON.stringify({ "session-1": ["src/foo.ts"] }),
+			);
+		});
+
+		it("should not interfere with other sessions", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(JSON.stringify({ "session-1": ["src/foo.ts"] }));
+
+			writeEditedFile("session-2", "src/bar.ts");
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/edited-files.json",
+				JSON.stringify({ "session-1": ["src/foo.ts"], "session-2": ["src/bar.ts"] }),
+			);
+		});
+	});
+
+	describe(clearEditedFiles, () => {
+		it("should no-op when file missing", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(false);
+
+			clearEditedFiles("session-1");
+
+			expect(mockedUnlinkSync).not.toHaveBeenCalled();
+		});
+
+		it("should delete file when session is the only entry", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(JSON.stringify({ "session-1": ["src/foo.ts"] }));
+
+			clearEditedFiles("session-1");
+
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/edited-files.json");
+		});
+
+		it("should keep file with remaining sessions", () => {
+			expect.assertions(1);
+
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({ "session-1": ["src/foo.ts"], "session-2": ["src/bar.ts"] }),
+			);
+
+			clearEditedFiles("session-1");
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/edited-files.json",
+				JSON.stringify({ "session-2": ["src/bar.ts"] }),
+			);
+		});
+
+		it("should delete file on corrupt JSON", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue("{bad");
+
+			clearEditedFiles("session-1");
+
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/edited-files.json");
+		});
+	});
+
+	describe(getTransitiveDependents, () => {
+		it("should return empty when no entry points found", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(false);
+
+			expect(getTransitiveDependents(["src/foo.ts"], "/project/src")).toStrictEqual([]);
+		});
+
+		it("should return direct importers", () => {
+			expect.assertions(1);
+
+			const sourceRoot = resolve("/project/src");
+			const existing = new Set([join(sourceRoot, "index.ts")]);
+			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("which")) {
+					return "";
+				}
+
+				return JSON.stringify({
+					"bar.ts": ["foo.ts"],
+					"foo.ts": [],
+					"index.ts": ["bar.ts"],
+				});
+			});
+
+			const result = getTransitiveDependents([join(sourceRoot, "foo.ts")], sourceRoot);
+
+			expect(result).toStrictEqual([
+				join(sourceRoot, "bar.ts"),
+				join(sourceRoot, "index.ts"),
+			]);
+		});
+
+		it("should not include the original files in results", () => {
+			expect.assertions(1);
+
+			const sourceRoot = resolve("/project/src");
+			const existing = new Set([join(sourceRoot, "index.ts")]);
+			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("which")) {
+					return "";
+				}
+
+				return JSON.stringify({
+					"bar.ts": ["foo.ts"],
+					"foo.ts": [],
+				});
+			});
+
+			const result = getTransitiveDependents([join(sourceRoot, "foo.ts")], sourceRoot);
+
+			expect(result).toStrictEqual([join(sourceRoot, "bar.ts")]);
 		});
 	});
 });

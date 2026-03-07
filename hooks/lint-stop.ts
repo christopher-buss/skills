@@ -1,9 +1,14 @@
+import type { StopInput } from "@constellos/claude-code-kit/types/hooks";
+
+import { resolve } from "node:path";
 import process from "node:process";
 
 import {
-	getChangedFiles,
+	findSourceRoot,
+	getTransitiveDependents,
 	isLintableFile,
 	lint,
+	readEditedFiles,
 	readLintAttempts,
 	readSettings,
 	readStopAttempts,
@@ -18,10 +23,30 @@ if (!settings.lint) {
 	process.exit(0);
 }
 
-// Consume stdin (Stop hook protocol requires it)
-await readStdinJson();
+const input = await readStdinJson<StopInput>();
+const SESSION_ID = input.session_id;
 
-const files = getChangedFiles().filter((file) => isLintableFile(file));
+const editedFiles = readEditedFiles(SESSION_ID);
+if (editedFiles.length === 0) {
+	process.exit(0);
+}
+
+const dependents = new Set<string>();
+const seen = new Set<string>();
+for (const file of editedFiles) {
+	const absPath = resolve(file);
+	const sourceRoot = findSourceRoot(absPath);
+	if (sourceRoot === undefined || seen.has(sourceRoot)) {
+		continue;
+	}
+
+	seen.add(sourceRoot);
+	for (const dependent of getTransitiveDependents(editedFiles, sourceRoot, settings.runner)) {
+		dependents.add(dependent);
+	}
+}
+
+const files = [...new Set([...editedFiles, ...dependents])].filter((file) => isLintableFile(file));
 if (files.length === 0) {
 	process.exit(0);
 }
