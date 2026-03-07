@@ -1,6 +1,6 @@
 import he from "node:module";
-import xe from "fs";
-import Ie from "path";
+import fs from "fs";
+import path from "path";
 import { execSync } from "node:child_process";
 import re, { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import m, { dirname, join, relative } from "node:path";
@@ -781,7 +781,7 @@ const Ae = X((e) => {
 	}
 	return t;
 }, "invertCase"), le = /* @__PURE__ */ new Map(), _e = X((e, t) => {
-	const s = Ie.join(e, `.is-fs-case-sensitive-test-${process.pid}`);
+	const s = path.join(e, `.is-fs-case-sensitive-test-${process.pid}`);
 	try {
 		return t.writeFileSync(s, ""), !t.existsSync(Ae(s));
 	} finally {
@@ -796,7 +796,7 @@ const Ae = X((e) => {
 		if (t === void 0) return _e(Be.tmpdir(), s);
 		throw n;
 	}
-}, "checkDirectoryCaseWithFallback"), Oe = X((e, t = xe, s = !0) => {
+}, "checkDirectoryCaseWithFallback"), Oe = X((e, t = fs, s = !0) => {
 	const n = e != null ? e : process.cwd();
 	if (s && le.has(n)) return le.get(n);
 	let o;
@@ -924,9 +924,10 @@ function findTsconfigForFile(targetFile, projectRoot) {
 		directory = parent;
 	}
 }
-function runTypeCheck(tsconfig, runner = DEFAULT_RUNNER) {
+function runTypeCheck(tsconfig, runner = DEFAULT_RUNNER, extraArgs = []) {
+	const args = [`tsgo -p "${tsconfig}" --noEmit --pretty false`, ...extraArgs].join(" ");
 	try {
-		execSync(`${runner} tsgo -p "${tsconfig}" --noEmit --pretty false`, { stdio: "pipe" });
+		execSync(`${runner} ${args}`, { stdio: "pipe" });
 		return;
 	} catch (err_) {
 		const err = err_;
@@ -978,7 +979,7 @@ function typeCheck(filePath, settings) {
 	const projectRoot = process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd();
 	const tsconfig = resolveTsconfig(filePath, projectRoot);
 	if (tsconfig === void 0) return;
-	const output = runTypeCheck(tsconfig, settings.runner);
+	const output = runTypeCheck(tsconfig, settings.runner, settings.typecheckArgs);
 	if (output === void 0) return;
 	const allErrors = output.split("\n").filter((line) => /error TS/i.test(line));
 	if (allErrors.length === 0) return;

@@ -15,7 +15,7 @@ const errorFiles = [];
 for (const file of files) {
 	const tsconfig = resolveTsconfig(join(PROJECT_ROOT, file), PROJECT_ROOT);
 	if (tsconfig === void 0) continue;
-	const output = runTypeCheck(tsconfig, settings.runner);
+	const output = runTypeCheck(tsconfig, settings.runner, settings.typecheckArgs);
 	if (output !== void 0) {
 		if (/error TS/i.test(output)) errorFiles.push(file);
 	}
