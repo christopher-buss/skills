@@ -517,6 +517,7 @@ describe(lint, () => {
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
+				typecheckArgs: [],
 			});
 		});
 
@@ -534,6 +535,7 @@ describe(lint, () => {
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
+				typecheckArgs: [],
 			});
 		});
 
@@ -562,6 +564,7 @@ describe(lint, () => {
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
+				typecheckArgs: [],
 			});
 		});
 	});
@@ -781,6 +784,7 @@ describe(lint, () => {
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
+				typecheckArgs: [],
 			});
 
 			expect(exitSpy).toHaveBeenCalledWith(1);
@@ -817,6 +821,7 @@ describe(lint, () => {
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
+				typecheckArgs: [],
 			});
 
 			expect(didRunOxlint).toBe(true);
@@ -1023,6 +1028,7 @@ describe(lint, () => {
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
+				typecheckArgs: [],
 			});
 
 			expect(result).toMatchObject({
@@ -1073,6 +1079,7 @@ describe(lint, () => {
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
+				typecheckArgs: [],
 			});
 
 			expect(didRunOxlint).toBe(true);
@@ -1105,6 +1112,7 @@ describe(lint, () => {
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
+				typecheckArgs: [],
 			});
 
 			expect(didRunEslint).toBe(false);
@@ -1420,6 +1428,7 @@ describe(lint, () => {
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
+				typecheckArgs: [],
 			});
 
 			expect(mockedUnlinkSync).toHaveBeenCalledWith(".eslintcache");
@@ -1444,6 +1453,7 @@ describe(lint, () => {
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
+				typecheckArgs: [],
 			});
 
 			expect(mockedUnlinkSync).toHaveBeenCalledWith(".eslintcache");

@@ -120,9 +120,14 @@ export function findTsconfigForFile(targetFile: string, projectRoot: string): st
 	return undefined;
 }
 
-export function runTypeCheck(tsconfig: string, runner = DEFAULT_RUNNER): string | undefined {
+export function runTypeCheck(
+	tsconfig: string,
+	runner = DEFAULT_RUNNER,
+	extraArgs: Array<string> = [],
+): string | undefined {
+	const args = [`tsgo -p "${tsconfig}" --noEmit --pretty false`, ...extraArgs].join(" ");
 	try {
-		execSync(`${runner} tsgo -p "${tsconfig}" --noEmit --pretty false`, {
+		execSync(`${runner} ${args}`, {
 			stdio: "pipe",
 		});
 		return undefined;
@@ -141,6 +146,7 @@ const MAX_ERRORS = 5;
 export interface TypeCheckSettings {
 	runner: string;
 	typecheck: boolean;
+	typecheckArgs?: Array<string>;
 }
 
 export interface TypecheckStopDecisionResult {
@@ -234,7 +240,7 @@ export function typeCheck(
 		return undefined;
 	}
 
-	const output = runTypeCheck(tsconfig, settings.runner);
+	const output = runTypeCheck(tsconfig, settings.runner, settings.typecheckArgs);
 	if (output === undefined) {
 		return undefined;
 	}

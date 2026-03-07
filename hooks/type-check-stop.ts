@@ -34,7 +34,7 @@ for (const file of files) {
 		continue;
 	}
 
-	const output = runTypeCheck(tsconfig, settings.runner);
+	const output = runTypeCheck(tsconfig, settings.runner, settings.typecheckArgs);
 	if (output !== undefined) {
 		const hasErrors = /error TS/i.test(output);
 		if (hasErrors) {

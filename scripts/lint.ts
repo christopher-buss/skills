@@ -22,6 +22,7 @@ export interface LintSettings {
 	oxlint: boolean;
 	runner: string;
 	typecheck: boolean;
+	typecheckArgs: Array<string>;
 }
 
 export type DependencyGraph = Record<string, Array<string>>;
@@ -56,6 +57,7 @@ const DEFAULT_SETTINGS = {
 	oxlint: false,
 	runner: "pnpm exec",
 	typecheck: true,
+	typecheckArgs: [],
 } satisfies LintSettings;
 
 export interface StopDecisionResult {
@@ -99,6 +101,10 @@ export function readSettings(): LintSettings {
 		oxlint: fields.get("oxlint") === "true",
 		runner: fields.get("runner") ?? DEFAULT_SETTINGS.runner,
 		typecheck: fields.get("typecheck") !== "false",
+		typecheckArgs: (fields.get("typecheck-args") ?? "")
+			.split(",")
+			.map((entry) => entry.trim())
+			.filter(Boolean),
 	};
 }
 
