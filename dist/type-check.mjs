@@ -1,6 +1,6 @@
 import he from "node:module";
-import xe from "fs";
-import Ie from "path";
+import fs from "fs";
+import path from "path";
 import { execSync } from "node:child_process";
 import re, { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import m, { dirname, join, relative } from "node:path";
@@ -781,7 +781,7 @@ const Ae = X((e) => {
 	}
 	return t;
 }, "invertCase"), le = /* @__PURE__ */ new Map(), _e = X((e, t) => {
-	const s = Ie.join(e, `.is-fs-case-sensitive-test-${process.pid}`);
+	const s = path.join(e, `.is-fs-case-sensitive-test-${process.pid}`);
 	try {
 		return t.writeFileSync(s, ""), !t.existsSync(Ae(s));
 	} finally {
@@ -796,7 +796,7 @@ const Ae = X((e) => {
 		if (t === void 0) return _e(Be.tmpdir(), s);
 		throw n;
 	}
-}, "checkDirectoryCaseWithFallback"), Oe = X((e, t = xe, s = !0) => {
+}, "checkDirectoryCaseWithFallback"), Oe = X((e, t = fs, s = !0) => {
 	const n = e != null ? e : process.cwd();
 	if (s && le.has(n)) return le.get(n);
 	let o;
