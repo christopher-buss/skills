@@ -452,6 +452,7 @@ export function restartDaemon(runner = DEFAULT_SETTINGS.runner): void {
 	const child = spawn(command, [...prefixArgs, "eslint_d", "restart"], {
 		detached: true,
 		env: { ...process.env, ESLINT_IN_EDITOR: "true" },
+		shell: true,
 		stdio: "pipe",
 	});
 
