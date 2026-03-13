@@ -448,23 +448,24 @@ export function runEslint(
 }
 
 export function restartDaemon(runner = DEFAULT_SETTINGS.runner): void {
-	const [command = "pnpm", ...prefixArgs] = runner.split(/\s+/);
-	const child = spawn(command, [...prefixArgs, "eslint_d", "restart"], {
-		detached: true,
-		env: { ...process.env, ESLINT_IN_EDITOR: "true" },
-		shell: true,
-		stdio: "pipe",
-	});
+	try {
+		const [command = "pnpm", ...prefixArgs] = runner.split(/\s+/);
+		const child = spawn(command, [...prefixArgs, "eslint_d", "restart"], {
+			detached: true,
+			env: { ...process.env, ESLINT_IN_EDITOR: "true" },
+			stdio: "ignore",
+			windowsHide: true,
+		});
 
-	child.stderr.on("data", (data: Buffer) => {
-		process.stderr.write(`[eslint_d restart] ${data.toString()}`);
-	});
+		child.on("error", (error: Error) => {
+			process.stderr.write(`[eslint_d restart] ${error.message}\n`);
+		});
 
-	child.on("error", (error: Error) => {
-		process.stderr.write(`[eslint_d restart] failed: ${error.message}\n`);
-	});
-
-	child.unref();
+		child.unref();
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		process.stderr.write(`[eslint_d restart] ${message}\n`);
+	}
 }
 
 export function formatErrors(output: string): Array<string> {
@@ -495,6 +496,7 @@ export function lint(
 	filePath: string,
 	extraFlags: Array<string> = [],
 	settings: LintSettings = DEFAULT_SETTINGS,
+	{ restart = true } = {},
 ): PostToolUseHookOutput | undefined {
 	if (shouldBustCache(settings.cacheBust)) {
 		clearCache();
@@ -519,7 +521,7 @@ export function lint(
 		}
 	}
 
-	if (settings.eslint) {
+	if (settings.eslint && restart) {
 		restartDaemon(settings.runner);
 	}
 

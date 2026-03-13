@@ -475,7 +475,7 @@ describe(typecheckStopDecision, () => {
 		});
 
 		expect(result?.decision).toBeUndefined();
-		expect(result?.reason).toContain("Could not fix");
+		expect(result?.reason).toContain("Unresolved type errors");
 	});
 
 	it("should reset stop attempts when errors resolved", () => {

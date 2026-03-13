@@ -97,11 +97,15 @@ const mockedWriteFileSync = vi.mocked(writeFileSync);
 const mockedCreateFromFile = vi.mocked(createFromFile);
 
 function fakeSpawnResult(): ChildProcess {
-	const self = fromPartial<ChildProcess>({
-		on(_event: string, handler: () => void) {
-			handler();
+	const self: ChildProcess = fromPartial<ChildProcess>({
+		on(_event: string, _handler: () => void): ChildProcess {
 			return self;
 		},
+		stderr: fromPartial({
+			on(_event: string, _handler: () => void): ChildProcess {
+				return self;
+			},
+		}),
 		unref: () => {},
 	});
 	return self;
@@ -517,7 +521,7 @@ describe(lint, () => {
 				cacheBust: [...DEFAULT_CACHE_BUST],
 				eslint: true,
 				lint: true,
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -535,7 +539,7 @@ describe(lint, () => {
 				cacheBust: [...DEFAULT_CACHE_BUST],
 				eslint: true,
 				lint: true,
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -564,7 +568,7 @@ describe(lint, () => {
 				cacheBust: [...DEFAULT_CACHE_BUST],
 				eslint: false,
 				lint: true,
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -784,7 +788,7 @@ describe(lint, () => {
 				cacheBust: [],
 				eslint: false,
 				lint: true,
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -821,7 +825,7 @@ describe(lint, () => {
 				cacheBust: [],
 				eslint: false,
 				lint: true,
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -902,6 +906,42 @@ describe(lint, () => {
 
 			expect(didRunEslint).toBe(true);
 			expect(didRestartDaemon).toBe(true);
+		});
+
+		it("should skip daemon restart when restart option is false", () => {
+			expect.assertions(2);
+
+			let didRunEslint = false;
+			let didRestartDaemon = false;
+
+			const projectSource = resolve("/project", "src");
+			const existing = new Set([
+				join(projectSource, "index.ts"),
+				join(resolve("/project"), "package.json"),
+				projectSource,
+			]);
+
+			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("eslint_d")) {
+					didRunEslint = true;
+				}
+
+				if (command.includes("madge")) {
+					return '{"app.ts":["foo.ts"]}';
+				}
+
+				return "";
+			});
+			mockedSpawn.mockImplementation(() => {
+				didRestartDaemon = true;
+				return fakeSpawnResult();
+			});
+
+			lint(join("/project", "src", "foo.ts"), [], undefined, { restart: false });
+
+			expect(didRunEslint).toBe(true);
+			expect(didRestartDaemon).toBe(false);
 		});
 
 		it("should skip importers when no entry points found", () => {
@@ -998,7 +1038,7 @@ describe(lint, () => {
 				cacheBust: [],
 				eslint: false,
 				lint: true,
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -1049,7 +1089,7 @@ describe(lint, () => {
 				cacheBust: [],
 				eslint: true,
 				lint: true,
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -1082,7 +1122,7 @@ describe(lint, () => {
 				cacheBust: [],
 				eslint: false,
 				lint: true,
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -1158,13 +1198,13 @@ describe(lint, () => {
 			expect(readSettings()).toMatchObject({ maxLintAttempts: 5 });
 		});
 
-		it("should default maxLintAttempts to 3", () => {
+		it("should default maxLintAttempts to 1", () => {
 			expect.assertions(1);
 
 			mockedExistsSync.mockReturnValue(true);
 			mockedReadFileSync.mockReturnValue("---\neslint: true\n---\n");
 
-			expect(readSettings()).toMatchObject({ maxLintAttempts: 3 });
+			expect(readSettings()).toMatchObject({ maxLintAttempts: 1 });
 		});
 	});
 
@@ -1398,7 +1438,7 @@ describe(lint, () => {
 				cacheBust: ["eslint.config.ts"],
 				eslint: true,
 				lint: true,
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -1423,7 +1463,7 @@ describe(lint, () => {
 				cacheBust: ["eslint.config.ts"],
 				eslint: true,
 				lint: true,
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -1581,7 +1621,7 @@ describe(lint, () => {
 			const result = stopDecision({
 				errorFiles: [],
 				lintAttempts: {},
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				stopAttempts: 0,
 			});
 
@@ -1594,7 +1634,7 @@ describe(lint, () => {
 			const result = stopDecision({
 				errorFiles: [],
 				lintAttempts: {},
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				stopAttempts: 2,
 			});
 
@@ -1607,7 +1647,7 @@ describe(lint, () => {
 			const result = stopDecision({
 				errorFiles: [],
 				lintAttempts: {},
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				stopAttempts: 0,
 			});
 
@@ -1620,7 +1660,7 @@ describe(lint, () => {
 			const result = stopDecision({
 				errorFiles: ["src/foo.ts"],
 				lintAttempts: {},
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				stopAttempts: 0,
 			});
 
@@ -1634,7 +1674,7 @@ describe(lint, () => {
 			const result = stopDecision({
 				errorFiles: ["src/foo.ts"],
 				lintAttempts: { "src/foo.ts": 3 },
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				stopAttempts: 0,
 			});
 
@@ -1647,7 +1687,7 @@ describe(lint, () => {
 			const result = stopDecision({
 				errorFiles: ["src/foo.ts"],
 				lintAttempts: { "D:/projects/skills/src/foo.ts": 3 },
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				stopAttempts: 0,
 			});
 
@@ -1660,7 +1700,7 @@ describe(lint, () => {
 			const result = stopDecision({
 				errorFiles: ["src\\foo.ts"],
 				lintAttempts: { "src/foo.ts": 3 },
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				stopAttempts: 0,
 			});
 
@@ -1673,7 +1713,7 @@ describe(lint, () => {
 			const result = stopDecision({
 				errorFiles: ["foo.ts"],
 				lintAttempts: { "b/foo.ts": 3 },
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				stopAttempts: 0,
 			});
 
@@ -1686,12 +1726,12 @@ describe(lint, () => {
 			const result = stopDecision({
 				errorFiles: ["src/foo.ts"],
 				lintAttempts: {},
-				maxLintAttempts: 3,
+				maxLintAttempts: 1,
 				stopAttempts: 3,
 			});
 
 			expect(result?.decision).toBeUndefined();
-			expect(result?.reason).toContain("Could not fix lint errors");
+			expect(result?.reason).toContain("Unresolved lint errors");
 		});
 	});
 

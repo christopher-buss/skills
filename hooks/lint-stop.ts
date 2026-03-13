@@ -12,6 +12,7 @@ import {
 	readLintAttempts,
 	readSettings,
 	readStopAttempts,
+	restartDaemon,
 	stopDecision,
 	writeStopAttempts,
 } from "../scripts/lint.ts";
@@ -53,11 +54,13 @@ if (files.length === 0) {
 
 const errorFiles: Array<string> = [];
 for (const file of files) {
-	const result = lint(file, ["--fix"], settings);
+	const result = lint(file, ["--fix"], settings, { restart: false });
 	if (result !== undefined) {
 		errorFiles.push(file);
 	}
 }
+
+restartDaemon(settings.runner);
 
 const result = stopDecision({
 	errorFiles,
