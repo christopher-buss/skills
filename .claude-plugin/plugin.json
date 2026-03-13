@@ -1,7 +1,7 @@
 {
 	"name": "sentinel",
 	"description": "General development workflows for typescript projects, including linting with eslint_d and more",
-	"version": "1.2.0",
+	"version": "1.2.1",
 	"author": {
 		"name": "Christopher Buss",
 		"email": "christopher.buss@pm.me",
