@@ -280,13 +280,13 @@ export function typecheckStopDecision(
 
 	if (input.stopAttempts >= DEFAULT_MAX_STOP_ATTEMPTS) {
 		return {
-			reason: `Could not fix type errors in: ${input.errorFiles.join(", ")}`,
+			reason: `Unresolved type errors in: ${input.errorFiles.join(", ")}. These may be pre-existing.`,
 		};
 	}
 
 	return {
 		decision: "block",
-		reason: `Type errors remain in: ${input.errorFiles.join(", ")}. Fix them before stopping.`,
+		reason: `Type errors detected in: ${input.errorFiles.join(", ")}. If related to your changes, fix before finishing.`,
 	};
 }
 
