@@ -25,6 +25,7 @@ catalog:
   jiti: ^2.6.1
   lint-staged: ^15.5.1
   madge: ^8.0.0
+  publint: ^0.3.18
   simple-git-hooks: ^2.11.1
   tsdown: ^0.20.3
   type-fest: ^5.4.4

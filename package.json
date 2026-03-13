@@ -1,18 +1,45 @@
 {
-	"private": true,
-	"description": "Curated skills and configurations for AI-assisted development",
+	"name": "@isentinel/hooks",
+	"version": "1.1.1",
+	"description": "Claude Code hooks for linting and type-checking TypeScript projects",
 	"keywords": [
-		"roblox",
-		"ai",
 		"claude",
-		"skills"
+		"hooks",
+		"eslint",
+		"typescript",
+		"linting"
 	],
+	"homepage": "https://github.com/christopher-buss/skills",
+	"bugs": {
+		"url": "https://github.com/christopher-buss/skills/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/christopher-buss/skills.git"
+	},
+	"license": "MIT",
 	"author": "Christopher Buss <christopher.buss@pm.me> (https://github.com/christopher-buss)",
 	"type": "module",
+	"exports": {
+		"./hooks/*": "./dist/hooks/*.mjs",
+		"./lint": {
+			"types": "./dist/scripts/lint.d.mts",
+			"default": "./dist/scripts/lint.mjs"
+		},
+		"./type-check": {
+			"types": "./dist/scripts/type-check.d.mts",
+			"default": "./dist/scripts/type-check.mjs"
+		}
+	},
+	"types": "./dist/scripts/lint.d.mts",
+	"files": [
+		"dist/"
+	],
 	"scripts": {
 		"build": "tsdown",
 		"lint": "eslint --cache",
 		"prepare": "simple-git-hooks && git submodule update --init --recursive",
+		"prepublishOnly": "tsdown",
 		"start": "node scripts/cli.ts",
 		"test": "vitest",
 		"test:coverage": "vitest run --coverage",
@@ -23,6 +50,12 @@
 	},
 	"lint-staged": {
 		"*.{ts,mts}": "eslint --fix"
+	},
+	"dependencies": {
+		"eslint_d": "catalog:",
+		"file-entry-cache": "catalog:",
+		"get-tsconfig": "catalog:",
+		"madge": "catalog:"
 	},
 	"devDependencies": {
 		"@clack/prompts": "catalog:",
@@ -37,20 +70,28 @@
 		"eslint": "catalog:",
 		"eslint-plugin-n": "catalog:",
 		"eslint-plugin-pnpm": "catalog:",
-		"eslint_d": "catalog:",
-		"file-entry-cache": "catalog:",
-		"get-tsconfig": "catalog:",
 		"jiti": "catalog:",
 		"lint-staged": "catalog:",
-		"madge": "catalog:",
+		"publint": "catalog:",
 		"simple-git-hooks": "catalog:",
 		"tsdown": "catalog:",
 		"type-fest": "catalog:",
 		"typescript": "catalog:",
 		"vitest": "catalog:"
 	},
+	"peerDependencies": {
+		"@typescript/native-preview": ">=7"
+	},
+	"peerDependenciesMeta": {
+		"@typescript/native-preview": {
+			"optional": true
+		}
+	},
 	"packageManager": "pnpm@10.30.2+sha512.36cdc707e7b7940a988c9c1ecf88d084f8514b5c3f085f53a2e244c2921d3b2545bc20dd4ebe1fc245feec463bb298aecea7a63ed1f7680b877dc6379d8d0cb4",
 	"engines": {
-		"node": ">=22.16.0"
+		"node": ">=24.11.0"
+	},
+	"publishConfig": {
+		"access": "public"
 	}
 }

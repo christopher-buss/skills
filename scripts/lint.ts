@@ -139,7 +139,7 @@ export function getTransitiveDependents(
 }
 
 const ESLINT_CACHE_PATH = ".eslintcache";
-const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts"];
+const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts", ".json"];
 const ENTRY_CANDIDATES = ["index.ts", "cli.ts", "main.ts"];
 const MAX_ERRORS = 5;
 
@@ -449,18 +449,21 @@ export function runEslint(
 
 export function restartDaemon(runner = DEFAULT_SETTINGS.runner): void {
 	const [command = "pnpm", ...prefixArgs] = runner.split(/\s+/);
-	try {
-		spawn(command, [...prefixArgs, "eslint_d", "restart"], {
-			detached: true,
-			env: { ...process.env, ESLINT_IN_EDITOR: "true" },
-			stdio: "ignore",
-		})
-			// eslint-disable-next-line ts/no-empty-function -- intentionally swallow
-			.on("error", () => {})
-			.unref();
-	} catch {
-		// swallow
-	}
+	const child = spawn(command, [...prefixArgs, "eslint_d", "restart"], {
+		detached: true,
+		env: { ...process.env, ESLINT_IN_EDITOR: "true" },
+		stdio: "pipe",
+	});
+
+	child.stderr.on("data", (data: Buffer) => {
+		process.stderr.write(`[eslint_d restart] ${data.toString()}`);
+	});
+
+	child.on("error", (error: Error) => {
+		process.stderr.write(`[eslint_d restart] failed: ${error.message}\n`);
+	});
+
+	child.unref();
 }
 
 export function formatErrors(output: string): Array<string> {
@@ -492,10 +495,6 @@ export function lint(
 	extraFlags: Array<string> = [],
 	settings: LintSettings = DEFAULT_SETTINGS,
 ): PostToolUseHookOutput | undefined {
-	if (!isLintableFile(filePath)) {
-		return undefined;
-	}
-
 	if (shouldBustCache(settings.cacheBust)) {
 		clearCache();
 	} else {

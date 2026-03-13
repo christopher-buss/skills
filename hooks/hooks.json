@@ -6,7 +6,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node ${CLAUDE_PLUGIN_ROOT}/dist/hooks/lint-guard.mjs"
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/wrapper.ts lint-guard"
 					}
 				]
 			}
@@ -17,11 +17,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node ${CLAUDE_PLUGIN_ROOT}/dist/hooks/lint.mjs"
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/wrapper.ts lint"
 					},
 					{
 						"type": "command",
-						"command": "node ${CLAUDE_PLUGIN_ROOT}/dist/hooks/type-check.mjs"
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/wrapper.ts type-check"
 					}
 				]
 			}
@@ -32,11 +32,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node ${CLAUDE_PLUGIN_ROOT}/dist/hooks/lint-stop.mjs"
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/wrapper.ts lint-stop"
 					},
 					{
 						"type": "command",
-						"command": "node ${CLAUDE_PLUGIN_ROOT}/dist/hooks/type-check-stop.mjs"
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/wrapper.ts type-check-stop"
 					}
 				]
 			}
@@ -47,7 +47,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node ${CLAUDE_PLUGIN_ROOT}/dist/hooks/clear-lint-state.mjs"
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/wrapper.ts clear-lint-state"
 					}
 				]
 			}

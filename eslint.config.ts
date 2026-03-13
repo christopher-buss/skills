@@ -41,7 +41,7 @@ export default isentinel(
 		},
 		type: "package",
 		typescript: {
-			outOfProjectFiles: ["*.config.ts"],
+			outOfProjectFiles: ["*.config.ts", "wrapper.ts"],
 		},
 	},
 	{
