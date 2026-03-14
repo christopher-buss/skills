@@ -18,7 +18,14 @@ import {
 } from "../scripts/lint.ts";
 import { readStdinJson, writeStdoutJson } from "./io.ts";
 
+const debugLog: Array<string> = [];
 const settings = readSettings();
+
+function debug(message: string): void {
+	if (settings.debug) {
+		debugLog.push(message);
+	}
+}
 
 if (!settings.lint) {
 	process.exit(0);
@@ -28,6 +35,7 @@ const input = await readStdinJson<StopInput>();
 const SESSION_ID = input.session_id;
 
 const editedFiles = readEditedFiles(SESSION_ID);
+debug(`editedFiles=${JSON.stringify(editedFiles)}`);
 if (editedFiles.length === 0) {
 	process.exit(0);
 }
@@ -48,17 +56,22 @@ for (const file of editedFiles) {
 }
 
 const files = [...new Set([...editedFiles, ...dependents])].filter((file) => isLintableFile(file));
+debug(`lintable files: ${JSON.stringify(files)}`);
 if (files.length === 0) {
 	process.exit(0);
 }
 
 const errorFiles: Array<string> = [];
 for (const file of files) {
-	const result = lint(file, ["--fix"], settings, { restart: false });
-	if (result !== undefined) {
+	debug(`linting: ${file}`);
+	const lintResult = lint(file, ["--fix"], settings, { restart: false });
+	debug(`result: ${lintResult === undefined ? "ok" : "errors"}`);
+	if (lintResult !== undefined) {
 		errorFiles.push(file);
 	}
 }
+
+debug(`errorFiles: ${JSON.stringify(errorFiles)}`);
 
 restartDaemon(settings.runner);
 
@@ -69,7 +82,13 @@ const result = stopDecision({
 	stopAttempts: readStopAttempts(),
 });
 
+debug(`stopDecision: ${JSON.stringify(result)}`);
+
 if (result === undefined) {
+	if (debugLog.length > 0) {
+		writeStdoutJson({ reason: `[lint-stop debug]\n${debugLog.join("\n")}` });
+	}
+
 	process.exit(0);
 }
 
@@ -79,5 +98,9 @@ if (result.resetStopAttempts) {
 }
 
 writeStopAttempts(readStopAttempts() + 1);
+
+if (debugLog.length > 0) {
+	result.reason = `${result.reason ?? ""}\n\n[lint-stop debug]\n${debugLog.join("\n")}`;
+}
 
 writeStdoutJson(result);

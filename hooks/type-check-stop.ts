@@ -1,6 +1,6 @@
 import type { StopInput } from "@constellos/claude-code-kit/types/hooks";
 
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import process from "node:process";
 
 import {
@@ -20,7 +20,14 @@ import {
 } from "../scripts/type-check.ts";
 import { readStdinJson, writeStdoutJson } from "./io.ts";
 
+const debugLog: Array<string> = [];
 const settings = readSettings();
+
+function debug(message: string): void {
+	if (settings.debug) {
+		debugLog.push(message);
+	}
+}
 
 if (!settings.typecheck) {
 	process.exit(0);
@@ -32,6 +39,7 @@ const SESSION_ID = input.session_id;
 const PROJECT_ROOT = process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd();
 
 const editedFiles = readEditedFiles(SESSION_ID);
+debug(`editedFiles=${JSON.stringify(editedFiles)}`);
 if (editedFiles.length === 0) {
 	process.exit(0);
 }
@@ -52,14 +60,17 @@ for (const file of editedFiles) {
 }
 
 const files = [...allFiles].filter((file) => isTypeCheckable(file));
+debug(`type-checkable files: ${JSON.stringify(files)}`);
 if (files.length === 0) {
 	process.exit(0);
 }
 
 const errorFiles: Array<string> = [];
 for (const file of files) {
-	const absolutePath = join(PROJECT_ROOT, file);
+	const absolutePath = isAbsolute(file) ? file : join(PROJECT_ROOT, file);
+	debug(`file=${file} isAbsolute=${String(isAbsolute(file))} absolutePath=${absolutePath}`);
 	const tsconfig = resolveTsconfig(absolutePath, PROJECT_ROOT);
+	debug(`tsconfig=${String(tsconfig)}`);
 	if (tsconfig === undefined) {
 		continue;
 	}
@@ -67,11 +78,14 @@ for (const file of files) {
 	const output = runTypeCheck(tsconfig, settings.runner, settings.typecheckArgs);
 	if (output !== undefined) {
 		const hasErrors = /error TS/i.test(output);
+		debug(`typecheck ${file}: ${hasErrors ? "errors" : "ok"}`);
 		if (hasErrors) {
 			errorFiles.push(file);
 		}
 	}
 }
+
+debug(`errorFiles: ${JSON.stringify(errorFiles)}`);
 
 const result = typecheckStopDecision({
 	errorFiles,
@@ -80,7 +94,13 @@ const result = typecheckStopDecision({
 	stopAttempts: readTypecheckStopAttempts(),
 });
 
+debug(`stopDecision: ${JSON.stringify(result)}`);
+
 if (result === undefined) {
+	if (debugLog.length > 0) {
+		writeStdoutJson({ reason: `[type-check-stop debug]\n${debugLog.join("\n")}` });
+	}
+
 	process.exit(0);
 }
 
@@ -90,5 +110,9 @@ if (result.resetStopAttempts) {
 }
 
 writeTypecheckStopAttempts(readTypecheckStopAttempts() + 1);
+
+if (debugLog.length > 0) {
+	result.reason = `${result.reason ?? ""}\n\n[type-check-stop debug]\n${debugLog.join("\n")}`;
+}
 
 writeStdoutJson(result);

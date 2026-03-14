@@ -16,6 +16,7 @@ import process from "node:process";
 
 export interface LintSettings {
 	cacheBust: Array<string>;
+	debug: boolean;
 	eslint: boolean;
 	lint: boolean;
 	maxLintAttempts: number;
@@ -152,6 +153,7 @@ const DEFAULT_MAX_STOP_ATTEMPTS = 1;
 
 const DEFAULT_SETTINGS = {
 	cacheBust: [...DEFAULT_CACHE_BUST],
+	debug: false,
 	eslint: true,
 	lint: true,
 	maxLintAttempts: DEFAULT_MAX_LINT_ATTEMPTS,
@@ -196,6 +198,7 @@ export function readSettings(): LintSettings {
 
 	return {
 		cacheBust: [...DEFAULT_CACHE_BUST, ...userPatterns],
+		debug: fields.get("debug") === "true",
 		eslint: fields.get("eslint") !== "false",
 		lint: fields.get("lint") !== "false",
 		maxLintAttempts,

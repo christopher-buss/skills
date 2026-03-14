@@ -519,6 +519,7 @@ describe(lint, () => {
 
 			expect(readSettings()).toStrictEqual({
 				cacheBust: [...DEFAULT_CACHE_BUST],
+				debug: false,
 				eslint: true,
 				lint: true,
 				maxLintAttempts: 1,
@@ -537,6 +538,7 @@ describe(lint, () => {
 
 			expect(readSettings()).toStrictEqual({
 				cacheBust: [...DEFAULT_CACHE_BUST],
+				debug: false,
 				eslint: true,
 				lint: true,
 				maxLintAttempts: 1,
@@ -566,6 +568,7 @@ describe(lint, () => {
 
 			expect(readSettings()).toStrictEqual({
 				cacheBust: [...DEFAULT_CACHE_BUST],
+				debug: false,
 				eslint: false,
 				lint: true,
 				maxLintAttempts: 1,
@@ -786,6 +789,7 @@ describe(lint, () => {
 
 			main(["."], {
 				cacheBust: [],
+				debug: false,
 				eslint: false,
 				lint: true,
 				maxLintAttempts: 1,
@@ -823,6 +827,7 @@ describe(lint, () => {
 
 			main(["."], {
 				cacheBust: [],
+				debug: false,
 				eslint: false,
 				lint: true,
 				maxLintAttempts: 1,
@@ -1036,6 +1041,7 @@ describe(lint, () => {
 
 			const result = lint(join("/project", "src", "foo.ts"), [], {
 				cacheBust: [],
+				debug: false,
 				eslint: false,
 				lint: true,
 				maxLintAttempts: 1,
@@ -1087,6 +1093,7 @@ describe(lint, () => {
 
 			lint(join("/project", "src", "foo.ts"), [], {
 				cacheBust: [],
+				debug: false,
 				eslint: true,
 				lint: true,
 				maxLintAttempts: 1,
@@ -1120,6 +1127,7 @@ describe(lint, () => {
 
 			lint(join("/project", "src", "foo.ts"), [], {
 				cacheBust: [],
+				debug: false,
 				eslint: false,
 				lint: true,
 				maxLintAttempts: 1,
@@ -1436,6 +1444,7 @@ describe(lint, () => {
 
 			lint(join("/project", "src", "foo.ts"), [], {
 				cacheBust: ["eslint.config.ts"],
+				debug: false,
 				eslint: true,
 				lint: true,
 				maxLintAttempts: 1,
@@ -1461,6 +1470,7 @@ describe(lint, () => {
 
 			main(["."], {
 				cacheBust: ["eslint.config.ts"],
+				debug: false,
 				eslint: true,
 				lint: true,
 				maxLintAttempts: 1,
