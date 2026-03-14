@@ -1,7 +1,7 @@
 import type { PostToolUseHookOutput } from "@constellos/claude-code-kit/types/hooks";
 
 import { createFromFile } from "file-entry-cache";
-import { execSync, spawn } from "node:child_process";
+import { execFileSync, execSync, spawn, spawnSync } from "node:child_process";
 import {
 	existsSync,
 	globSync,
@@ -11,6 +11,7 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import process from "node:process";
 
@@ -28,6 +29,36 @@ export interface LintSettings {
 
 export type DependencyGraph = Record<string, Array<string>>;
 
+function spawnBackground(script: string, extraEnvironment: Record<string, string> = {}): void {
+	const scriptFile = join(
+		tmpdir(),
+		`.eslint_bg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.cjs`,
+	);
+	writeFileSync(scriptFile, script);
+
+	const environment = { ...process.env, ...extraEnvironment };
+
+	if (process.platform === "win32") {
+		spawnSync(
+			"powershell.exe",
+			[
+				"-NoProfile",
+				"-Command",
+				`Start-Process -FilePath 'node' -ArgumentList '${scriptFile}' -WindowStyle Hidden`,
+			],
+			{ env: environment, stdio: "ignore", windowsHide: true },
+		);
+	} else {
+		const child = spawn("node", [scriptFile], {
+			detached: true,
+			env: environment,
+			stdio: "ignore",
+		});
+
+		child.unref();
+	}
+}
+
 const PROTECTED_PATTERNS = ["eslint.config.", "oxlint.config.", ".eslintrc", ".oxlintrc."];
 
 export function isProtectedFile(filename: string): boolean {
@@ -39,6 +70,10 @@ export function isProtectedFile(filename: string): boolean {
 const LINT_STATE_PATH = ".claude/state/lint-attempts.json";
 const STOP_STATE_PATH = ".claude/state/stop-attempts.json";
 const EDITED_FILES_PATH = ".claude/state/edited-files.json";
+const RESTART_DAEMON_LOG = ".claude/state/restartDaemon.log";
+
+const IS_RESTART_DAEMON_DEBUG = false as boolean;
+const CLAUDE_PID_PATH = ".claude/state/claude-pid";
 
 type EditedFilesState = Record<string, Array<string>>;
 
@@ -137,6 +172,49 @@ export function getTransitiveDependents(
 	return [...visited]
 		.filter((file) => !originals.has(file))
 		.map((file) => join(sourceRoot, file));
+}
+
+function getClaudePid(): string | undefined {
+	const ssePort = process.env["CLAUDE_CODE_SSE_PORT"] ?? "";
+	const cacheFile = ssePort.length > 0 ? `${CLAUDE_PID_PATH}-${ssePort}` : CLAUDE_PID_PATH;
+
+	if (existsSync(cacheFile)) {
+		try {
+			const cached = readFileSync(cacheFile, "utf-8").trim();
+			const pid = Number(cached);
+			process.kill(pid, 0);
+			return cached;
+		} catch {
+			// cached PID is dead, re-discover
+		}
+	}
+
+	if (process.platform === "win32") {
+		try {
+			const script = `
+$currentPid = ${process.ppid}
+while ($currentPid -and $currentPid -ne 0) {
+  $p = Get-CimInstance Win32_Process -Filter "ProcessId=$currentPid" -Property Name,ParentProcessId -ErrorAction SilentlyContinue
+  if (-not $p) { break }
+  if ($p.Name -eq 'claude.exe') { Write-Output $currentPid; exit }
+  $currentPid = $p.ParentProcessId
+}`;
+			const result = execFileSync("powershell.exe", ["-NoProfile", "-Command", script], {
+				encoding: "utf-8",
+				stdio: ["pipe", "pipe", "pipe"],
+				timeout: 5_000,
+			}).trim();
+			if (result.length > 0) {
+				mkdirSync(dirname(cacheFile), { recursive: true });
+				writeFileSync(cacheFile, result);
+				return result;
+			}
+		} catch {
+			// fallback to no PPID
+		}
+	}
+
+	return undefined;
 }
 
 const ESLINT_CACHE_PATH = ".eslintcache";
@@ -435,8 +513,13 @@ export function runEslint(
 ): string | undefined {
 	const flags = ["--cache", ...extraFlags].join(" ");
 	try {
+		const claudePid = getClaudePid();
 		execSync(`${runner} eslint_d ${flags} "${filePath}"`, {
-			env: { ...process.env, ESLINT_IN_EDITOR: "true" },
+			env: {
+				...process.env,
+				...(claudePid !== undefined && { ESLINT_D_PPID: claudePid }),
+				ESLINT_IN_EDITOR: "true",
+			},
 			stdio: "pipe",
 		});
 		return undefined;
@@ -450,21 +533,84 @@ export function runEslint(
 	}
 }
 
-export function restartDaemon(runner = DEFAULT_SETTINGS.runner): void {
+export function restartDaemon(runner = DEFAULT_SETTINGS.runner, warmupFile?: string): void {
+	const markerFile = IS_RESTART_DAEMON_DEBUG ? createMarkerPath() : undefined;
+
 	try {
-		const [command = "pnpm", ...prefixArgs] = runner.split(/\s+/);
-		const child = spawn(command, [...prefixArgs, "eslint_d", "restart"], {
-			detached: true,
-			env: { ...process.env, ESLINT_IN_EDITOR: "true" },
-			stdio: "ignore",
-			windowsHide: true,
+		// Spawn a process that runs restart, then warmup lint (sequential)
+		const restartAndWarmupScript = `
+const { execSync } = require("child_process");
+const fs = require("fs");
+
+const runner = ${JSON.stringify(runner)};
+const warmupFile = ${JSON.stringify(warmupFile)};
+const debug = ${IS_RESTART_DAEMON_DEBUG};
+const logFile = ${JSON.stringify(RESTART_DAEMON_LOG)};
+
+try {
+  // Run restart
+  if (debug) {
+    fs.appendFileSync(logFile, \`restart: start \${new Date().toISOString()}\\n\`);
+  }
+  execSync(\`\${runner} eslint_d restart\`, {
+    env: { ...process.env, ESLINT_D_PPID: process.env.ESLINT_D_PPID, ESLINT_IN_EDITOR: "true" },
+    stdio: "pipe",
+  });
+  if (debug) {
+    fs.appendFileSync(logFile, \`restart: end \${new Date().toISOString()}\\n\`);
+  }
+
+  // Run warmup lint if file provided
+  if (warmupFile) {
+    if (debug) {
+      fs.appendFileSync(logFile, \`warmup: start \${warmupFile} \${new Date().toISOString()}\\n\`);
+    }
+    execSync(\`\${runner} eslint_d "\${warmupFile}"\`, {
+      env: { ...process.env, ESLINT_D_PPID: process.env.ESLINT_D_PPID, ESLINT_IN_EDITOR: "true" },
+      stdio: "pipe",
+    });
+    if (debug) {
+      fs.appendFileSync(logFile, \`warmup: end \${new Date().toISOString()}\\n\`);
+    }
+  }
+} catch (err) {
+  if (debug) {
+    fs.appendFileSync(logFile, \`error: \${err.message} \${new Date().toISOString()}\\n\`);
+  }
+} finally {
+  try { fs.unlinkSync(process.argv[1]); } catch {}
+}
+`;
+
+		const claudePid = getClaudePid();
+		spawnBackground(restartAndWarmupScript, {
+			...(claudePid !== undefined && { ESLINT_D_PPID: claudePid }),
+			ESLINT_IN_EDITOR: "true",
 		});
 
-		child.on("error", (error: Error) => {
-			process.stderr.write(`[eslint_d restart] ${error.message}\n`);
-		});
+		if (IS_RESTART_DAEMON_DEBUG && markerFile !== undefined) {
+			writeFileSync(RESTART_DAEMON_LOG, `spawn: ${new Date().toISOString()}\n`, {
+				flag: "a",
+			});
+		}
 
-		child.unref();
+		// If debug, spawn a detached watcher process to poll for completion
+		if (markerFile !== undefined) {
+			const watcherScript = `
+const fs = require("fs");
+const logFile = ${JSON.stringify(RESTART_DAEMON_LOG)};
+
+setTimeout(() => {
+  try {
+    fs.appendFileSync(logFile, \`daemon exit: \${new Date().toISOString()}\\n\`);
+  } catch {}
+  try { fs.unlinkSync(process.argv[1]); } catch {}
+  process.exit(0);
+}, 10000);
+`;
+
+			spawnBackground(watcherScript);
+		}
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		process.stderr.write(`[eslint_d restart] ${message}\n`);
@@ -478,12 +624,16 @@ export function formatErrors(output: string): Array<string> {
 		.slice(0, MAX_ERRORS);
 }
 
-export function buildHookOutput(filePath: string, errors: Array<string>): PostToolUseHookOutput {
+export function buildHookOutput(
+	filePath: string,
+	errors: Array<string>,
+	debugInfo = "",
+): PostToolUseHookOutput {
 	const errorText = errors.join("\n");
 	const isTruncated = errors.length >= MAX_ERRORS;
 
-	const userMessage = `⚠️ Lint errors in ${filePath}:\n${errorText}${isTruncated ? "\n..." : ""}`;
-	const claudeMessage = `⚠️ Lint errors in ${filePath}:\n${errorText}${isTruncated ? "\n(run lint to view more)" : ""}`;
+	const userMessage = `⚠️ Lint errors in ${filePath}:\n${errorText}${isTruncated ? "\n..." : ""}${debugInfo}`;
+	const claudeMessage = `⚠️ Lint errors in ${filePath}:\n${errorText}${isTruncated ? "\n(run lint to view more)" : ""}${debugInfo}`;
 
 	return {
 		decision: undefined,
@@ -524,15 +674,30 @@ export function lint(
 		}
 	}
 
+	let debugInfo = "";
 	if (settings.eslint && restart) {
-		restartDaemon(settings.runner);
+		const startTime = Date.now();
+		if (IS_RESTART_DAEMON_DEBUG) {
+			writeFileSync(RESTART_DAEMON_LOG, `start: ${new Date().toISOString()}\n`, {
+				flag: "a",
+			});
+		}
+
+		restartDaemon(settings.runner, filePath);
+		const elapsed = Date.now() - startTime;
+		if (IS_RESTART_DAEMON_DEBUG) {
+			writeFileSync(RESTART_DAEMON_LOG, `end: ${new Date().toISOString()}\n`, {
+				flag: "a",
+			});
+			debugInfo = `\n[lint debug] restartDaemon elapsed: ${elapsed}ms`;
+		}
 	}
 
 	if (outputs.length > 0) {
 		const combined = outputs.join("\n");
 		const errors = formatErrors(combined);
 		if (errors.length > 0) {
-			return buildHookOutput(filePath, errors);
+			return buildHookOutput(filePath, errors, debugInfo);
 		}
 	}
 
@@ -640,6 +805,12 @@ function findAttempts(file: string, lintAttempts: Record<string, number>): numbe
 	}
 
 	return 0;
+}
+
+function createMarkerPath(): string {
+	const timestamp = Date.now();
+	const random = Math.random().toString(36).slice(2, 8);
+	return join(tmpdir(), `.eslint_d_${timestamp}_${random}.done`);
 }
 
 function findImporters(filePath: string, runner = DEFAULT_SETTINGS.runner): Array<string> {

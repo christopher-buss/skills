@@ -73,7 +73,9 @@ for (const file of files) {
 
 debug(`errorFiles: ${JSON.stringify(errorFiles)}`);
 
+debug("restartDaemon: start");
 restartDaemon(settings.runner);
+debug("restartDaemon: end");
 
 const result = stopDecision({
 	errorFiles,
