@@ -6,7 +6,7 @@
 	},
 	"metadata": {
 		"description": "Skills and hooks for roblox-ts, ECS, and development workflows",
-		"version": "1.2.2"
+		"version": "1.2.3"
 	},
 	"plugins": [
 		{
