@@ -61,6 +61,7 @@
 		"madge": "catalog:"
 	},
 	"devDependencies": {
+		"@antfu/ni": "catalog:",
 		"@clack/prompts": "catalog:",
 		"@constellos/claude-code-kit": "catalog:",
 		"@isentinel/eslint-config": "catalog:",
