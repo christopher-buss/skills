@@ -11,6 +11,7 @@ export const submodules = {
 	"flecs": "https://github.com/SanderMertens/flecs",
 	"jecs": "https://github.com/Ukendio/jecs",
 	"jest": "https://github.com/Roblox/jest-roblox",
+	"jest-extended": "https://github.com/christopher-buss/rbxts-jest-extended",
 	"pnpm": "https://github.com/pnpm/pnpm.io",
 	"roblox-ts": "https://github.com/roblox-ts/roblox-ts.com",
 	"superpowers": "https://github.com/obra/superpowers",

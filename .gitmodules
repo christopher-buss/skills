@@ -25,3 +25,6 @@
 [submodule "sources/flecs"]
 	path = sources/flecs
 	url = https://github.com/SanderMertens/flecs
+[submodule "sources/jest-extended"]
+	path = sources/jest-extended
+	url = https://github.com/christopher-buss/rbxts-jest-extended
