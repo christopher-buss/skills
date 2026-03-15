@@ -7,7 +7,7 @@ description:
     two values, 0 is truthy.
 metadata:
     author: Christopher Buss
-    version: "2026.2.7"
+    version: "2026.3.15"
     source:
         Generated from https://github.com/Roblox/jest-roblox, scripts located at
         https://github.com/christopher-buss/skills
