@@ -61,6 +61,12 @@ this codebase.
 | Global Mocks   | jest.globalEnv, spyOn globals, library mocks  | [feature-global-mocks](references/feature-global-mocks.md)     |
 | Module Mocking | jest.mock(), isolateModules, resetModules     | [feature-module-mocking](references/feature-module-mocking.md) |
 
+### Extended Matchers
+
+| Topic         | Description                                                   | Reference                                                        |
+| ------------- | ------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Jest Extended | When core matchers aren't expressive enough: exact booleans, ranges, membership, entries, call order, side effects | [feature-jest-extended](references/feature-jest-extended.md) |
+
 ### Advanced
 
 | Topic        | Description                                      | Reference                                                    |
