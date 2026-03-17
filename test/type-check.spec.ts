@@ -315,6 +315,32 @@ describe(runTypeCheck, () => {
 		expect(runTypeCheck("/project/tsconfig.json")).toBeUndefined();
 	});
 
+	it("should use custom args with tsconfig appended when extraArgs provided", () => {
+		expect.assertions(1);
+
+		mockedExecSync.mockReturnValue("");
+
+		runTypeCheck("/project/tsconfig.json", "pnpm exec", ["--build", "--pretty", "false"]);
+
+		expect(mockedExecSync).toHaveBeenCalledWith(
+			'pnpm exec tsgo --build --pretty false "/project/tsconfig.json"',
+			{ stdio: "pipe" },
+		);
+	});
+
+	it("should use default args when no extraArgs provided", () => {
+		expect.assertions(1);
+
+		mockedExecSync.mockReturnValue("");
+
+		runTypeCheck("/project/tsconfig.json", "pnpm exec");
+
+		expect(mockedExecSync).toHaveBeenCalledWith(
+			'pnpm exec tsgo -p "/project/tsconfig.json" --noEmit --pretty false',
+			{ stdio: "pipe" },
+		);
+	});
+
 	it("should return stdout on type error", () => {
 		expect.assertions(1);
 

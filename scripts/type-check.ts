@@ -125,7 +125,10 @@ export function runTypeCheck(
 	runner = DEFAULT_RUNNER,
 	extraArgs: Array<string> = [],
 ): string | undefined {
-	const args = [`tsgo -p "${tsconfig}" --noEmit --pretty false`, ...extraArgs].join(" ");
+	const args =
+		extraArgs.length > 0
+			? `tsgo ${extraArgs.join(" ")} "${tsconfig}"`
+			: `tsgo -p "${tsconfig}" --noEmit --pretty false`;
 	try {
 		execSync(`${runner} ${args}`, {
 			stdio: "pipe",
