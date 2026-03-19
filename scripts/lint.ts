@@ -294,7 +294,9 @@ export function getChangedFiles(): Array<string> {
 	const options = { encoding: "utf-8" as const, stdio: "pipe" as const };
 	const changed = execSync("git diff --name-only --diff-filter=d HEAD", options);
 	const untracked = execSync("git ls-files --others --exclude-standard", options);
-	return [...changed.trim().split("\n"), ...untracked.trim().split("\n")].filter(Boolean);
+	return [...changed.trim().split("\n"), ...untracked.trim().split("\n")]
+		.filter(Boolean)
+		.filter((file) => !file.startsWith(".."));
 }
 
 export function isLintableFile(filePath: string, extensions = DEFAULT_EXTENSIONS): boolean {
@@ -312,8 +314,6 @@ export function getDependencyGraph(
 	entryPoints: Array<string>,
 	runner = DEFAULT_SETTINGS.runner,
 ): DependencyGraph {
-	execSync("which madge", { stdio: "pipe", timeout: 1_000 });
-
 	const entryArguments = entryPoints.map((ep) => `"${ep}"`).join(" ");
 	const output = execSync(`${runner} madge --json ${entryArguments}`, {
 		cwd: sourceRoot,

@@ -1,5 +1,5 @@
 import { createFromFile } from "file-entry-cache";
-import type { ChildProcess } from "node:child_process";
+import type { ChildProcess, execFileSync, spawnSync } from "node:child_process";
 import { execSync, spawn } from "node:child_process";
 import {
 	existsSync,
@@ -55,8 +55,10 @@ function fromPartial<T>(mock: PartialDeep<NoInfer<T>>): T {
 
 vi.mock(import("node:child_process"), async () => {
 	return fromPartial({
+		execFileSync: vi.fn<typeof execFileSync>(),
 		execSync: vi.fn<typeof execSync>(),
 		spawn: vi.fn<typeof spawn>(),
+		spawnSync: vi.fn<typeof spawnSync>(),
 	});
 });
 
@@ -241,25 +243,16 @@ describe(lint, () => {
 			expect(result).toStrictEqual(expectedGraph);
 		});
 
-		it("should check madge availability before running the full command", () => {
-			expect.assertions(2);
+		it("should throw when madge command fails", () => {
+			expect.assertions(1);
 
-			const calls: Array<string> = [];
-			mockedExecSync.mockImplementation((cmd) => {
-				const command = String(cmd);
-				calls.push(command);
-				if (command.includes("madge")) {
-					throw new Error("Command not found: madge");
-				}
-
-				return "";
+			mockedExecSync.mockImplementation(() => {
+				throw new Error("Command not found: madge");
 			});
 
 			expect(() => getDependencyGraph("/src", ["/src/index.ts"])).toThrowError(
 				"Command not found: madge",
 			);
-			// Pre-check: should not go through the runner (pnpm exec)
-			expect(calls[0]).not.toContain("pnpm");
 		});
 	});
 
@@ -403,24 +396,21 @@ describe(lint, () => {
 	});
 
 	describe(restartDaemon, () => {
-		it("should spawn detached eslint_d restart and swallow errors", () => {
+		it("should write restart script and spawn background process", () => {
 			expect.assertions(1);
-
-			mockedSpawn.mockReturnValue(fakeSpawnResult());
 
 			restartDaemon();
 
-			expect(mockedSpawn).toHaveBeenCalledWith(
-				"pnpm",
-				["exec", "eslint_d", "restart"],
-				expect.objectContaining({ detached: true }),
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				expect.stringContaining(".eslint_bg_"),
+				expect.stringContaining("eslint_d restart"),
 			);
 		});
 
 		it("should swallow spawn errors", () => {
 			expect.assertions(1);
 
-			mockedSpawn.mockImplementation(() => {
+			mockedWriteFileSync.mockImplementationOnce(() => {
 				throw new Error("spawn failed");
 			});
 
@@ -508,6 +498,24 @@ describe(lint, () => {
 			});
 
 			expect(getChangedFiles()).toStrictEqual(["src/foo.ts", "src/bar.ts", "src/new.ts"]);
+		});
+
+		it("should exclude files outside the project", () => {
+			expect.assertions(1);
+
+			mockedExecSync.mockImplementation((command) => {
+				if (command.includes("git diff")) {
+					return "src/foo.ts\n../other-project/bar.ts\n";
+				}
+
+				if (command.includes("ls-files")) {
+					return "../external/baz.ts\n";
+				}
+
+				return "";
+			});
+
+			expect(getChangedFiles()).toStrictEqual(["src/foo.ts"]);
 		});
 	});
 
@@ -902,9 +910,10 @@ describe(lint, () => {
 
 				return "";
 			});
-			mockedSpawn.mockImplementation(() => {
-				didRestartDaemon = true;
-				return fakeSpawnResult();
+			mockedWriteFileSync.mockImplementation((_path, content) => {
+				if (typeof content === "string" && content.includes("eslint_d restart")) {
+					didRestartDaemon = true;
+				}
 			});
 
 			lint(join("/project", "src", "foo.ts"));
@@ -938,9 +947,10 @@ describe(lint, () => {
 
 				return "";
 			});
-			mockedSpawn.mockImplementation(() => {
-				didRestartDaemon = true;
-				return fakeSpawnResult();
+			mockedWriteFileSync.mockImplementation((_path, content) => {
+				if (typeof content === "string" && content.includes("eslint_d restart")) {
+					didRestartDaemon = true;
+				}
 			});
 
 			lint(join("/project", "src", "foo.ts"), [], undefined, { restart: false });
@@ -952,7 +962,6 @@ describe(lint, () => {
 		it("should skip importers when no entry points found", () => {
 			expect.assertions(1);
 
-			mockedSpawn.mockReturnValue(fakeSpawnResult());
 			const existing = new Set([
 				join(resolve("/project"), "package.json"),
 				resolve("/project", "src"),
@@ -1243,31 +1252,14 @@ describe(lint, () => {
 			);
 		});
 
-		it("should split multi-word runner for spawn in restartDaemon", () => {
+		it("should embed custom runner in restart script", () => {
 			expect.assertions(1);
-
-			mockedSpawn.mockReturnValue(fakeSpawnResult());
 
 			restartDaemon("yarn dlx");
 
-			expect(mockedSpawn).toHaveBeenLastCalledWith(
-				"yarn",
-				["dlx", "eslint_d", "restart"],
-				expect.anything(),
-			);
-		});
-
-		it("should handle single-word runner for spawn", () => {
-			expect.assertions(1);
-
-			mockedSpawn.mockReturnValue(fakeSpawnResult());
-
-			restartDaemon("npx");
-
-			expect(mockedSpawn).toHaveBeenLastCalledWith(
-				"npx",
-				["eslint_d", "restart"],
-				expect.anything(),
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				expect.stringContaining(".eslint_bg_"),
+				expect.stringContaining("yarn dlx"),
 			);
 		});
 
@@ -1946,17 +1938,13 @@ describe(lint, () => {
 			const sourceRoot = resolve("/project/src");
 			const existing = new Set([join(sourceRoot, "index.ts")]);
 			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
-			mockedExecSync.mockImplementation((command) => {
-				if (command.includes("which")) {
-					return "";
-				}
-
-				return JSON.stringify({
+			mockedExecSync.mockReturnValue(
+				JSON.stringify({
 					"bar.ts": ["foo.ts"],
 					"foo.ts": [],
 					"index.ts": ["bar.ts"],
-				});
-			});
+				}),
+			);
 
 			const result = getTransitiveDependents([join(sourceRoot, "foo.ts")], sourceRoot);
 
@@ -1972,16 +1960,12 @@ describe(lint, () => {
 			const sourceRoot = resolve("/project/src");
 			const existing = new Set([join(sourceRoot, "index.ts")]);
 			mockedExistsSync.mockImplementation((path) => existing.has(path as string));
-			mockedExecSync.mockImplementation((command) => {
-				if (command.includes("which")) {
-					return "";
-				}
-
-				return JSON.stringify({
+			mockedExecSync.mockReturnValue(
+				JSON.stringify({
 					"bar.ts": ["foo.ts"],
 					"foo.ts": [],
-				});
-			});
+				}),
+			);
 
 			const result = getTransitiveDependents([join(sourceRoot, "foo.ts")], sourceRoot);
 
