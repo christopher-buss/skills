@@ -3,6 +3,7 @@ import type { PostToolUseInput } from "@constellos/claude-code-kit/types/hooks";
 import process from "node:process";
 
 import {
+	isInProject,
 	readLintAttempts,
 	readSettings,
 	writeEditedFile,
@@ -43,5 +44,7 @@ function run(filePath: string): void {
 	}
 }
 
-run(input.tool_input.file_path);
-writeEditedFile(input.session_id, input.tool_input.file_path);
+if (isInProject(input.tool_input.file_path)) {
+	run(input.tool_input.file_path);
+	writeEditedFile(input.session_id, input.tool_input.file_path);
+}

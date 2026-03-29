@@ -30,6 +30,7 @@ import {
 	getTransitiveDependents,
 	invalidateCacheEntries,
 	invertGraph,
+	isInProject,
 	isLintableFile,
 	isProtectedFile,
 	lint,
@@ -114,6 +115,71 @@ function fakeSpawnResult(): ChildProcess {
 }
 
 describe(lint, () => {
+	describe(isInProject, () => {
+		it("should return true when CLAUDE_PROJECT_DIR is not set", () => {
+			expect.assertions(1);
+
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "");
+
+			expect(isInProject("/anywhere/file.ts")).toBe(true);
+
+			vi.unstubAllEnvs();
+		});
+
+		it("should return true for a file inside the project", () => {
+			expect.assertions(1);
+
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "/project");
+
+			expect(isInProject(join("/project", "src", "index.ts"))).toBe(true);
+
+			vi.unstubAllEnvs();
+		});
+
+		it("should return false for a file outside the project", () => {
+			expect.assertions(1);
+
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "/project");
+
+			expect(isInProject("/other/path/file.ts")).toBe(false);
+
+			vi.unstubAllEnvs();
+		});
+
+		it("should return false for a path sharing a prefix but not a child", () => {
+			expect.assertions(1);
+
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "/project");
+
+			expect(isInProject("/project-other/file.ts")).toBe(false);
+
+			vi.unstubAllEnvs();
+		});
+
+		it("should return true for the project directory itself", () => {
+			expect.assertions(1);
+
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "/project");
+
+			expect(isInProject("/project")).toBe(true);
+
+			vi.unstubAllEnvs();
+		});
+
+		it("should use case-sensitive comparison on non-windows", () => {
+			expect.assertions(1);
+
+			const originalPlatform = process.platform;
+			Object.defineProperty(process, "platform", { value: "linux" });
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "/Project");
+
+			expect(isInProject("/project/file.ts")).toBe(false);
+
+			Object.defineProperty(process, "platform", { value: originalPlatform });
+			vi.unstubAllEnvs();
+		});
+	});
+
 	describe(isLintableFile, () => {
 		it("should return true for .ts file", () => {
 			expect.assertions(1);

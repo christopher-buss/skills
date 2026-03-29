@@ -12,7 +12,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import process from "node:process";
 
 export interface LintSettings {
@@ -297,6 +297,25 @@ export function getChangedFiles(): Array<string> {
 	return [...changed.trim().split("\n"), ...untracked.trim().split("\n")]
 		.filter(Boolean)
 		.filter((file) => !file.startsWith(".."));
+}
+
+export function isInProject(filePath: string): boolean {
+	const projectDirectory = process.env["CLAUDE_PROJECT_DIR"];
+	if (projectDirectory === undefined || projectDirectory === "") {
+		return true;
+	}
+
+	const resolvedFile = resolve(filePath);
+	const resolvedProject = resolve(projectDirectory);
+
+	if (resolvedFile === resolvedProject) {
+		return true;
+	}
+
+	const prefix = resolvedProject + sep;
+	return process.platform === "win32"
+		? resolvedFile.toLowerCase().startsWith(prefix.toLowerCase())
+		: resolvedFile.startsWith(prefix);
 }
 
 export function isLintableFile(filePath: string, extensions = DEFAULT_EXTENSIONS): boolean {
