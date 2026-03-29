@@ -1,5 +1,6 @@
 import type { StopInput } from "@constellos/claude-code-kit/types/hooks";
 
+import { existsSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import process from "node:process";
 
@@ -59,7 +60,7 @@ for (const file of editedFiles) {
 	}
 }
 
-const files = [...allFiles].filter((file) => isTypeCheckable(file));
+const files = [...allFiles].filter((file) => existsSync(file) && isTypeCheckable(file));
 debug(`type-checkable files: ${JSON.stringify(files)}`);
 if (files.length === 0) {
 	process.exit(0);

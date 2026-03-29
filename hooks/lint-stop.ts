@@ -1,5 +1,6 @@
 import type { StopInput } from "@constellos/claude-code-kit/types/hooks";
 
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
 
@@ -55,7 +56,9 @@ for (const file of editedFiles) {
 	}
 }
 
-const files = [...new Set([...editedFiles, ...dependents])].filter((file) => isLintableFile(file));
+const files = [...new Set([...editedFiles, ...dependents])].filter(
+	(file) => existsSync(file) && isLintableFile(file),
+);
 debug(`lintable files: ${JSON.stringify(files)}`);
 if (files.length === 0) {
 	process.exit(0);
