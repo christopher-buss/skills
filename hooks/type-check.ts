@@ -34,7 +34,7 @@ function run(filePath: string): void {
 		writeLintAttempts(attempts);
 
 		if (count >= settings.maxLintAttempts && result.hookSpecificOutput) {
-			result.hookSpecificOutput.additionalContext = `CRITICAL: ${filePath} failed type-check ${count} times. STOP editing this file and report type errors to user.\n${result.hookSpecificOutput.additionalContext}`;
+			result.hookSpecificOutput.additionalContext = `CRITICAL: ${filePath} failed type-check ${count} times. If you're stuck in a loop, STOP editing this file and report type errors to user for assistance.\n${result.hookSpecificOutput.additionalContext}`;
 		}
 
 		writeStdoutJson(result);

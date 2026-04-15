@@ -34,7 +34,7 @@ function run(filePath: string): void {
 		writeLintAttempts(attempts);
 
 		if (count >= settings.maxLintAttempts && result.hookSpecificOutput) {
-			result.hookSpecificOutput.additionalContext = `CRITICAL: ${filePath} failed linting ${count} times. STOP editing this file and report lint errors to user.\n${result.hookSpecificOutput.additionalContext}`;
+			result.hookSpecificOutput.additionalContext = `CRITICAL: ${filePath} failed linting ${count} times. If you're stuck in a loop, STOP editing this file and report lint errors to user for assistance.\n${result.hookSpecificOutput.additionalContext}`;
 		}
 
 		writeStdoutJson(result);
