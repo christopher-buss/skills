@@ -1,4 +1,7 @@
-import type { PostToolUseHookOutput } from "@constellos/claude-code-kit/types/hooks";
+import type {
+	PostToolUseHookSpecificOutput,
+	SyncHookJSONOutput,
+} from "@anthropic-ai/claude-agent-sdk";
 
 import { createFilesMatcher, parseTsconfig } from "get-tsconfig";
 import type { Buffer } from "node:buffer";
@@ -6,6 +9,10 @@ import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
+
+type PostToolUseHookOutput = SyncHookJSONOutput & {
+	hookSpecificOutput?: PostToolUseHookSpecificOutput;
+};
 
 const TYPE_CHECK_EXTENSIONS = [".ts", ".tsx"];
 const CACHE_PATH = join(".claude", "state", "tsconfig-cache.json");

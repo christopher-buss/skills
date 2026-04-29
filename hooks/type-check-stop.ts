@@ -1,4 +1,4 @@
-import type { StopInput } from "@constellos/claude-code-kit/types/hooks";
+import type { StopHookInput } from "@anthropic-ai/claude-agent-sdk";
 
 import { existsSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
@@ -34,7 +34,7 @@ if (!settings.typecheck) {
 	process.exit(0);
 }
 
-const input = await readStdinJson<StopInput>();
+const input = await readStdinJson<StopHookInput>();
 const SESSION_ID = input.session_id;
 
 const PROJECT_ROOT = process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd();

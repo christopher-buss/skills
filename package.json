@@ -62,8 +62,8 @@
 	},
 	"devDependencies": {
 		"@antfu/ni": "catalog:",
+		"@anthropic-ai/claude-agent-sdk": "catalog:",
 		"@clack/prompts": "catalog:",
-		"@constellos/claude-code-kit": "catalog:",
 		"@isentinel/eslint-config": "catalog:",
 		"@isentinel/tsconfig": "catalog:",
 		"@types/node": "catalog:",

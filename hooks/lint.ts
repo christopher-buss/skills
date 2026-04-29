@@ -1,4 +1,4 @@
-import type { PostToolUseInput } from "@constellos/claude-code-kit/types/hooks";
+import type { PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 
 import process from "node:process";
 
@@ -18,11 +18,14 @@ if (!settings.lint) {
 	process.exit(0);
 }
 
-const input = await readStdinJson<PostToolUseInput>();
+const input = await readStdinJson<PostToolUseHookInput>();
 
 if (input.tool_name !== "Write" && input.tool_name !== "Edit") {
 	process.exit(0);
 }
+
+// eslint-disable-next-line ts/no-non-null-assertion -- Edit/Write tool_input always has file_path
+const FILE_PATH = (input.tool_input as Record<string, string>)["file_path"]!;
 
 function run(filePath: string): void {
 	const attempts = readLintAttempts();
@@ -44,7 +47,7 @@ function run(filePath: string): void {
 	}
 }
 
-if (isInProject(input.tool_input.file_path)) {
-	run(input.tool_input.file_path);
-	writeEditedFile(input.session_id, input.tool_input.file_path);
+if (isInProject(FILE_PATH)) {
+	run(FILE_PATH);
+	writeEditedFile(input.session_id, FILE_PATH);
 }
