@@ -3,6 +3,7 @@ import type {
 	PostToolUseHookSpecificOutput,
 	SyncHookJSONOutput,
 } from "@anthropic-ai/claude-agent-sdk";
+import type { FileEditInput, FileWriteInput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
 
 import { createFromFile } from "file-entry-cache";
 import { execFileSync, execSync, spawn, spawnSync } from "node:child_process";
@@ -97,6 +98,15 @@ interface EditedFilesBucket {
 
 type EditedFilesState = Record<string, EditedFilesBucket>;
 
+interface EditOrWriteHookInput {
+	// eslint-disable-next-line flawless/naming-convention -- mirrors SDK shape
+	tool_input: unknown;
+	// eslint-disable-next-line flawless/naming-convention -- mirrors SDK shape
+	tool_name: string;
+}
+
+type FilePathInput = Pick<FileEditInput | FileWriteInput, "file_path">;
+
 /**
  * Composite bucket key for state isolation between main thread and subagents.
  * Returns `<session_id>:main` on the main thread, `<session_id>:<agent_id>` from
@@ -108,6 +118,35 @@ type EditedFilesState = Record<string, EditedFilesBucket>;
  */
 export function getBucketKey(input: BaseHookInput): string {
 	return `${input.session_id}:${input.agent_id ?? "main"}`;
+}
+
+/**
+ * Narrows `tool_input` for `Edit`/`Write` tool hooks. Both tools always
+ * populate `file_path`, but the SDK types `tool_input` as `unknown` so this
+ * helper restores the discriminated shape with a runtime check.
+ *
+ * Caller must verify `input.tool_name` is `"Edit"` or `"Write"` first.
+ *
+ * @param input - SDK hook input narrowed to `Edit` or `Write` tools.
+ * @returns Object containing the validated `file_path` string.
+ * @throws If `tool_input` is not an object or `file_path` is missing or empty.
+ */
+export function narrowToolInput(input: EditOrWriteHookInput): FilePathInput {
+	const toolInput = input.tool_input;
+	if (typeof toolInput !== "object" || toolInput === null) {
+		throw new TypeError(
+			`Expected ${input.tool_name} tool_input to be an object, got ${typeof toolInput}`,
+		);
+	}
+
+	const filePath = (toolInput as Record<string, unknown>)["file_path"];
+	if (typeof filePath !== "string" || filePath === "") {
+		throw new TypeError(
+			`Expected ${input.tool_name} tool_input.file_path to be a non-empty string`,
+		);
+	}
+
+	return { file_path: filePath };
 }
 
 export function readEditedFiles(bucketKey: string): Array<string> {
