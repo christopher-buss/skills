@@ -37,7 +37,8 @@ function run(filePath: string): void {
 		writeLintAttempts(attempts);
 
 		if (count >= settings.maxLintAttempts && result.hookSpecificOutput) {
-			result.hookSpecificOutput.additionalContext = `CRITICAL: ${filePath} failed linting ${count} times. If you're stuck in a loop, STOP editing this file and report lint errors to user for assistance.\n${result.hookSpecificOutput.additionalContext}`;
+			const loopNotice = `<workspace_diagnostics source="lint-loop">\n${filePath} has surfaced lint issues ${count} times. The fix loop appears stuck — surface the remaining diagnostics to the user instead of editing further?\n</workspace_diagnostics>`;
+			result.hookSpecificOutput.additionalContext = `${loopNotice}\n${result.hookSpecificOutput.additionalContext}`;
 		}
 
 		writeStdoutJson(result);

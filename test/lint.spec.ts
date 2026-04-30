@@ -488,15 +488,17 @@ describe(lint, () => {
 
 	describe(formatErrors, () => {
 		it("should extract error lines from eslint output", () => {
-			expect.assertions(1);
+			expect.assertions(2);
 
 			const output = `${testErrorLine}\n  2:1  warning  no-console\n`;
+			const result = formatErrors(output);
 
-			expect(formatErrors(output)).toStrictEqual([testErrorLine]);
+			expect(result.lines).toStrictEqual([testErrorLine]);
+			expect(result.totalIssues).toBe(1);
 		});
 
-		it("should truncate to 5 errors max", () => {
-			expect.assertions(1);
+		it("should cap surfaced lines at the configured max", () => {
+			expect.assertions(2);
 
 			const lines = Array.from(
 				{ length: 10 },
@@ -506,36 +508,75 @@ describe(lint, () => {
 
 			const result = formatErrors(output);
 
-			expect(result).toHaveLength(5);
+			expect(result.lines).toHaveLength(5);
+			expect(result.totalIssues).toBe(10);
+		});
+
+		it("should cluster repeated rule violations into a single entry with count", () => {
+			expect.assertions(3);
+
+			const lines = Array.from(
+				{ length: 7 },
+				(_, index) => `  ${index}:1  error  no-explicit-any`,
+			);
+			const result = formatErrors(lines.join("\n"));
+
+			expect(result.lines).toHaveLength(1);
+			expect(result.lines[0]).toContain("(x7, rule: no-explicit-any)");
+			expect(result.totalIssues).toBe(7);
+		});
+
+		it("should preserve distinct rule lines without clustering", () => {
+			expect.assertions(2);
+
+			const output = [
+				"  1:5  error  no-unused-vars",
+				"  2:1  error  no-undef",
+				"  3:2  error  no-shadow",
+			].join("\n");
+			const result = formatErrors(output);
+
+			expect(result.lines).toHaveLength(3);
+			expect(result.totalIssues).toBe(3);
 		});
 	});
 
 	describe(buildHookOutput, () => {
-		it("should return correct hook JSON shape", () => {
-			expect.assertions(3);
+		it("should wrap output in workspace_diagnostics tag and use third-person voice", () => {
+			expect.assertions(5);
 
-			const result = buildHookOutput("foo.ts", [testErrorLine]);
+			const result = buildHookOutput("foo.ts", { lines: [testErrorLine], totalIssues: 1 });
 
 			expect(result).toMatchObject({
 				hookSpecificOutput: {
 					hookEventName: "PostToolUse",
 				},
 			});
-			expect(result.systemMessage).toContain("foo.ts");
-			expect(result.hookSpecificOutput!.additionalContext).toContain("foo.ts");
+			expect(result.systemMessage).toContain('<workspace_diagnostics source="eslint">');
+			expect(result.systemMessage).toContain("</workspace_diagnostics>");
+			expect(result.systemMessage).toContain("foo.ts shows 1 issue");
+			expect(result.systemMessage).not.toMatch(/\byou\b/i);
 		});
 
-		it("should truncate output when errors reach max", () => {
+		it("should append a cap-overflow notice when total issues exceed surfaced lines", () => {
 			expect.assertions(2);
 
-			const errors = Array.from(
+			const lines = Array.from(
 				{ length: 5 },
 				(_, index) => `  ${index}:1  error  rule-${index}`,
 			);
-			const result = buildHookOutput("foo.ts", errors);
+			const result = buildHookOutput("foo.ts", { lines, totalIssues: 12 });
 
-			expect(result.systemMessage).toContain("...");
-			expect(result.hookSpecificOutput!.additionalContext).toContain("run lint to view more");
+			expect(result.systemMessage).toContain("+ 7 more issues");
+			expect(result.hookSpecificOutput!.additionalContext).toContain("pnpm lint");
+		});
+
+		it("should omit overflow notice when totals match", () => {
+			expect.assertions(1);
+
+			const result = buildHookOutput("foo.ts", { lines: [testErrorLine], totalIssues: 1 });
+
+			expect(result.systemMessage).not.toContain("more issues");
 		});
 	});
 
@@ -1723,7 +1764,7 @@ describe(lint, () => {
 		});
 
 		it("should block when errors exist and attempts below max", () => {
-			expect.assertions(2);
+			expect.assertions(5);
 
 			const result = stopDecision({
 				errorFiles: ["src/foo.ts"],
@@ -1734,6 +1775,9 @@ describe(lint, () => {
 
 			expect(result?.decision).toBe("block");
 			expect(result?.reason).toContain("src/foo.ts");
+			expect(result?.reason).toContain('<workspace_diagnostics source="eslint">');
+			expect(result?.reason).toMatch(/\?\s*\n?<\/workspace_diagnostics>/);
+			expect(result?.reason).not.toMatch(/\byou\b/i);
 		});
 
 		it("should allow stop when all erroring files maxed out", () => {
@@ -1788,8 +1832,8 @@ describe(lint, () => {
 			expect(result).toMatchObject({ decision: "block" });
 		});
 
-		it("should allow stop after 3 stop attempts with user message", () => {
-			expect.assertions(2);
+		it("should allow stop after 3 stop attempts with informational reason", () => {
+			expect.assertions(4);
 
 			const result = stopDecision({
 				errorFiles: ["src/foo.ts"],
@@ -1799,7 +1843,9 @@ describe(lint, () => {
 			});
 
 			expect(result?.decision).toBeUndefined();
-			expect(result?.reason).toContain("Unresolved lint errors");
+			expect(result?.reason).toContain("Unresolved lint issues");
+			expect(result?.reason).toContain('<workspace_diagnostics source="eslint">');
+			expect(result?.reason).not.toMatch(/\byou\b/i);
 		});
 	});
 
