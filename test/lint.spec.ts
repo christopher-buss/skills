@@ -40,6 +40,7 @@ import {
 	lint,
 	main,
 	markBucketSurfaced,
+	narrowToolInput,
 	readEditedFiles,
 	readLintAttempts,
 	readSettings,
@@ -2007,6 +2008,70 @@ describe(lint, () => {
 			} satisfies BaseHookInput;
 
 			expect(getBucketKey(input)).toBe("abc123:agent_xyz");
+		});
+	});
+
+	describe(narrowToolInput, () => {
+		it("should return file_path for valid Edit input", () => {
+			expect.assertions(1);
+
+			const result = narrowToolInput({
+				tool_input: { file_path: "/project/src/foo.ts" },
+				tool_name: "Edit",
+			});
+
+			expect(result.file_path).toBe("/project/src/foo.ts");
+		});
+
+		it("should return file_path for valid Write input", () => {
+			expect.assertions(1);
+
+			const result = narrowToolInput({
+				tool_input: { content: "x", file_path: "/project/src/bar.ts" },
+				tool_name: "Write",
+			});
+
+			expect(result.file_path).toBe("/project/src/bar.ts");
+		});
+
+		it("should throw when tool_input is not an object", () => {
+			expect.assertions(1);
+
+			expect(() => {
+				narrowToolInput({ tool_input: "not-an-object", tool_name: "Edit" });
+			}).toThrowError(TypeError);
+		});
+
+		it("should throw when tool_input is null", () => {
+			expect.assertions(1);
+
+			expect(() => {
+				narrowToolInput({ tool_input: null, tool_name: "Edit" });
+			}).toThrowError(TypeError);
+		});
+
+		it("should throw when file_path is missing", () => {
+			expect.assertions(1);
+
+			expect(() => {
+				narrowToolInput({ tool_input: { content: "x" }, tool_name: "Write" });
+			}).toThrowError(TypeError);
+		});
+
+		it("should throw when file_path is empty", () => {
+			expect.assertions(1);
+
+			expect(() => {
+				narrowToolInput({ tool_input: { file_path: "" }, tool_name: "Edit" });
+			}).toThrowError(TypeError);
+		});
+
+		it("should throw when file_path is not a string", () => {
+			expect.assertions(1);
+
+			expect(() => {
+				narrowToolInput({ tool_input: { file_path: 123 }, tool_name: "Edit" });
+			}).toThrowError(TypeError);
 		});
 	});
 

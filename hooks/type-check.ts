@@ -5,6 +5,7 @@ import process from "node:process";
 import {
 	getBucketKey,
 	isInProject,
+	narrowToolInput,
 	readLintAttempts,
 	readSettings,
 	writeEditedFile,
@@ -25,8 +26,7 @@ if (input.tool_name !== "Write" && input.tool_name !== "Edit") {
 	process.exit(0);
 }
 
-// eslint-disable-next-line ts/no-non-null-assertion -- Edit/Write tool_input always has file_path
-const FILE_PATH = (input.tool_input as Record<string, string>)["file_path"]!;
+const FILE_PATH = narrowToolInput(input).file_path;
 
 function run(filePath: string): void {
 	const attempts = readLintAttempts();
