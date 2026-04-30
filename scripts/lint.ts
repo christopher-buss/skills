@@ -254,6 +254,11 @@ export interface StopDecisionResult {
 	resetStopAttempts?: true;
 }
 
+export interface FormattedErrors {
+	lines: Array<string>;
+	totalIssues: number;
+}
+
 interface StopDecisionInput {
 	errorFiles: Array<string>;
 	lintAttempts: Record<string, number>;
@@ -431,15 +436,16 @@ export function stopDecision(input: StopDecisionInput): StopDecisionResult | und
 		return undefined;
 	}
 
+	const fileList = input.errorFiles.join(", ");
 	if (input.stopAttempts >= DEFAULT_MAX_STOP_ATTEMPTS) {
 		return {
-			reason: `Unresolved lint errors in: ${input.errorFiles.join(", ")}. These may be pre-existing.`,
+			reason: `<workspace_diagnostics source="eslint">\nUnresolved lint issues remain in: ${fileList}. They may be pre-existing.\n</workspace_diagnostics>`,
 		};
 	}
 
 	return {
 		decision: "block",
-		reason: `Lint errors detected in: ${input.errorFiles.join(", ")}. If related to your changes, please fix before finishing.`,
+		reason: `<workspace_diagnostics source="eslint">\nLint issues remain in: ${fileList}. If related to recent changes, address before continuing?\n</workspace_diagnostics>`,
 	};
 }
 
@@ -643,31 +649,70 @@ setTimeout(() => {
 	}
 }
 
-export function formatErrors(output: string): Array<string> {
-	return output
-		.split("\n")
-		.filter((line) => /error/i.test(line))
-		.slice(0, MAX_ERRORS);
+const RULE_TOKEN_PATTERN = /([\w-]+\/[\w-]+|[\w-]+)$/;
+
+export function formatErrors(output: string, max = MAX_ERRORS): FormattedErrors {
+	const errorLines = output.split("\n").filter((line) => /error/i.test(line));
+
+	const counts = new Map<string, { count: number; sample: string }>();
+	const ungrouped: Array<string> = [];
+	for (const line of errorLines) {
+		const rule = extractRule(line);
+		if (rule === undefined) {
+			ungrouped.push(line);
+			continue;
+		}
+
+		const existing = counts.get(rule);
+		if (existing === undefined) {
+			counts.set(rule, { count: 1, sample: line });
+		} else {
+			existing.count += 1;
+		}
+	}
+
+	const clustered: Array<string> = [];
+	for (const [rule, { count, sample }] of counts) {
+		clustered.push(count > 1 ? `${sample}  (x${count}, rule: ${rule})` : sample);
+	}
+
+	const merged = [...clustered, ...ungrouped];
+	return {
+		lines: merged.slice(0, max),
+		totalIssues: errorLines.length,
+	};
 }
+
+function extractRule(line: string): string | undefined {
+	const trimmed = line.trim();
+	const match = RULE_TOKEN_PATTERN.exec(trimmed);
+	return match?.[1];
+}
+
+const LINT_COMMAND = "pnpm lint";
 
 export function buildHookOutput(
 	filePath: string,
-	errors: Array<string>,
+	errors: FormattedErrors,
 	debugInfo = "",
 ): PostToolUseHookOutput {
-	const errorText = errors.join("\n");
-	const isTruncated = errors.length >= MAX_ERRORS;
+	const remaining = errors.totalIssues - errors.lines.length;
+	const errorText = errors.lines.join("\n");
+	const overflowSuffix =
+		remaining > 0 ? `\n+ ${remaining} more issues — run \`${LINT_COMMAND}\` to see all` : "";
 
-	const userMessage = `⚠️ Lint errors in ${filePath}:\n${errorText}${isTruncated ? "\n..." : ""}${debugInfo}`;
-	const claudeMessage = `⚠️ Lint errors in ${filePath}:\n${errorText}${isTruncated ? "\n(run lint to view more)" : ""}${debugInfo}`;
+	const issueWord = errors.totalIssues === 1 ? "issue" : "issues";
+	const heading = `${filePath} shows ${errors.totalIssues} ${issueWord}:`;
+	const body = `${heading}\n${errorText}${overflowSuffix}${debugInfo}`;
+	const wrapped = `<workspace_diagnostics source="eslint">\n${body}\n</workspace_diagnostics>`;
 
 	return {
 		decision: undefined,
 		hookSpecificOutput: {
-			additionalContext: claudeMessage,
+			additionalContext: wrapped,
 			hookEventName: "PostToolUse",
 		},
-		systemMessage: userMessage,
+		systemMessage: wrapped,
 	};
 }
 
@@ -722,7 +767,7 @@ export function lint(
 	if (outputs.length > 0) {
 		const combined = outputs.join("\n");
 		const errors = formatErrors(combined);
-		if (errors.length > 0) {
+		if (errors.lines.length > 0) {
 			return buildHookOutput(filePath, errors, debugInfo);
 		}
 	}
@@ -776,6 +821,23 @@ export function main(targets: Array<string>, settings: LintSettings = DEFAULT_SE
 	if (hasErrors) {
 		process.exit(1);
 	}
+}
+
+function findImporters(filePath: string, runner = DEFAULT_SETTINGS.runner): Array<string> {
+	const absPath = resolve(filePath);
+	const sourceRoot = findSourceRoot(absPath);
+	if (sourceRoot === undefined) {
+		return [];
+	}
+
+	const entryPoints = findEntryPoints(sourceRoot);
+	if (entryPoints.length === 0) {
+		return [];
+	}
+
+	const graph = getDependencyGraph(sourceRoot, entryPoints, runner);
+	const targetRelative = relative(sourceRoot, absPath).replaceAll("\\", "/");
+	return invertGraph(graph, targetRelative).map((file) => join(sourceRoot, file));
 }
 
 function parseFrontmatter(content: string): Map<string, string> {
@@ -837,23 +899,6 @@ function createMarkerPath(): string {
 	const timestamp = Date.now();
 	const random = Math.random().toString(36).slice(2, 8);
 	return join(tmpdir(), `.eslint_d_${timestamp}_${random}.done`);
-}
-
-function findImporters(filePath: string, runner = DEFAULT_SETTINGS.runner): Array<string> {
-	const absPath = resolve(filePath);
-	const sourceRoot = findSourceRoot(absPath);
-	if (sourceRoot === undefined) {
-		return [];
-	}
-
-	const entryPoints = findEntryPoints(sourceRoot);
-	if (entryPoints.length === 0) {
-		return [];
-	}
-
-	const graph = getDependencyGraph(sourceRoot, entryPoints, runner);
-	const targetRelative = relative(sourceRoot, absPath).replaceAll("\\", "/");
-	return invertGraph(graph, targetRelative).map((file) => join(sourceRoot, file));
 }
 
 /* v8 ignore start -- CLI entrypoint */
