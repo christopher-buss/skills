@@ -506,15 +506,15 @@ describe(lint, () => {
 			expect.assertions(2);
 
 			const lines = Array.from(
-				{ length: 10 },
+				{ length: 15 },
 				(_, index) => `  ${index}:1  error  rule-${index}`,
 			);
 			const output = lines.join("\n");
 
 			const result = formatErrors(output);
 
-			expect(result.lines).toHaveLength(5);
-			expect(result.totalIssues).toBe(10);
+			expect(result.lines).toHaveLength(10);
+			expect(result.totalIssues).toBe(15);
 		});
 
 		it("should cluster repeated rule violations into a single entry with count", () => {
@@ -642,7 +642,10 @@ describe(lint, () => {
 				debug: false,
 				eslint: true,
 				lint: true,
+				lintAutoFixOnBatch: true,
+				lintCadence: "strict",
 				maxLintAttempts: 1,
+				maxLintErrors: 10,
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -661,7 +664,10 @@ describe(lint, () => {
 				debug: false,
 				eslint: true,
 				lint: true,
+				lintAutoFixOnBatch: true,
+				lintCadence: "strict",
 				maxLintAttempts: 1,
+				maxLintErrors: 10,
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -691,12 +697,78 @@ describe(lint, () => {
 				debug: false,
 				eslint: false,
 				lint: true,
+				lintAutoFixOnBatch: true,
+				lintCadence: "strict",
 				maxLintAttempts: 1,
+				maxLintErrors: 10,
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
 				typecheckArgs: [],
 			});
+		});
+
+		it("should parse lint-cadence: tiered", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue('---\nlint-cadence: "tiered"\n---\n');
+
+			expect(readSettings()).toMatchObject({ lintCadence: "tiered" });
+		});
+
+		it("should parse lint-cadence: stop-only", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue('---\nlint-cadence: "stop-only"\n---\n');
+
+			expect(readSettings()).toMatchObject({ lintCadence: "stop-only" });
+		});
+
+		it("should fall back to strict when lint-cadence is invalid", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue('---\nlint-cadence: "nonsense"\n---\n');
+
+			expect(readSettings()).toMatchObject({ lintCadence: "strict" });
+		});
+
+		it("should parse max-lint-errors as a number", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue('---\nmax-lint-errors: "20"\n---\n');
+
+			expect(readSettings()).toMatchObject({ maxLintErrors: 20 });
+		});
+
+		it("should fall back to default when max-lint-errors is non-numeric", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue('---\nmax-lint-errors: "abc"\n---\n');
+
+			expect(readSettings()).toMatchObject({ maxLintErrors: 10 });
+		});
+
+		it("should parse lint-auto-fix-on-batch: false", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue('---\nlint-auto-fix-on-batch: "false"\n---\n');
+
+			expect(readSettings()).toMatchObject({ lintAutoFixOnBatch: false });
+		});
+
+		it("should fall back to default when lint-auto-fix-on-batch is invalid", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue('---\nlint-auto-fix-on-batch: "maybe"\n---\n');
+
+			expect(readSettings()).toMatchObject({ lintAutoFixOnBatch: true });
 		});
 	});
 
@@ -912,7 +984,10 @@ describe(lint, () => {
 				debug: false,
 				eslint: false,
 				lint: true,
+				lintAutoFixOnBatch: true,
+				lintCadence: "strict",
 				maxLintAttempts: 1,
+				maxLintErrors: 10,
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -950,7 +1025,10 @@ describe(lint, () => {
 				debug: false,
 				eslint: false,
 				lint: true,
+				lintAutoFixOnBatch: true,
+				lintCadence: "strict",
 				maxLintAttempts: 1,
+				maxLintErrors: 10,
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -1165,7 +1243,10 @@ describe(lint, () => {
 				debug: false,
 				eslint: false,
 				lint: true,
+				lintAutoFixOnBatch: true,
+				lintCadence: "strict",
 				maxLintAttempts: 1,
+				maxLintErrors: 10,
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -1217,7 +1298,10 @@ describe(lint, () => {
 				debug: false,
 				eslint: true,
 				lint: true,
+				lintAutoFixOnBatch: true,
+				lintCadence: "strict",
 				maxLintAttempts: 1,
+				maxLintErrors: 10,
 				oxlint: true,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -1251,7 +1335,10 @@ describe(lint, () => {
 				debug: false,
 				eslint: false,
 				lint: true,
+				lintAutoFixOnBatch: true,
+				lintCadence: "strict",
 				maxLintAttempts: 1,
+				maxLintErrors: 10,
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -1551,7 +1638,10 @@ describe(lint, () => {
 				debug: false,
 				eslint: true,
 				lint: true,
+				lintAutoFixOnBatch: true,
+				lintCadence: "strict",
 				maxLintAttempts: 1,
+				maxLintErrors: 10,
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,
@@ -1577,7 +1667,10 @@ describe(lint, () => {
 				debug: false,
 				eslint: true,
 				lint: true,
+				lintAutoFixOnBatch: true,
+				lintCadence: "strict",
 				maxLintAttempts: 1,
+				maxLintErrors: 10,
 				oxlint: false,
 				runner: "pnpm exec",
 				typecheck: true,

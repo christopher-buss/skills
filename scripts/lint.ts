@@ -19,12 +19,19 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import process from "node:process";
 
+export type LintCadence = "stop-only" | "strict" | "tiered";
+
+export const LINT_CADENCE_VALUES: ReadonlyArray<LintCadence> = ["stop-only", "strict", "tiered"];
+
 export interface LintSettings {
 	cacheBust: Array<string>;
 	debug: boolean;
 	eslint: boolean;
 	lint: boolean;
+	lintAutoFixOnBatch: boolean;
+	lintCadence: LintCadence;
 	maxLintAttempts: number;
+	maxLintErrors: number;
 	oxlint: boolean;
 	runner: string;
 	typecheck: boolean;
@@ -272,7 +279,6 @@ while ($currentPid -and $currentPid -ne 0) {
 const ESLINT_CACHE_PATH = ".eslintcache";
 const DEFAULT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts", ".json"];
 const ENTRY_CANDIDATES = ["index.ts", "cli.ts", "main.ts"];
-const MAX_ERRORS = 5;
 
 const SETTINGS_FILE = ".claude/sentinel.local.md";
 
@@ -280,13 +286,18 @@ export const DEFAULT_CACHE_BUST = ["*.config.*", "**/tsconfig*.json"];
 
 const DEFAULT_MAX_LINT_ATTEMPTS = 1;
 const DEFAULT_MAX_STOP_ATTEMPTS = 1;
+const DEFAULT_MAX_LINT_ERRORS = 10;
+const DEFAULT_LINT_CADENCE: LintCadence = "strict";
 
 const DEFAULT_SETTINGS = {
 	cacheBust: [...DEFAULT_CACHE_BUST],
 	debug: false,
 	eslint: true,
 	lint: true,
+	lintAutoFixOnBatch: true,
+	lintCadence: DEFAULT_LINT_CADENCE,
 	maxLintAttempts: DEFAULT_MAX_LINT_ATTEMPTS,
+	maxLintErrors: DEFAULT_MAX_LINT_ERRORS,
 	oxlint: false,
 	runner: "pnpm exec",
 	typecheck: true,
@@ -331,12 +342,28 @@ export function readSettings(): LintSettings {
 	const maxLintAttempts =
 		maxAttemptsRaw !== undefined ? Number(maxAttemptsRaw) : DEFAULT_MAX_LINT_ATTEMPTS;
 
+	const maxErrorsRaw = fields.get("max-lint-errors");
+	const maxErrorsParsed = maxErrorsRaw !== undefined ? Number(maxErrorsRaw) : Number.NaN;
+	const maxLintErrors = Number.isFinite(maxErrorsParsed)
+		? maxErrorsParsed
+		: DEFAULT_MAX_LINT_ERRORS;
+
+	const cadenceRaw = fields.get("lint-cadence");
+	const lintCadence: LintCadence =
+		cadenceRaw !== undefined &&
+		(LINT_CADENCE_VALUES as ReadonlyArray<string>).includes(cadenceRaw)
+			? (cadenceRaw as LintCadence)
+			: DEFAULT_LINT_CADENCE;
+
 	return {
 		cacheBust: [...DEFAULT_CACHE_BUST, ...userPatterns],
 		debug: fields.get("debug") === "true",
 		eslint: fields.get("eslint") !== "false",
 		lint: fields.get("lint") !== "false",
+		lintAutoFixOnBatch: parseAutoFixOnBatch(fields.get("lint-auto-fix-on-batch")),
+		lintCadence,
 		maxLintAttempts,
+		maxLintErrors,
 		oxlint: fields.get("oxlint") === "true",
 		runner: fields.get("runner") ?? DEFAULT_SETTINGS.runner,
 		typecheck: fields.get("typecheck") !== "false",
@@ -696,7 +723,7 @@ setTimeout(() => {
 
 const RULE_TOKEN_PATTERN = /([\w-]+\/[\w-]+|[\w-]+)$/;
 
-export function formatErrors(output: string, max = MAX_ERRORS): FormattedErrors {
+export function formatErrors(output: string, max = DEFAULT_MAX_LINT_ERRORS): FormattedErrors {
 	const errorLines = output.split("\n").filter((line) => /error/i.test(line));
 
 	const counts = new Map<string, { count: number; sample: string }>();
@@ -883,6 +910,18 @@ function findImporters(filePath: string, runner = DEFAULT_SETTINGS.runner): Arra
 	const graph = getDependencyGraph(sourceRoot, entryPoints, runner);
 	const targetRelative = relative(sourceRoot, absPath).replaceAll("\\", "/");
 	return invertGraph(graph, targetRelative).map((file) => join(sourceRoot, file));
+}
+
+function parseAutoFixOnBatch(raw: string | undefined): boolean {
+	if (raw === "true") {
+		return true;
+	}
+
+	if (raw === "false") {
+		return false;
+	}
+
+	return DEFAULT_SETTINGS.lintAutoFixOnBatch;
 }
 
 function parseFrontmatter(content: string): Map<string, string> {
