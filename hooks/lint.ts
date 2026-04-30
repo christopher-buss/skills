@@ -50,6 +50,9 @@ function run(filePath: string): void {
 }
 
 if (isInProject(FILE_PATH)) {
-	run(FILE_PATH);
+	if (settings.lintCadence === "strict") {
+		run(FILE_PATH);
+	}
+
 	writeEditedFile(getBucketKey(input), FILE_PATH);
 }
