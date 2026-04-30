@@ -7,9 +7,11 @@ import process from "node:process";
 import {
 	findSourceRoot,
 	getBucketKey,
+	getLastSurfacedAt,
 	getTransitiveDependents,
 	isLintableFile,
 	lint,
+	markBucketSurfaced,
 	readEditedFiles,
 	readLintAttempts,
 	readSettings,
@@ -42,24 +44,32 @@ if (editedFiles.length === 0) {
 	process.exit(0);
 }
 
-const dependents = new Set<string>();
-const seen = new Set<string>();
-for (const file of editedFiles) {
-	const absPath = resolve(file);
-	const sourceRoot = findSourceRoot(absPath);
-	if (sourceRoot === undefined || seen.has(sourceRoot)) {
-		continue;
-	}
-
-	seen.add(sourceRoot);
-	for (const dependent of getTransitiveDependents(editedFiles, sourceRoot, settings.runner)) {
-		dependents.add(dependent);
-	}
+if (settings.lintCadence === "tiered" && getLastSurfacedAt(BUCKET_KEY) !== null) {
+	debug("tiered: bucket already surfaced upstream, skipping");
+	process.exit(0);
 }
 
-const files = [...new Set([...editedFiles, ...dependents])].filter(
-	(file) => existsSync(file) && isLintableFile(file),
-);
+const candidates: Array<string> = [...editedFiles];
+if (settings.lintCadence === "strict") {
+	const dependents = new Set<string>();
+	const seen = new Set<string>();
+	for (const file of editedFiles) {
+		const absPath = resolve(file);
+		const sourceRoot = findSourceRoot(absPath);
+		if (sourceRoot === undefined || seen.has(sourceRoot)) {
+			continue;
+		}
+
+		seen.add(sourceRoot);
+		for (const dependent of getTransitiveDependents(editedFiles, sourceRoot, settings.runner)) {
+			dependents.add(dependent);
+		}
+	}
+
+	candidates.push(...dependents);
+}
+
+const files = [...new Set(candidates)].filter((file) => existsSync(file) && isLintableFile(file));
 debug(`lintable files: ${JSON.stringify(files)}`);
 if (files.length === 0) {
 	process.exit(0);
@@ -110,3 +120,4 @@ if (debugLog.length > 0) {
 }
 
 writeStdoutJson(result);
+markBucketSurfaced(BUCKET_KEY);
