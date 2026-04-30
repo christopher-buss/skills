@@ -6,6 +6,7 @@ import process from "node:process";
 
 import {
 	findSourceRoot,
+	getBucketKey,
 	getTransitiveDependents,
 	isLintableFile,
 	lint,
@@ -33,9 +34,9 @@ if (!settings.lint) {
 }
 
 const input = await readStdinJson<StopHookInput>();
-const SESSION_ID = input.session_id;
+const BUCKET_KEY = getBucketKey(input);
 
-const editedFiles = readEditedFiles(SESSION_ID);
+const editedFiles = readEditedFiles(BUCKET_KEY);
 debug(`editedFiles=${JSON.stringify(editedFiles)}`);
 if (editedFiles.length === 0) {
 	process.exit(0);

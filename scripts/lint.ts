@@ -1,4 +1,5 @@
 import type {
+	BaseHookInput,
 	PostToolUseHookSpecificOutput,
 	SyncHookJSONOutput,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -82,58 +83,90 @@ const RESTART_DAEMON_LOG = ".claude/state/restartDaemon.log";
 const IS_RESTART_DAEMON_DEBUG = false as boolean;
 const CLAUDE_PID_PATH = ".claude/state/claude-pid";
 
-type EditedFilesState = Record<string, Array<string>>;
-
-export function readEditedFiles(sessionId: string): Array<string> {
-	if (!existsSync(EDITED_FILES_PATH)) {
-		return [];
-	}
-
-	try {
-		const state = JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8")) as EditedFilesState;
-		return state[sessionId] ?? [];
-	} catch {
-		return [];
-	}
+interface EditedFilesBucket {
+	edited: Array<string>;
+	lastSurfacedAt: null | number;
 }
 
-export function writeEditedFile(sessionId: string, filePath: string): void {
-	let state = {} satisfies EditedFilesState as EditedFilesState;
-	if (existsSync(EDITED_FILES_PATH)) {
-		try {
-			state = JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8")) as EditedFilesState;
-		} catch {
-			state = {} satisfies EditedFilesState as EditedFilesState;
-		}
+type EditedFilesState = Record<string, EditedFilesBucket>;
+
+/**
+ * Composite bucket key for state isolation between main thread and subagents.
+ * Returns `<session_id>:main` on the main thread, `<session_id>:<agent_id>` from
+ * inside a subagent. Subagents share `session_id` with the parent but get a
+ * distinct `agent_id`, so this composite cleanly partitions state.
+ *
+ * @param input - SDK hook input containing `session_id` and optional `agent_id`.
+ * @returns Bucket key suitable for the edited-files state map.
+ */
+export function getBucketKey(input: BaseHookInput): string {
+	return `${input.session_id}:${input.agent_id ?? "main"}`;
+}
+
+export function readEditedFiles(bucketKey: string): Array<string> {
+	const state = readState();
+	return state[bucketKey]?.edited ?? [];
+}
+
+export function writeEditedFile(bucketKey: string, filePath: string): void {
+	const state = readState();
+	const bucket = state[bucketKey] ?? { edited: [], lastSurfacedAt: null };
+	if (!bucket.edited.includes(filePath)) {
+		bucket.edited.push(filePath);
 	}
 
-	const files = state[sessionId] ?? [];
-	if (!files.includes(filePath)) {
-		files.push(filePath);
-	}
-
-	state[sessionId] = files;
+	state[bucketKey] = bucket;
 	mkdirSync(dirname(EDITED_FILES_PATH), { recursive: true });
 	writeFileSync(EDITED_FILES_PATH, JSON.stringify(state));
 }
 
-export function clearEditedFiles(sessionId: string): void {
+export function clearEditedFiles(bucketKey: string): void {
 	if (!existsSync(EDITED_FILES_PATH)) {
 		return;
 	}
 
+	let state: EditedFilesState;
 	try {
-		const state = JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8")) as EditedFilesState;
-		delete state[sessionId];
-
-		if (Object.keys(state).length === 0) {
-			unlinkSync(EDITED_FILES_PATH);
-		} else {
-			writeFileSync(EDITED_FILES_PATH, JSON.stringify(state));
-		}
+		state = JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8")) as unknown as EditedFilesState;
 	} catch {
 		unlinkSync(EDITED_FILES_PATH);
+		return;
 	}
+
+	if (!(bucketKey in state)) {
+		return;
+	}
+
+	delete state[bucketKey];
+
+	if (Object.keys(state).length === 0) {
+		unlinkSync(EDITED_FILES_PATH);
+	} else {
+		writeFileSync(EDITED_FILES_PATH, JSON.stringify(state));
+	}
+}
+
+/**
+ * Mark a bucket as surfaced at the given timestamp (defaults to now). Used by
+ * surface-gating logic to track which edits have already been reported to the
+ * agent. Hooks call this after emitting a diagnostics surface so subsequent
+ * surfaces only include edits made since.
+ *
+ * @param bucketKey - Bucket to mark; see {@link getBucketKey}.
+ * @param timestamp - Surface time in ms since epoch; defaults to `Date.now()`.
+ */
+export function markBucketSurfaced(bucketKey: string, timestamp: number = Date.now()): void {
+	const state = readState();
+	const bucket = state[bucketKey] ?? { edited: [], lastSurfacedAt: null };
+	bucket.lastSurfacedAt = timestamp;
+	state[bucketKey] = bucket;
+	mkdirSync(dirname(EDITED_FILES_PATH), { recursive: true });
+	writeFileSync(EDITED_FILES_PATH, JSON.stringify(state));
+}
+
+export function getLastSurfacedAt(bucketKey: string): null | number {
+	const state = readState();
+	return state[bucketKey]?.lastSurfacedAt ?? null;
 }
 
 export function getTransitiveDependents(
@@ -179,6 +212,18 @@ export function getTransitiveDependents(
 	return [...visited]
 		.filter((file) => !originals.has(file))
 		.map((file) => join(sourceRoot, file));
+}
+
+function readState(): EditedFilesState {
+	if (!existsSync(EDITED_FILES_PATH)) {
+		return {};
+	}
+
+	try {
+		return JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8")) as unknown as EditedFilesState;
+	} catch {
+		return {};
+	}
 }
 
 function getClaudePid(): string | undefined {

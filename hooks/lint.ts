@@ -3,6 +3,7 @@ import type { PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import process from "node:process";
 
 import {
+	getBucketKey,
 	isInProject,
 	lint,
 	readLintAttempts,
@@ -50,5 +51,5 @@ function run(filePath: string): void {
 
 if (isInProject(FILE_PATH)) {
 	run(FILE_PATH);
-	writeEditedFile(input.session_id, FILE_PATH);
+	writeEditedFile(getBucketKey(input), FILE_PATH);
 }

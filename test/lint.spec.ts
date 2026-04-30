@@ -1,3 +1,5 @@
+import type { BaseHookInput } from "@anthropic-ai/claude-agent-sdk";
+
 import { createFromFile } from "file-entry-cache";
 import type { ChildProcess, execFileSync, spawnSync } from "node:child_process";
 import { execSync, spawn } from "node:child_process";
@@ -25,8 +27,10 @@ import {
 	findEntryPoints,
 	findSourceRoot,
 	formatErrors,
+	getBucketKey,
 	getChangedFiles,
 	getDependencyGraph,
+	getLastSurfacedAt,
 	getTransitiveDependents,
 	invalidateCacheEntries,
 	invertGraph,
@@ -35,6 +39,7 @@ import {
 	isProtectedFile,
 	lint,
 	main,
+	markBucketSurfaced,
 	readEditedFiles,
 	readLintAttempts,
 	readSettings,
@@ -1885,33 +1890,67 @@ describe(lint, () => {
 		});
 	});
 
+	describe(getBucketKey, () => {
+		it("should return <session_id>:main when agent_id is absent", () => {
+			expect.assertions(1);
+
+			const input = {
+				cwd: "/project",
+				session_id: "abc123",
+				transcript_path: "/tmp/t.json",
+			} satisfies BaseHookInput;
+
+			expect(getBucketKey(input)).toBe("abc123:main");
+		});
+
+		it("should return <session_id>:<agent_id> when agent_id is present", () => {
+			expect.assertions(1);
+
+			const input = {
+				agent_id: "agent_xyz",
+				cwd: "/project",
+				session_id: "abc123",
+				transcript_path: "/tmp/t.json",
+			} satisfies BaseHookInput;
+
+			expect(getBucketKey(input)).toBe("abc123:agent_xyz");
+		});
+	});
+
 	describe(readEditedFiles, () => {
 		it("should return empty array when file missing", () => {
 			expect.assertions(1);
 
 			mockedExistsSync.mockReturnValue(false);
 
-			expect(readEditedFiles("session-1")).toStrictEqual([]);
+			expect(readEditedFiles("abc123:main")).toStrictEqual([]);
 		});
 
-		it("should return files for the given session", () => {
+		it("should return files for the given bucket", () => {
 			expect.assertions(1);
 
 			mockedExistsSync.mockReturnValue(true);
 			mockedReadFileSync.mockReturnValue(
-				JSON.stringify({ "session-1": ["src/foo.ts"], "session-2": ["src/bar.ts"] }),
+				JSON.stringify({
+					"abc123:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
 			);
 
-			expect(readEditedFiles("session-1")).toStrictEqual(["src/foo.ts"]);
+			expect(readEditedFiles("abc123:main")).toStrictEqual(["src/foo.ts"]);
 		});
 
-		it("should return empty array for unknown session", () => {
+		it("should return empty array for unknown bucket", () => {
 			expect.assertions(1);
 
 			mockedExistsSync.mockReturnValue(true);
-			mockedReadFileSync.mockReturnValue(JSON.stringify({ "session-1": ["src/foo.ts"] }));
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
+			);
 
-			expect(readEditedFiles("session-unknown")).toStrictEqual([]);
+			expect(readEditedFiles("zzz:main")).toStrictEqual([]);
 		});
 
 		it("should return empty array on corrupt JSON", () => {
@@ -1920,64 +1959,202 @@ describe(lint, () => {
 			mockedExistsSync.mockReturnValue(true);
 			mockedReadFileSync.mockReturnValue("{bad json");
 
-			expect(readEditedFiles("session-1")).toStrictEqual([]);
+			expect(readEditedFiles("abc123:main")).toStrictEqual([]);
 		});
 	});
 
 	describe(writeEditedFile, () => {
-		it("should create state file with session entry", () => {
+		it("should create state file with bucket entry", () => {
 			expect.assertions(1);
 
 			mockedExistsSync.mockReturnValue(false);
 
-			writeEditedFile("session-1", "src/foo.ts");
+			writeEditedFile("abc123:main", "src/foo.ts");
 
 			expect(mockedWriteFileSync).toHaveBeenCalledWith(
 				".claude/state/edited-files.json",
-				JSON.stringify({ "session-1": ["src/foo.ts"] }),
+				JSON.stringify({
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
 			);
 		});
 
-		it("should append to existing session entry", () => {
+		it("should append to existing bucket entry", () => {
 			expect.assertions(1);
 
 			mockedExistsSync.mockReturnValue(true);
-			mockedReadFileSync.mockReturnValue(JSON.stringify({ "session-1": ["src/foo.ts"] }));
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
+			);
 
-			writeEditedFile("session-1", "src/bar.ts");
+			writeEditedFile("abc123:main", "src/bar.ts");
 
 			expect(mockedWriteFileSync).toHaveBeenCalledWith(
 				".claude/state/edited-files.json",
-				JSON.stringify({ "session-1": ["src/foo.ts", "src/bar.ts"] }),
+				JSON.stringify({
+					"abc123:main": { edited: ["src/foo.ts", "src/bar.ts"], lastSurfacedAt: null },
+				}),
 			);
 		});
 
-		it("should deduplicate files within a session", () => {
+		it("should deduplicate files within a bucket", () => {
 			expect.assertions(1);
 
 			mockedExistsSync.mockReturnValue(true);
-			mockedReadFileSync.mockReturnValue(JSON.stringify({ "session-1": ["src/foo.ts"] }));
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
+			);
 
-			writeEditedFile("session-1", "src/foo.ts");
+			writeEditedFile("abc123:main", "src/foo.ts");
 
 			expect(mockedWriteFileSync).toHaveBeenCalledWith(
 				".claude/state/edited-files.json",
-				JSON.stringify({ "session-1": ["src/foo.ts"] }),
+				JSON.stringify({
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
 			);
 		});
 
-		it("should not interfere with other sessions", () => {
+		it("should not interfere with sibling buckets in the same session", () => {
+			expect.assertions(1);
+
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
+			);
+
+			writeEditedFile("abc123:agent_xyz", "src/bar.ts");
+
+			const lastCall = mockedWriteFileSync.mock.lastCall!;
+			const writtenState = JSON.parse(lastCall[1] as string) as Record<string, unknown>;
+
+			expect(writtenState).toStrictEqual({
+				"abc123:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
+				"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+			});
+		});
+
+		it("should preserve lastSurfacedAt across writes", () => {
 			expect.assertions(1);
 
 			mockedExistsSync.mockReturnValue(true);
-			mockedReadFileSync.mockReturnValue(JSON.stringify({ "session-1": ["src/foo.ts"] }));
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: 1000 },
+				}),
+			);
 
-			writeEditedFile("session-2", "src/bar.ts");
+			writeEditedFile("abc123:main", "src/bar.ts");
 
 			expect(mockedWriteFileSync).toHaveBeenCalledWith(
 				".claude/state/edited-files.json",
-				JSON.stringify({ "session-1": ["src/foo.ts"], "session-2": ["src/bar.ts"] }),
+				JSON.stringify({
+					"abc123:main": { edited: ["src/foo.ts", "src/bar.ts"], lastSurfacedAt: 1000 },
+				}),
 			);
+		});
+	});
+
+	describe("composite-key isolation", () => {
+		it("should not leak edits between main and subagent buckets", () => {
+			expect.assertions(2);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
+			);
+
+			expect(readEditedFiles("abc123:main")).toStrictEqual(["src/foo.ts"]);
+			expect(readEditedFiles("abc123:agent_xyz")).toStrictEqual(["src/bar.ts"]);
+		});
+
+		it("should round-trip writes to two buckets via mocked file", () => {
+			expect.assertions(2);
+
+			let stored = "{}";
+			mockedExistsSync.mockImplementation(
+				(path) => path === ".claude/state/edited-files.json",
+			);
+			mockedReadFileSync.mockImplementation(() => stored);
+			mockedWriteFileSync.mockImplementation((_path, content) => {
+				stored = content as string;
+			});
+
+			writeEditedFile("abc123:main", "src/foo.ts");
+			writeEditedFile("abc123:agent_xyz", "src/bar.ts");
+
+			expect(readEditedFiles("abc123:main")).toStrictEqual(["src/foo.ts"]);
+			expect(readEditedFiles("abc123:agent_xyz")).toStrictEqual(["src/bar.ts"]);
+		});
+	});
+
+	describe(markBucketSurfaced, () => {
+		it("should set lastSurfacedAt on existing bucket", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
+			);
+
+			markBucketSurfaced("abc123:main", 12_345);
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/edited-files.json",
+				JSON.stringify({
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: 12_345 },
+				}),
+			);
+		});
+
+		it("should create empty bucket when none exists", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(false);
+
+			markBucketSurfaced("abc123:main", 12_345);
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/edited-files.json",
+				JSON.stringify({
+					"abc123:main": { edited: [], lastSurfacedAt: 12_345 },
+				}),
+			);
+		});
+	});
+
+	describe(getLastSurfacedAt, () => {
+		it("should return null when bucket missing", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(false);
+
+			expect(getLastSurfacedAt("abc123:main")).toBeNull();
+		});
+
+		it("should return stored timestamp", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123:main": { edited: [], lastSurfacedAt: 9999 },
+				}),
+			);
+
+			expect(getLastSurfacedAt("abc123:main")).toBe(9999);
 		});
 	});
 
@@ -1988,37 +2165,46 @@ describe(lint, () => {
 			mockedUnlinkSync.mockClear();
 			mockedExistsSync.mockReturnValue(false);
 
-			clearEditedFiles("session-1");
+			clearEditedFiles("abc123:main");
 
 			expect(mockedUnlinkSync).not.toHaveBeenCalled();
 		});
 
-		it("should delete file when session is the only entry", () => {
+		it("should delete file when bucket is the only entry", () => {
 			expect.assertions(1);
 
 			mockedUnlinkSync.mockClear();
 			mockedExistsSync.mockReturnValue(true);
-			mockedReadFileSync.mockReturnValue(JSON.stringify({ "session-1": ["src/foo.ts"] }));
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
+			);
 
-			clearEditedFiles("session-1");
+			clearEditedFiles("abc123:main");
 
 			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/edited-files.json");
 		});
 
-		it("should keep file with remaining sessions", () => {
+		it("should keep file with remaining buckets", () => {
 			expect.assertions(1);
 
 			mockedWriteFileSync.mockClear();
 			mockedExistsSync.mockReturnValue(true);
 			mockedReadFileSync.mockReturnValue(
-				JSON.stringify({ "session-1": ["src/foo.ts"], "session-2": ["src/bar.ts"] }),
+				JSON.stringify({
+					"abc123:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
 			);
 
-			clearEditedFiles("session-1");
+			clearEditedFiles("abc123:main");
 
 			expect(mockedWriteFileSync).toHaveBeenCalledWith(
 				".claude/state/edited-files.json",
-				JSON.stringify({ "session-2": ["src/bar.ts"] }),
+				JSON.stringify({
+					"abc123:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
+				}),
 			);
 		});
 
@@ -2029,7 +2215,7 @@ describe(lint, () => {
 			mockedExistsSync.mockReturnValue(true);
 			mockedReadFileSync.mockReturnValue("{bad");
 
-			clearEditedFiles("session-1");
+			clearEditedFiles("abc123:main");
 
 			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/edited-files.json");
 		});

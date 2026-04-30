@@ -6,6 +6,7 @@ import process from "node:process";
 
 import {
 	findSourceRoot,
+	getBucketKey,
 	getTransitiveDependents,
 	readEditedFiles,
 	readLintAttempts,
@@ -35,11 +36,11 @@ if (!settings.typecheck) {
 }
 
 const input = await readStdinJson<StopHookInput>();
-const SESSION_ID = input.session_id;
+const BUCKET_KEY = getBucketKey(input);
 
 const PROJECT_ROOT = process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd();
 
-const editedFiles = readEditedFiles(SESSION_ID);
+const editedFiles = readEditedFiles(BUCKET_KEY);
 debug(`editedFiles=${JSON.stringify(editedFiles)}`);
 if (editedFiles.length === 0) {
 	process.exit(0);
