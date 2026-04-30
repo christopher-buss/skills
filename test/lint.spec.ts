@@ -754,6 +754,24 @@ describe(lint, () => {
 			expect(readSettings()).toMatchObject({ maxLintErrors: 10 });
 		});
 
+		it("should parse max-lint-attempts as a number", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue('---\nmax-lint-attempts: "5"\n---\n');
+
+			expect(readSettings()).toMatchObject({ maxLintAttempts: 5 });
+		});
+
+		it("should fall back to default when max-lint-attempts is non-numeric", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue('---\nmax-lint-attempts: "xyz"\n---\n');
+
+			expect(readSettings()).toMatchObject({ maxLintAttempts: 1 });
+		});
+
 		it("should parse lint-auto-fix-on-batch: false", () => {
 			expect.assertions(1);
 

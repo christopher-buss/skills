@@ -379,8 +379,10 @@ export function readSettings(): LintSettings {
 		: [];
 
 	const maxAttemptsRaw = fields.get("max-lint-attempts");
-	const maxLintAttempts =
-		maxAttemptsRaw !== undefined ? Number(maxAttemptsRaw) : DEFAULT_MAX_LINT_ATTEMPTS;
+	const maxAttemptsParsed = maxAttemptsRaw !== undefined ? Number(maxAttemptsRaw) : Number.NaN;
+	const maxLintAttempts = Number.isFinite(maxAttemptsParsed)
+		? maxAttemptsParsed
+		: DEFAULT_MAX_LINT_ATTEMPTS;
 
 	const maxErrorsRaw = fields.get("max-lint-errors");
 	const maxErrorsParsed = maxErrorsRaw !== undefined ? Number(maxErrorsRaw) : Number.NaN;
