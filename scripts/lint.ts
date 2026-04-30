@@ -165,6 +165,7 @@ export function clearEditedFiles(bucketKey: string): void {
 export function markBucketSurfaced(bucketKey: string, timestamp: number = Date.now()): void {
 	const state = readState();
 	const bucket = state[bucketKey] ?? { edited: [], lastSurfacedAt: null };
+	bucket.edited = [];
 	bucket.lastSurfacedAt = timestamp;
 	state[bucketKey] = bucket;
 	mkdirSync(dirname(EDITED_FILES_PATH), { recursive: true });

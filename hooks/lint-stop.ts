@@ -7,7 +7,6 @@ import process from "node:process";
 import {
 	findSourceRoot,
 	getBucketKey,
-	getLastSurfacedAt,
 	getTransitiveDependents,
 	isLintableFile,
 	lint,
@@ -41,11 +40,6 @@ const BUCKET_KEY = getBucketKey(input);
 const editedFiles = readEditedFiles(BUCKET_KEY);
 debug(`editedFiles=${JSON.stringify(editedFiles)}`);
 if (editedFiles.length === 0) {
-	process.exit(0);
-}
-
-if (settings.lintCadence === "tiered" && getLastSurfacedAt(BUCKET_KEY) !== null) {
-	debug("tiered: bucket already surfaced upstream, skipping");
 	process.exit(0);
 }
 

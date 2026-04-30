@@ -2192,7 +2192,7 @@ describe(lint, () => {
 	});
 
 	describe(markBucketSurfaced, () => {
-		it("should set lastSurfacedAt on existing bucket", () => {
+		it("should clear edited and set lastSurfacedAt on existing bucket", () => {
 			expect.assertions(1);
 
 			mockedExistsSync.mockReturnValue(true);
@@ -2207,7 +2207,7 @@ describe(lint, () => {
 			expect(mockedWriteFileSync).toHaveBeenCalledWith(
 				".claude/state/edited-files.json",
 				JSON.stringify({
-					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: 12_345 },
+					"abc123:main": { edited: [], lastSurfacedAt: 12_345 },
 				}),
 			);
 		});

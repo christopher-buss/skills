@@ -173,15 +173,14 @@ describe("lint-stop hook cadence", () => {
 		}
 	});
 
-	it("should short-circuit in tiered mode when bucket already surfaced", () => {
+	it("should short-circuit in tiered mode when bucket is empty after upstream surface", () => {
 		expect.assertions(3);
 
 		const workDirectory = setupWorkDirectory("lint-stop-tiered-surfaced");
 		try {
 			writeSettings(workDirectory, "tiered");
-			const filePath = join(workDirectory, "src/foo.ts");
 			writeEditedState(workDirectory, {
-				"session-tiered:main": { edited: [filePath], lastSurfacedAt: 1_234 },
+				"session-tiered:main": { edited: [], lastSurfacedAt: 1_234 },
 			});
 
 			const input = { session_id: "session-tiered" };
@@ -190,10 +189,36 @@ describe("lint-stop hook cadence", () => {
 			expect(result.exitCode).toBe(0);
 			expect(result.stdout.trim()).toBe("");
 
-			// state untouched: lastSurfacedAt preserved, edited still present.
+			// state untouched: lastSurfacedAt preserved, edited still empty.
 			const state = readEditedState(workDirectory);
 
 			expect(state["session-tiered:main"]?.lastSurfacedAt).toBe(1_234);
+		} finally {
+			teardown(workDirectory);
+		}
+	});
+
+	it("should lint in tiered mode when new edits arrive after upstream surface", () => {
+		expect.assertions(2);
+
+		const workDirectory = setupWorkDirectory("lint-stop-tiered-new-edits");
+		try {
+			writeSettings(workDirectory, "tiered");
+			const filePath = join(workDirectory, "src/foo.ts");
+			writeEditedState(workDirectory, {
+				"session-tiered-new:main": { edited: [filePath], lastSurfacedAt: 1_234 },
+			});
+
+			const input = { session_id: "session-tiered-new" };
+			const result = runHook(HOOK_LINT_STOP, input, workDirectory);
+
+			// Bucket has lastSurfacedAt set (upstream gate fired earlier) but new
+			// edits arrived since. Stop must not short-circuit — it lints the
+			// new edits. With eslint and oxlint disabled, lint() returns
+			// undefined and the hook exits 0 with no output. Signal: the hook
+			// did NOT exit early on the surfaced gate.
+			expect(result.exitCode).toBe(0);
+			expect(result.stdout.trim()).toBe("");
 		} finally {
 			teardown(workDirectory);
 		}
