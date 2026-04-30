@@ -41,6 +41,39 @@
 				]
 			}
 		],
+		"PostToolBatch": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/wrapper.ts lint-batch"
+					}
+				]
+			}
+		],
+		"SubagentStop": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/wrapper.ts lint-subagent-stop"
+					}
+				]
+			}
+		],
+		"TaskCompleted": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node ${CLAUDE_PLUGIN_ROOT}/wrapper.ts lint-task-completed"
+					}
+				]
+			}
+		],
 		"SessionStart": [
 			{
 				"matcher": "startup|resume|clear|compact",
