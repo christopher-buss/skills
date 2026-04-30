@@ -1,10 +1,10 @@
-import type { SessionStartInput } from "@constellos/claude-code-kit/types/hooks";
+import type { SessionStartHookInput } from "@anthropic-ai/claude-agent-sdk";
 
 import { clearEditedFiles, clearLintAttempts, clearStopAttempts } from "../scripts/lint.ts";
 import { clearTypecheckStopAttempts } from "../scripts/type-check.ts";
 import { readStdinJson } from "./io.ts";
 
-const input = await readStdinJson<SessionStartInput>();
+const input = await readStdinJson<SessionStartHookInput>();
 
 clearLintAttempts();
 clearStopAttempts();

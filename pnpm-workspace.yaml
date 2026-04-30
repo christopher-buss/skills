@@ -8,8 +8,8 @@ shellEmulator: true
 
 catalog:
   "@antfu/ni": ^29.0.0
+  "@anthropic-ai/claude-agent-sdk": ^0.2.123
   "@clack/prompts": ^0.11.0
-  "@constellos/claude-code-kit": ^0.4.0
   "@isentinel/eslint-config": 5.0.0-beta.8
   "@isentinel/tsconfig": ^1.2.0
   "@types/node": ^25.0.10

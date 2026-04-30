@@ -1,4 +1,7 @@
-import type { PostToolUseHookOutput } from "@constellos/claude-code-kit/types/hooks";
+import type {
+	PostToolUseHookSpecificOutput,
+	SyncHookJSONOutput,
+} from "@anthropic-ai/claude-agent-sdk";
 
 import { createFromFile } from "file-entry-cache";
 import { execFileSync, execSync, spawn, spawnSync } from "node:child_process";
@@ -28,6 +31,10 @@ export interface LintSettings {
 }
 
 export type DependencyGraph = Record<string, Array<string>>;
+
+type PostToolUseHookOutput = SyncHookJSONOutput & {
+	hookSpecificOutput?: PostToolUseHookSpecificOutput;
+};
 
 function spawnBackground(script: string, extraEnvironment: Record<string, string> = {}): void {
 	const scriptFile = join(

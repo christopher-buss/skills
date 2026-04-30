@@ -13,7 +13,7 @@ export default defineConfig({
 		"hooks/type-check-stop.ts",
 		"hooks/clear-lint-state.ts",
 	],
-	external: ["@constellos/claude-code-kit"],
+	external: ["@anthropic-ai/claude-agent-sdk"],
 	fixedExtension: true,
 	hash: false,
 	inlineOnly: false,
