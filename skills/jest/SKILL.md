@@ -1,13 +1,15 @@
 ---
 name: jest
-description:
-    Testing Roblox/Luau code with Jest Roblox. Use when writing tests, mocking
-    functions, asserting values, or configuring test suites in Luau with Jest
-    Roblox. NOT JavaScript Jest — uses .never instead of .not, jest.fn() returns
-    two values, 0 is truthy.
+description: |
+    Write tests, mock functions, assert values, and configure test suites for
+    Roblox/Luau code using Jest Roblox — a Luau port whose API diverges from
+    JS Jest in subtle, non-obvious ways that LLM training data does not cover.
+    Use whenever encountering Jest in Roblox/Luau code: editing .spec test
+    files, calling jest.fn/jest.mock/spyOn, using describe/it/expect, or
+    debugging Jest tests.
 metadata:
     author: Christopher Buss
-    version: "2026.3.15"
+    version: "2026.5.4"
     source:
         Generated from https://github.com/Roblox/jest-roblox, scripts located at
         https://github.com/christopher-buss/skills
