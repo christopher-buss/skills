@@ -87,9 +87,9 @@ debug("restartDaemon: end");
 
 const result = stopDecision({
 	errorFiles,
-	lintAttempts: readLintAttempts(),
+	lintAttempts: readLintAttempts(input.session_id),
 	maxLintAttempts: settings.maxLintAttempts,
-	stopAttempts: readStopAttempts(),
+	stopAttempts: readStopAttempts(BUCKET_KEY),
 });
 
 debug(`stopDecision: ${JSON.stringify(result)}`);
@@ -103,11 +103,11 @@ if (result === undefined) {
 }
 
 if (result.resetStopAttempts) {
-	writeStopAttempts(0);
+	writeStopAttempts(BUCKET_KEY, 0);
 	process.exit(0);
 }
 
-writeStopAttempts(readStopAttempts() + 1);
+writeStopAttempts(BUCKET_KEY, readStopAttempts(BUCKET_KEY) + 1);
 
 if (debugLog.length > 0) {
 	result.reason = `${result.reason ?? ""}\n\n[lint-stop debug]\n${debugLog.join("\n")}`;

@@ -3,13 +3,13 @@ import type { PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import process from "node:process";
 
 import {
+	clearLintAttempt,
 	getBucketKey,
+	incrementLintAttempt,
 	isInProject,
 	narrowToolInput,
-	readLintAttempts,
 	readSettings,
 	writeEditedFile,
-	writeLintAttempts,
 } from "../scripts/lint.ts";
 import { typeCheck } from "../scripts/type-check.ts";
 import { readStdinJson, writeStdoutJson } from "./io.ts";
@@ -29,22 +29,18 @@ if (input.tool_name !== "Write" && input.tool_name !== "Edit") {
 const FILE_PATH = narrowToolInput(input).file_path;
 
 function run(filePath: string): void {
-	const attempts = readLintAttempts();
 	const result = typeCheck(filePath, settings);
 
 	if (result !== undefined) {
-		const count = (attempts[filePath] ?? 0) + 1;
-		attempts[filePath] = count;
-		writeLintAttempts(attempts);
+		const count = incrementLintAttempt(input.session_id, filePath);
 
 		if (count >= settings.maxLintAttempts && result.hookSpecificOutput) {
 			result.hookSpecificOutput.additionalContext = `CRITICAL: ${filePath} failed type-check ${count} times. If you're stuck in a loop, STOP editing this file and report type errors to user for assistance.\n${result.hookSpecificOutput.additionalContext}`;
 		}
 
 		writeStdoutJson(result);
-	} else if (filePath in attempts) {
-		delete attempts[filePath];
-		writeLintAttempts(attempts);
+	} else {
+		clearLintAttempt(input.session_id, filePath);
 	}
 }
 
