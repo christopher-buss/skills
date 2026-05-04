@@ -91,9 +91,9 @@ debug(`errorFiles: ${JSON.stringify(errorFiles)}`);
 
 const result = typecheckStopDecision({
 	errorFiles,
-	lintAttempts: readLintAttempts(),
+	lintAttempts: readLintAttempts(input.session_id),
 	maxLintAttempts: settings.maxLintAttempts,
-	stopAttempts: readTypecheckStopAttempts(),
+	stopAttempts: readTypecheckStopAttempts(BUCKET_KEY),
 });
 
 debug(`stopDecision: ${JSON.stringify(result)}`);
@@ -107,11 +107,11 @@ if (result === undefined) {
 }
 
 if (result.resetStopAttempts) {
-	writeTypecheckStopAttempts(0);
+	writeTypecheckStopAttempts(BUCKET_KEY, 0);
 	process.exit(0);
 }
 
-writeTypecheckStopAttempts(readTypecheckStopAttempts() + 1);
+writeTypecheckStopAttempts(BUCKET_KEY, readTypecheckStopAttempts(BUCKET_KEY) + 1);
 
 if (debugLog.length > 0) {
 	result.reason = `${result.reason ?? ""}\n\n[type-check-stop debug]\n${debugLog.join("\n")}`;

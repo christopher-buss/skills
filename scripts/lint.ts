@@ -11,6 +11,7 @@ import {
 	existsSync,
 	globSync,
 	mkdirSync,
+	readdirSync,
 	readFileSync,
 	statSync,
 	unlinkSync,
@@ -85,7 +86,9 @@ export function isProtectedFile(filename: string): boolean {
 
 const LINT_STATE_PATH = ".claude/state/lint-attempts.json";
 const STOP_STATE_PATH = ".claude/state/stop-attempts.json";
+const TYPECHECK_STOP_STATE_PATH = ".claude/state/typecheck-stop-attempts.json";
 const EDITED_FILES_PATH = ".claude/state/edited-files.json";
+const SESSIONS_DIR = ".claude/state/sessions";
 const RESTART_DAEMON_LOG = ".claude/state/restartDaemon.log";
 
 const IS_RESTART_DAEMON_DEBUG = false as boolean;
@@ -193,58 +196,71 @@ export function clearEditedFiles(bucketKey: string): void {
 }
 
 /**
- * Drop every bucket from the edited-files state. Used on `SessionStart` with
- * source `startup` where `session_id` is fresh and no prior bucket is valid.
- * Unlinks the file if it exists; otherwise no-op.
+ * Register the active session with the live-session registry. Writes the claude
+ * PID into `.claude/state/sessions/<sessionId>` so concurrent chats — and the
+ * `pruneDeadSessions` sweep at `SessionStart` — can tell a live session from a
+ * crashed one. Idempotent: overwrites the lockfile each call to refresh the PID
+ * across `resume`/`clear`/`compact`.
+ *
+ * @param sessionId - SDK-provided `session_id`.
+ * @param pid - PID string to record (typically from {@link getClaudePid}).
  */
-export function clearAllBuckets(): void {
-	if (existsSync(EDITED_FILES_PATH)) {
-		unlinkSync(EDITED_FILES_PATH);
-	}
+export function registerSession(sessionId: string, pid: string): void {
+	mkdirSync(SESSIONS_DIR, { recursive: true });
+	writeFileSync(join(SESSIONS_DIR, sessionId), pid);
 }
 
 /**
- * Garbage-collect buckets that do not belong to the current session. Used on
- * `SessionStart` with source `resume`/`clear`/`compact` where the session
- * persists but stale `<dead_session>:agent_*` entries from prior sessions may
- * linger. Keeps every bucket whose key starts with `${currentSessionId}:` and
- * drops the rest. Unlinks the file if the resulting state is empty.
+ * Walk the session registry and return the set of session IDs whose recorded
+ * PID still has a live process. Entries whose PID is dead (or whose contents
+ * are malformed) are unlinked as a side effect — the registry self-cleans.
  *
- * @param currentSessionId - SDK-provided `session_id` for the active session.
+ * @returns Set of session IDs whose owning claude process is still alive.
  */
-export function clearStaleBuckets(currentSessionId: string): void {
-	if (!existsSync(EDITED_FILES_PATH)) {
-		return;
+export function loadLiveSessions(): Set<string> {
+	const live = new Set<string>();
+	if (!existsSync(SESSIONS_DIR)) {
+		return live;
 	}
 
-	let state: EditedFilesState;
-	try {
-		state = JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8")) as unknown as EditedFilesState;
-	} catch {
-		unlinkSync(EDITED_FILES_PATH);
-		return;
-	}
+	for (const entry of readdirSync(SESSIONS_DIR)) {
+		const lockfile = join(SESSIONS_DIR, entry);
+		const pid = Number(readFileSync(lockfile, "utf-8").trim());
+		if (Number.isFinite(pid)) {
+			try {
+				process.kill(pid, 0);
+				live.add(entry);
+				continue;
+			} catch {
+				// dead pid → fall through to unlink
+			}
+		}
 
-	const prefix = `${currentSessionId}:`;
-	const survivors = {} satisfies EditedFilesState as EditedFilesState;
-	let hasDropped = false;
-	for (const [key, bucket] of Object.entries(state)) {
-		if (key.startsWith(prefix)) {
-			survivors[key] = bucket;
-		} else {
-			hasDropped = true;
+		try {
+			unlinkSync(lockfile);
+		} catch {
+			// best-effort
 		}
 	}
 
-	if (!hasDropped) {
-		return;
-	}
+	return live;
+}
 
-	if (Object.keys(survivors).length === 0) {
-		unlinkSync(EDITED_FILES_PATH);
-	} else {
-		writeFileSync(EDITED_FILES_PATH, JSON.stringify(survivors));
-	}
+/**
+ * Drop every per-session entry whose owning session is no longer in the
+ * registry. Sweeps all four state files: `lint-attempts.json` (sessionId
+ * keys), `stop-attempts.json` and `typecheck-stop-attempts.json` (bucketKey
+ * keys), and `edited-files.json` (bucketKey keys). For bucketKey-shaped files
+ * the prefix before the first `:` is the sessionId. Unlinks any file whose
+ * surviving map is empty.
+ *
+ * @param liveSessions - Set returned by {@link loadLiveSessions}.
+ */
+export function pruneDeadSessions(liveSessions: Set<string>): void {
+	pruneStateBySessionId(LINT_STATE_PATH, liveSessions);
+	pruneStateByBucketKey(STOP_STATE_PATH, liveSessions);
+	pruneStateByBucketKey(TYPECHECK_STOP_STATE_PATH, liveSessions);
+	pruneStateByBucketKey(EDITED_FILES_PATH, liveSessions);
 }
 
 /**
@@ -316,19 +332,7 @@ export function getTransitiveDependents(
 		.map((file) => join(sourceRoot, file));
 }
 
-function readState(): EditedFilesState {
-	if (!existsSync(EDITED_FILES_PATH)) {
-		return {};
-	}
-
-	try {
-		return JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8")) as unknown as EditedFilesState;
-	} catch {
-		return {};
-	}
-}
-
-function getClaudePid(): string | undefined {
+export function getClaudePid(): string | undefined {
 	const ssePort = process.env["CLAUDE_CODE_SSE_PORT"] ?? "";
 	const cacheFile = ssePort.length > 0 ? `${CLAUDE_PID_PATH}-${ssePort}` : CLAUDE_PID_PATH;
 
@@ -369,6 +373,69 @@ while ($currentPid -and $currentPid -ne 0) {
 	}
 
 	return undefined;
+}
+
+function readState(): EditedFilesState {
+	if (!existsSync(EDITED_FILES_PATH)) {
+		return {};
+	}
+
+	try {
+		return JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8")) as unknown as EditedFilesState;
+	} catch {
+		return {};
+	}
+}
+
+function pruneStateFile(path: string, keepKey: (key: string) => boolean): void {
+	if (!existsSync(path)) {
+		return;
+	}
+
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(readFileSync(path, "utf-8"));
+	} catch {
+		unlinkSync(path);
+		return;
+	}
+
+	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+		unlinkSync(path);
+		return;
+	}
+
+	const state = parsed as Record<string, unknown>;
+	const survivors = {} satisfies Record<string, unknown> as Record<string, unknown>;
+	let hasDropped = false;
+	for (const [key, value] of Object.entries(state)) {
+		if (keepKey(key)) {
+			survivors[key] = value;
+		} else {
+			hasDropped = true;
+		}
+	}
+
+	if (!hasDropped) {
+		return;
+	}
+
+	if (Object.keys(survivors).length === 0) {
+		unlinkSync(path);
+	} else {
+		writeFileSync(path, JSON.stringify(survivors));
+	}
+}
+
+function pruneStateBySessionId(path: string, liveSessions: Set<string>): void {
+	pruneStateFile(path, (key) => liveSessions.has(key));
+}
+
+function pruneStateByBucketKey(path: string, liveSessions: Set<string>): void {
+	pruneStateFile(path, (key) => {
+		const sessionId = key.split(":", 1)[0] ?? key;
+		return liveSessions.has(sessionId);
+	});
 }
 
 const ESLINT_CACHE_PATH = ".eslintcache";
@@ -416,6 +483,10 @@ interface StopDecisionInput {
 	maxLintAttempts: number;
 	stopAttempts: number;
 }
+
+type LintAttemptsState = Record<string, Record<string, number>>;
+
+type StopAttemptsState = Record<string, number>;
 
 export function readSettings(): LintSettings {
 	if (!existsSync(SETTINGS_FILE)) {
@@ -535,7 +606,6 @@ export function invertGraph(graph: DependencyGraph, target: string): Array<strin
 
 	return importers;
 }
-
 export function findSourceRoot(filePath: string): string | undefined {
 	let current = dirname(filePath);
 	while (current !== dirname(current)) {
@@ -554,38 +624,56 @@ export function findSourceRoot(filePath: string): string | undefined {
 	return undefined;
 }
 
-export function readLintAttempts(): Record<string, number> {
-	if (!existsSync(LINT_STATE_PATH)) {
-		return {};
+export function readLintAttempts(sessionId: string): Record<string, number> {
+	const state = readLintAttemptsState();
+	return state[sessionId] ?? {};
+}
+
+export function writeLintAttempts(sessionId: string, attempts: Record<string, number>): void {
+	const state = readLintAttemptsState();
+	state[sessionId] = attempts;
+	writeLintAttemptsState(state);
+}
+
+export function incrementLintAttempt(sessionId: string, filePath: string): number {
+	const state = readLintAttemptsState();
+	const attempts = state[sessionId] ?? {};
+	const count = (attempts[filePath] ?? 0) + 1;
+	attempts[filePath] = count;
+	state[sessionId] = attempts;
+	writeLintAttemptsState(state);
+	return count;
+}
+
+export function clearLintAttempt(sessionId: string, filePath: string): void {
+	const state = readLintAttemptsState();
+	const attempts = state[sessionId];
+	if (attempts === undefined || !(filePath in attempts)) {
+		return;
 	}
 
-	try {
-		return JSON.parse(readFileSync(LINT_STATE_PATH, "utf-8")) as Record<string, number>;
-	} catch {
-		return {};
+	delete attempts[filePath];
+	if (Object.keys(attempts).length === 0) {
+		delete state[sessionId];
+	} else {
+		state[sessionId] = attempts;
+	}
+
+	if (Object.keys(state).length === 0) {
+		unlinkSync(LINT_STATE_PATH);
+	} else {
+		writeLintAttemptsState(state);
 	}
 }
 
-export function writeLintAttempts(attempts: Record<string, number>): void {
-	mkdirSync(dirname(LINT_STATE_PATH), { recursive: true });
-	writeFileSync(LINT_STATE_PATH, JSON.stringify(attempts));
+export function readStopAttempts(bucketKey: string): number {
+	return readStopAttemptsState(STOP_STATE_PATH)[bucketKey] ?? 0;
 }
 
-export function readStopAttempts(): number {
-	if (!existsSync(STOP_STATE_PATH)) {
-		return 0;
-	}
-
-	try {
-		return JSON.parse(readFileSync(STOP_STATE_PATH, "utf-8")) as number;
-	} catch {
-		return 0;
-	}
-}
-
-export function writeStopAttempts(count: number): void {
-	mkdirSync(dirname(STOP_STATE_PATH), { recursive: true });
-	writeFileSync(STOP_STATE_PATH, JSON.stringify(count));
+export function writeStopAttempts(bucketKey: string, count: number): void {
+	const state = readStopAttemptsState(STOP_STATE_PATH);
+	state[bucketKey] = count;
+	writeStopAttemptsState(STOP_STATE_PATH, state);
 }
 
 export function stopDecision(input: StopDecisionInput): StopDecisionResult | undefined {
@@ -616,18 +704,6 @@ export function stopDecision(input: StopDecisionInput): StopDecisionResult | und
 		decision: "block",
 		reason: `<workspace_diagnostics source="eslint">\nLint issues remain in: ${fileList}. If related to recent changes, address before continuing?\n</workspace_diagnostics>`,
 	};
-}
-
-export function clearStopAttempts(): void {
-	if (existsSync(STOP_STATE_PATH)) {
-		unlinkSync(STOP_STATE_PATH);
-	}
-}
-
-export function clearLintAttempts(): void {
-	if (existsSync(LINT_STATE_PATH)) {
-		unlinkSync(LINT_STATE_PATH);
-	}
 }
 
 export function resolveBustFiles(patterns: Array<string>): Array<string> {
@@ -816,6 +892,40 @@ setTimeout(() => {
 		const message = err instanceof Error ? err.message : String(err);
 		process.stderr.write(`[eslint_d restart] ${message}\n`);
 	}
+}
+
+function readLintAttemptsState(): LintAttemptsState {
+	if (!existsSync(LINT_STATE_PATH)) {
+		return {};
+	}
+
+	try {
+		return JSON.parse(readFileSync(LINT_STATE_PATH, "utf-8")) as LintAttemptsState;
+	} catch {
+		return {};
+	}
+}
+
+function writeLintAttemptsState(state: LintAttemptsState): void {
+	mkdirSync(dirname(LINT_STATE_PATH), { recursive: true });
+	writeFileSync(LINT_STATE_PATH, JSON.stringify(state));
+}
+
+function readStopAttemptsState(path: string): StopAttemptsState {
+	if (!existsSync(path)) {
+		return {};
+	}
+
+	try {
+		return JSON.parse(readFileSync(path, "utf-8")) as StopAttemptsState;
+	} catch {
+		return {};
+	}
+}
+
+function writeStopAttemptsState(path: string, state: StopAttemptsState): void {
+	mkdirSync(dirname(path), { recursive: true });
+	writeFileSync(path, JSON.stringify(state));
 }
 
 const RULE_TOKEN_PATTERN = /([\w-]+\/[\w-]+|[\w-]+)$/;

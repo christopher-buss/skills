@@ -7,7 +7,7 @@ import { createFilesMatcher, parseTsconfig } from "get-tsconfig";
 import type { Buffer } from "node:buffer";
 import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 
 type PostToolUseHookOutput = SyncHookJSONOutput & {
@@ -179,6 +179,8 @@ interface TypecheckStopDecisionInput {
 	stopAttempts: number;
 }
 
+type StopAttemptsState = Record<string, number>;
+
 export function partitionErrors(
 	errors: Array<string>,
 	filePath: string,
@@ -300,25 +302,25 @@ export function typecheckStopDecision(
 	};
 }
 
-export function readTypecheckStopAttempts(): number {
+export function readTypecheckStopAttempts(bucketKey: string): number {
+	return readStopAttemptsState()[bucketKey] ?? 0;
+}
+
+export function writeTypecheckStopAttempts(bucketKey: string, count: number): void {
+	const state = readStopAttemptsState();
+	state[bucketKey] = count;
+	mkdirSync(dirname(STOP_STATE_PATH), { recursive: true });
+	writeFileSync(STOP_STATE_PATH, JSON.stringify(state));
+}
+
+function readStopAttemptsState(): StopAttemptsState {
 	if (!existsSync(STOP_STATE_PATH)) {
-		return 0;
+		return {};
 	}
 
 	try {
-		return JSON.parse(readFileSync(STOP_STATE_PATH, "utf-8")) as number;
+		return JSON.parse(readFileSync(STOP_STATE_PATH, "utf-8")) as StopAttemptsState;
 	} catch {
-		return 0;
-	}
-}
-
-export function writeTypecheckStopAttempts(count: number): void {
-	mkdirSync(dirname(STOP_STATE_PATH), { recursive: true });
-	writeFileSync(STOP_STATE_PATH, JSON.stringify(count));
-}
-
-export function clearTypecheckStopAttempts(): void {
-	if (existsSync(STOP_STATE_PATH)) {
-		unlinkSync(STOP_STATE_PATH);
+		return {};
 	}
 }

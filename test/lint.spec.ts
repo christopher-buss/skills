@@ -7,6 +7,7 @@ import {
 	existsSync,
 	globSync,
 	mkdirSync,
+	readdirSync,
 	readFileSync,
 	statSync,
 	unlinkSync,
@@ -19,12 +20,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	buildHookOutput,
-	clearAllBuckets,
 	clearCache,
 	clearEditedFiles,
-	clearLintAttempts,
-	clearStaleBuckets,
-	clearStopAttempts,
+	clearLintAttempt,
 	DEFAULT_CACHE_BUST,
 	findEntryPoints,
 	findSourceRoot,
@@ -34,19 +32,23 @@ import {
 	getDependencyGraph,
 	getLastSurfacedAt,
 	getTransitiveDependents,
+	incrementLintAttempt,
 	invalidateCacheEntries,
 	invertGraph,
 	isInProject,
 	isLintableFile,
 	isProtectedFile,
 	lint,
+	loadLiveSessions,
 	main,
 	markBucketSurfaced,
 	narrowToolInput,
+	pruneDeadSessions,
 	readEditedFiles,
 	readLintAttempts,
 	readSettings,
 	readStopAttempts,
+	registerSession,
 	resolveBustFiles,
 	restartDaemon,
 	runEslint,
@@ -76,6 +78,7 @@ vi.mock(import("node:fs"), async () => {
 		existsSync: vi.fn<typeof existsSync>(() => false),
 		globSync: vi.fn<typeof globSync>(() => []),
 		mkdirSync: vi.fn<typeof mkdirSync>(),
+		readdirSync: vi.fn<(path: string) => Array<string>>(() => []),
 		readFileSync: vi.fn<typeof readFileSync>(),
 		statSync: vi.fn<typeof statSync>(),
 		unlinkSync: vi.fn<typeof unlinkSync>(),
@@ -1710,16 +1713,30 @@ describe(lint, () => {
 
 			mockedExistsSync.mockReturnValue(false);
 
-			expect(readLintAttempts()).toStrictEqual({});
+			expect(readLintAttempts("abc123")).toStrictEqual({});
 		});
 
-		it("should parse valid JSON", () => {
+		it("should return inner per-file map for the given session", () => {
 			expect.assertions(1);
 
 			mockedExistsSync.mockReturnValue(true);
-			mockedReadFileSync.mockReturnValue('{"src/foo.ts":2}');
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123": { "src/foo.ts": 2 },
+					"other-session": { "src/bar.ts": 1 },
+				}),
+			);
 
-			expect(readLintAttempts()).toStrictEqual({ "src/foo.ts": 2 });
+			expect(readLintAttempts("abc123")).toStrictEqual({ "src/foo.ts": 2 });
+		});
+
+		it("should return empty object for unknown session", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(JSON.stringify({ abc123: { "src/foo.ts": 2 } }));
+
+			expect(readLintAttempts("zzz")).toStrictEqual({});
 		});
 
 		it("should return empty object on corrupt JSON", () => {
@@ -1728,48 +1745,174 @@ describe(lint, () => {
 			mockedExistsSync.mockReturnValue(true);
 			mockedReadFileSync.mockReturnValue("{bad json");
 
-			expect(readLintAttempts()).toStrictEqual({});
+			expect(readLintAttempts("abc123")).toStrictEqual({});
 		});
 	});
 
 	describe(writeLintAttempts, () => {
-		it("should create dir and write JSON", () => {
+		it("should create dir and write per-session JSON when file missing", () => {
 			expect.assertions(2);
 
 			mockedMkdirSync.mockClear();
 			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(false);
 
-			writeLintAttempts({ "src/foo.ts": 2 });
+			writeLintAttempts("abc123", { "src/foo.ts": 2 });
 
 			expect(mockedMkdirSync).toHaveBeenCalledWith(".claude/state", { recursive: true });
 			expect(mockedWriteFileSync).toHaveBeenCalledWith(
 				".claude/state/lint-attempts.json",
-				'{"src/foo.ts":2}',
+				JSON.stringify({ abc123: { "src/foo.ts": 2 } }),
 			);
+		});
+
+		it("should preserve sibling sessions when writing", () => {
+			expect.assertions(2);
+
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({ "other-session": { "src/bar.ts": 1 } }),
+			);
+
+			writeLintAttempts("abc123", { "src/foo.ts": 2 });
+
+			const lastCall = mockedWriteFileSync.mock.lastCall!;
+
+			expect(lastCall[0]).toBe(".claude/state/lint-attempts.json");
+			expect(JSON.parse(lastCall[1] as string)).toStrictEqual({
+				"abc123": { "src/foo.ts": 2 },
+				"other-session": { "src/bar.ts": 1 },
+			});
 		});
 	});
 
-	describe(clearLintAttempts, () => {
-		it("should delete file when exists", () => {
-			expect.assertions(1);
+	describe(incrementLintAttempt, () => {
+		it("should start at 1 when session and file are new", () => {
+			expect.assertions(2);
 
-			mockedUnlinkSync.mockClear();
-			mockedExistsSync.mockReturnValue(true);
-
-			clearLintAttempts();
-
-			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/lint-attempts.json");
-		});
-
-		it("should no-op when file missing", () => {
-			expect.assertions(1);
-
-			mockedUnlinkSync.mockClear();
+			mockedWriteFileSync.mockClear();
 			mockedExistsSync.mockReturnValue(false);
 
-			clearLintAttempts();
+			expect(incrementLintAttempt("abc123", "src/foo.ts")).toBe(1);
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/lint-attempts.json",
+				JSON.stringify({ abc123: { "src/foo.ts": 1 } }),
+			);
+		});
+
+		it("should increment existing count for the file", () => {
+			expect.assertions(2);
+
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(JSON.stringify({ abc123: { "src/foo.ts": 2 } }));
+
+			expect(incrementLintAttempt("abc123", "src/foo.ts")).toBe(3);
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/lint-attempts.json",
+				JSON.stringify({ abc123: { "src/foo.ts": 3 } }),
+			);
+		});
+
+		it("should not affect other sessions", () => {
+			expect.assertions(2);
+
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({ "other-session": { "src/bar.ts": 5 } }),
+			);
+
+			incrementLintAttempt("abc123", "src/foo.ts");
+
+			const lastCall = mockedWriteFileSync.mock.lastCall!;
+
+			expect(lastCall[0]).toBe(".claude/state/lint-attempts.json");
+			expect(JSON.parse(lastCall[1] as string)).toStrictEqual({
+				"abc123": { "src/foo.ts": 1 },
+				"other-session": { "src/bar.ts": 5 },
+			});
+		});
+	});
+
+	describe(clearLintAttempt, () => {
+		it("should no-op when file missing", () => {
+			expect.assertions(2);
+
+			mockedUnlinkSync.mockClear();
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(false);
+
+			clearLintAttempt("abc123", "src/foo.ts");
 
 			expect(mockedUnlinkSync).not.toHaveBeenCalled();
+			expect(mockedWriteFileSync).not.toHaveBeenCalled();
+		});
+
+		it("should no-op when entry is absent", () => {
+			expect.assertions(2);
+
+			mockedUnlinkSync.mockClear();
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(JSON.stringify({ abc123: { "src/bar.ts": 1 } }));
+
+			clearLintAttempt("abc123", "src/foo.ts");
+
+			expect(mockedUnlinkSync).not.toHaveBeenCalled();
+			expect(mockedWriteFileSync).not.toHaveBeenCalled();
+		});
+
+		it("should drop just the file from the session map", () => {
+			expect.assertions(1);
+
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({ abc123: { "src/bar.ts": 1, "src/foo.ts": 2 } }),
+			);
+
+			clearLintAttempt("abc123", "src/foo.ts");
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/lint-attempts.json",
+				JSON.stringify({ abc123: { "src/bar.ts": 1 } }),
+			);
+		});
+
+		it("should drop the session when its inner map empties", () => {
+			expect.assertions(1);
+
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123": { "src/foo.ts": 2 },
+					"other-session": { "src/bar.ts": 1 },
+				}),
+			);
+
+			clearLintAttempt("abc123", "src/foo.ts");
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/lint-attempts.json",
+				JSON.stringify({ "other-session": { "src/bar.ts": 1 } }),
+			);
+		});
+
+		it("should unlink the file when no sessions survive", () => {
+			expect.assertions(2);
+
+			mockedUnlinkSync.mockClear();
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(JSON.stringify({ abc123: { "src/foo.ts": 2 } }));
+
+			clearLintAttempt("abc123", "src/foo.ts");
+
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/lint-attempts.json");
+			expect(mockedWriteFileSync).not.toHaveBeenCalled();
 		});
 	});
 
@@ -1779,16 +1922,27 @@ describe(lint, () => {
 
 			mockedExistsSync.mockReturnValue(false);
 
-			expect(readStopAttempts()).toBe(0);
+			expect(readStopAttempts("abc123:main")).toBe(0);
 		});
 
-		it("should parse valid JSON count", () => {
+		it("should return per-bucket count", () => {
 			expect.assertions(1);
 
 			mockedExistsSync.mockReturnValue(true);
-			mockedReadFileSync.mockReturnValue("2");
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({ "abc123:agent_xyz": 5, "abc123:main": 2 }),
+			);
 
-			expect(readStopAttempts()).toBe(2);
+			expect(readStopAttempts("abc123:main")).toBe(2);
+		});
+
+		it("should return 0 for unknown bucket", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(JSON.stringify({ "abc123:main": 2 }));
+
+			expect(readStopAttempts("zzz:main")).toBe(0);
 		});
 
 		it("should return 0 on corrupt JSON", () => {
@@ -1797,48 +1951,40 @@ describe(lint, () => {
 			mockedExistsSync.mockReturnValue(true);
 			mockedReadFileSync.mockReturnValue("{bad");
 
-			expect(readStopAttempts()).toBe(0);
+			expect(readStopAttempts("abc123:main")).toBe(0);
 		});
 	});
 
 	describe(writeStopAttempts, () => {
-		it("should create dir and write count", () => {
+		it("should create dir and write per-bucket count when file missing", () => {
 			expect.assertions(2);
 
 			mockedMkdirSync.mockClear();
 			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(false);
 
-			writeStopAttempts(2);
+			writeStopAttempts("abc123:main", 2);
 
 			expect(mockedMkdirSync).toHaveBeenCalledWith(".claude/state", { recursive: true });
 			expect(mockedWriteFileSync).toHaveBeenCalledWith(
 				".claude/state/stop-attempts.json",
-				"2",
+				JSON.stringify({ "abc123:main": 2 }),
 			);
 		});
-	});
 
-	describe(clearStopAttempts, () => {
-		it("should delete file when exists", () => {
+		it("should preserve sibling buckets when writing", () => {
 			expect.assertions(1);
 
-			mockedUnlinkSync.mockClear();
+			mockedWriteFileSync.mockClear();
 			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(JSON.stringify({ "abc123:agent_xyz": 5 }));
 
-			clearStopAttempts();
+			writeStopAttempts("abc123:main", 2);
 
-			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/stop-attempts.json");
-		});
-
-		it("should no-op when file missing", () => {
-			expect.assertions(1);
-
-			mockedUnlinkSync.mockClear();
-			mockedExistsSync.mockReturnValue(false);
-
-			clearStopAttempts();
-
-			expect(mockedUnlinkSync).not.toHaveBeenCalled();
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/stop-attempts.json",
+				JSON.stringify({ "abc123:agent_xyz": 5, "abc123:main": 2 }),
+			);
 		});
 	});
 
@@ -2399,112 +2545,225 @@ describe(lint, () => {
 		});
 	});
 
-	describe(clearAllBuckets, () => {
-		it("should no-op when file missing", () => {
-			expect.assertions(1);
+	describe(registerSession, () => {
+		it("should write the pid into the sessions directory", () => {
+			expect.assertions(2);
 
-			mockedUnlinkSync.mockClear();
-			mockedExistsSync.mockReturnValue(false);
+			mockedMkdirSync.mockClear();
+			mockedWriteFileSync.mockClear();
 
-			clearAllBuckets();
+			registerSession("abc123", "12345");
 
-			expect(mockedUnlinkSync).not.toHaveBeenCalled();
-		});
-
-		it("should unlink the file when present", () => {
-			expect.assertions(1);
-
-			mockedUnlinkSync.mockClear();
-			mockedExistsSync.mockReturnValue(true);
-
-			clearAllBuckets();
-
-			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/edited-files.json");
+			expect(mockedMkdirSync).toHaveBeenCalledWith(".claude/state/sessions", {
+				recursive: true,
+			});
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				join(".claude/state/sessions", "abc123"),
+				"12345",
+			);
 		});
 	});
 
-	describe(clearStaleBuckets, () => {
-		it("should no-op when file missing", () => {
-			expect.assertions(2);
+	describe(loadLiveSessions, () => {
+		it("should return empty set when sessions directory missing", () => {
+			expect.assertions(1);
 
-			mockedUnlinkSync.mockClear();
-			mockedWriteFileSync.mockClear();
 			mockedExistsSync.mockReturnValue(false);
 
-			clearStaleBuckets("abc123");
-
-			expect(mockedUnlinkSync).not.toHaveBeenCalled();
-			expect(mockedWriteFileSync).not.toHaveBeenCalled();
+			expect(loadLiveSessions()).toStrictEqual(new Set());
 		});
 
-		it("should keep buckets matching current session prefix", () => {
+		it("should include sessions whose pid is alive", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			vi.mocked(readdirSync).mockReturnValue(["abc123", "def456"] as never);
+			mockedReadFileSync.mockImplementation((path) => {
+				return path === join(".claude/state/sessions", "abc123") ? "111" : "222";
+			});
+			const killSpy = vi.spyOn(process, "kill").mockReturnValue(true);
+
+			try {
+				expect(loadLiveSessions()).toStrictEqual(new Set(["abc123", "def456"]));
+			} finally {
+				killSpy.mockRestore();
+			}
+		});
+
+		it("should drop and unlink sessions whose pid is dead", () => {
+			expect.assertions(2);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedUnlinkSync.mockClear();
+			vi.mocked(readdirSync).mockReturnValue(["abc123", "dead-session"] as never);
+			mockedReadFileSync.mockImplementation((path) => {
+				return path === join(".claude/state/sessions", "abc123") ? "111" : "999";
+			});
+			const killSpy = vi.spyOn(process, "kill").mockImplementation((pid) => {
+				if (pid === 999) {
+					throw new Error("ESRCH");
+				}
+
+				return true;
+			});
+
+			try {
+				const live = loadLiveSessions();
+
+				expect(live).toStrictEqual(new Set(["abc123"]));
+				expect(mockedUnlinkSync).toHaveBeenCalledWith(
+					join(".claude/state/sessions", "dead-session"),
+				);
+			} finally {
+				killSpy.mockRestore();
+			}
+		});
+
+		it("should drop entries whose contents are not numeric", () => {
+			expect.assertions(2);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedUnlinkSync.mockClear();
+			vi.mocked(readdirSync).mockReturnValue(["malformed"] as never);
+			mockedReadFileSync.mockReturnValue("not-a-pid");
+
+			const live = loadLiveSessions();
+
+			expect(live).toStrictEqual(new Set());
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(
+				join(".claude/state/sessions", "malformed"),
+			);
+		});
+	});
+
+	describe(pruneDeadSessions, () => {
+		it("should drop dead sessions from lint-attempts (sessionId-keyed)", () => {
 			expect.assertions(1);
 
 			mockedWriteFileSync.mockClear();
-			mockedExistsSync.mockReturnValue(true);
+			mockedExistsSync.mockImplementation(
+				(path) => path === ".claude/state/lint-attempts.json",
+			);
 			mockedReadFileSync.mockReturnValue(
 				JSON.stringify({
-					"abc123:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
-					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
-					"old-session:agent_old": { edited: ["src/baz.ts"], lastSurfacedAt: 42 },
-					"old-session:main": { edited: [], lastSurfacedAt: 100 },
+					"dead-session": { "src/baz.ts": 1 },
+					"live123": { "src/foo.ts": 2 },
 				}),
 			);
 
-			clearStaleBuckets("abc123");
+			pruneDeadSessions(new Set(["live123"]));
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/lint-attempts.json",
+				JSON.stringify({ live123: { "src/foo.ts": 2 } }),
+			);
+		});
+
+		it("should drop dead sessions from stop-attempts (bucketKey-keyed)", () => {
+			expect.assertions(1);
+
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockImplementation(
+				(path) => path === ".claude/state/stop-attempts.json",
+			);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"dead-session:main": 5,
+					"live123:agent_xyz": 1,
+					"live123:main": 2,
+				}),
+			);
+
+			pruneDeadSessions(new Set(["live123"]));
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/stop-attempts.json",
+				JSON.stringify({ "live123:agent_xyz": 1, "live123:main": 2 }),
+			);
+		});
+
+		it("should drop dead sessions from edited-files (bucketKey-keyed)", () => {
+			expect.assertions(1);
+
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockImplementation(
+				(path) => path === ".claude/state/edited-files.json",
+			);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"dead-session:main": { edited: ["src/baz.ts"], lastSurfacedAt: null },
+					"live123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
+			);
+
+			pruneDeadSessions(new Set(["live123"]));
 
 			expect(mockedWriteFileSync).toHaveBeenCalledWith(
 				".claude/state/edited-files.json",
 				JSON.stringify({
-					"abc123:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
-					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+					"live123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
 				}),
 			);
 		});
 
-		it("should unlink the file when no buckets survive the sweep", () => {
-			expect.assertions(2);
+		it("should unlink files when no entries survive", () => {
+			expect.assertions(1);
 
 			mockedUnlinkSync.mockClear();
-			mockedWriteFileSync.mockClear();
-			mockedExistsSync.mockReturnValue(true);
+			mockedExistsSync.mockImplementation(
+				(path) => path === ".claude/state/lint-attempts.json",
+			);
 			mockedReadFileSync.mockReturnValue(
-				JSON.stringify({
-					"old-session-1:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
-					"old-session-2:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
-				}),
+				JSON.stringify({ "dead-session": { "src/foo.ts": 1 } }),
 			);
 
-			clearStaleBuckets("abc123");
+			pruneDeadSessions(new Set());
 
-			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/edited-files.json");
-			expect(mockedWriteFileSync).not.toHaveBeenCalled();
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/lint-attempts.json");
 		});
 
-		it("should no-op when every bucket already belongs to current session", () => {
+		it("should no-op when every entry belongs to a live session", () => {
 			expect.assertions(2);
 
 			mockedUnlinkSync.mockClear();
 			mockedWriteFileSync.mockClear();
-			mockedExistsSync.mockReturnValue(true);
+			mockedExistsSync.mockImplementation(
+				(path) => path === ".claude/state/edited-files.json",
+			);
 			mockedReadFileSync.mockReturnValue(
 				JSON.stringify({
-					"abc123:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
-					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+					"live123:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
+					"live123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
 				}),
 			);
 
-			clearStaleBuckets("abc123");
+			pruneDeadSessions(new Set(["live123"]));
 
 			expect(mockedUnlinkSync).not.toHaveBeenCalled();
 			expect(mockedWriteFileSync).not.toHaveBeenCalled();
+		});
+
+		it("should unlink files with corrupt JSON", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockImplementation(
+				(path) => path === ".claude/state/lint-attempts.json",
+			);
+			mockedReadFileSync.mockReturnValue("{bad");
+
+			pruneDeadSessions(new Set(["live123"]));
+
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/lint-attempts.json");
 		});
 
 		it("should not match a session id that is a prefix of a longer one", () => {
 			expect.assertions(1);
 
 			mockedWriteFileSync.mockClear();
-			mockedExistsSync.mockReturnValue(true);
+			mockedExistsSync.mockImplementation(
+				(path) => path === ".claude/state/edited-files.json",
+			);
 			mockedReadFileSync.mockReturnValue(
 				JSON.stringify({
 					"abc123:main": { edited: ["src/bar.ts"], lastSurfacedAt: null },
@@ -2512,7 +2771,7 @@ describe(lint, () => {
 				}),
 			);
 
-			clearStaleBuckets("abc");
+			pruneDeadSessions(new Set(["abc"]));
 
 			expect(mockedWriteFileSync).toHaveBeenCalledWith(
 				".claude/state/edited-files.json",
@@ -2520,18 +2779,6 @@ describe(lint, () => {
 					"abc:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
 				}),
 			);
-		});
-
-		it("should delete file on corrupt JSON", () => {
-			expect.assertions(1);
-
-			mockedUnlinkSync.mockClear();
-			mockedExistsSync.mockReturnValue(true);
-			mockedReadFileSync.mockReturnValue("{bad");
-
-			clearStaleBuckets("abc123");
-
-			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/edited-files.json");
 		});
 	});
 
