@@ -193,6 +193,61 @@ export function clearEditedFiles(bucketKey: string): void {
 }
 
 /**
+ * Drop every bucket from the edited-files state. Used on `SessionStart` with
+ * source `startup` where `session_id` is fresh and no prior bucket is valid.
+ * Unlinks the file if it exists; otherwise no-op.
+ */
+export function clearAllBuckets(): void {
+	if (existsSync(EDITED_FILES_PATH)) {
+		unlinkSync(EDITED_FILES_PATH);
+	}
+}
+
+/**
+ * Garbage-collect buckets that do not belong to the current session. Used on
+ * `SessionStart` with source `resume`/`clear`/`compact` where the session
+ * persists but stale `<dead_session>:agent_*` entries from prior sessions may
+ * linger. Keeps every bucket whose key starts with `${currentSessionId}:` and
+ * drops the rest. Unlinks the file if the resulting state is empty.
+ *
+ * @param currentSessionId - SDK-provided `session_id` for the active session.
+ */
+export function clearStaleBuckets(currentSessionId: string): void {
+	if (!existsSync(EDITED_FILES_PATH)) {
+		return;
+	}
+
+	let state: EditedFilesState;
+	try {
+		state = JSON.parse(readFileSync(EDITED_FILES_PATH, "utf-8")) as unknown as EditedFilesState;
+	} catch {
+		unlinkSync(EDITED_FILES_PATH);
+		return;
+	}
+
+	const prefix = `${currentSessionId}:`;
+	const survivors = {} satisfies EditedFilesState as EditedFilesState;
+	let hasDropped = false;
+	for (const [key, bucket] of Object.entries(state)) {
+		if (key.startsWith(prefix)) {
+			survivors[key] = bucket;
+		} else {
+			hasDropped = true;
+		}
+	}
+
+	if (!hasDropped) {
+		return;
+	}
+
+	if (Object.keys(survivors).length === 0) {
+		unlinkSync(EDITED_FILES_PATH);
+	} else {
+		writeFileSync(EDITED_FILES_PATH, JSON.stringify(survivors));
+	}
+}
+
+/**
  * Mark a bucket as surfaced at the given timestamp (defaults to now). Used by
  * surface-gating logic to track which edits have already been reported to the
  * agent. Hooks call this after emitting a diagnostics surface so subsequent

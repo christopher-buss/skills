@@ -19,9 +19,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	buildHookOutput,
+	clearAllBuckets,
 	clearCache,
 	clearEditedFiles,
 	clearLintAttempts,
+	clearStaleBuckets,
 	clearStopAttempts,
 	DEFAULT_CACHE_BUST,
 	findEntryPoints,
@@ -2374,6 +2376,142 @@ describe(lint, () => {
 			mockedReadFileSync.mockReturnValue("{bad");
 
 			clearEditedFiles("abc123:main");
+
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/edited-files.json");
+		});
+	});
+
+	describe(clearAllBuckets, () => {
+		it("should no-op when file missing", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(false);
+
+			clearAllBuckets();
+
+			expect(mockedUnlinkSync).not.toHaveBeenCalled();
+		});
+
+		it("should unlink the file when present", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+
+			clearAllBuckets();
+
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/edited-files.json");
+		});
+	});
+
+	describe(clearStaleBuckets, () => {
+		it("should no-op when file missing", () => {
+			expect.assertions(2);
+
+			mockedUnlinkSync.mockClear();
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(false);
+
+			clearStaleBuckets("abc123");
+
+			expect(mockedUnlinkSync).not.toHaveBeenCalled();
+			expect(mockedWriteFileSync).not.toHaveBeenCalled();
+		});
+
+		it("should keep buckets matching current session prefix", () => {
+			expect.assertions(1);
+
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+					"old-session:agent_old": { edited: ["src/baz.ts"], lastSurfacedAt: 42 },
+					"old-session:main": { edited: [], lastSurfacedAt: 100 },
+				}),
+			);
+
+			clearStaleBuckets("abc123");
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/edited-files.json",
+				JSON.stringify({
+					"abc123:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
+			);
+		});
+
+		it("should unlink the file when no buckets survive the sweep", () => {
+			expect.assertions(2);
+
+			mockedUnlinkSync.mockClear();
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"old-session-1:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+					"old-session-2:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
+				}),
+			);
+
+			clearStaleBuckets("abc123");
+
+			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/edited-files.json");
+			expect(mockedWriteFileSync).not.toHaveBeenCalled();
+		});
+
+		it("should no-op when every bucket already belongs to current session", () => {
+			expect.assertions(2);
+
+			mockedUnlinkSync.mockClear();
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123:agent_xyz": { edited: ["src/bar.ts"], lastSurfacedAt: null },
+					"abc123:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
+			);
+
+			clearStaleBuckets("abc123");
+
+			expect(mockedUnlinkSync).not.toHaveBeenCalled();
+			expect(mockedWriteFileSync).not.toHaveBeenCalled();
+		});
+
+		it("should not match a session id that is a prefix of a longer one", () => {
+			expect.assertions(1);
+
+			mockedWriteFileSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				JSON.stringify({
+					"abc123:main": { edited: ["src/bar.ts"], lastSurfacedAt: null },
+					"abc:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
+			);
+
+			clearStaleBuckets("abc");
+
+			expect(mockedWriteFileSync).toHaveBeenCalledWith(
+				".claude/state/edited-files.json",
+				JSON.stringify({
+					"abc:main": { edited: ["src/foo.ts"], lastSurfacedAt: null },
+				}),
+			);
+		});
+
+		it("should delete file on corrupt JSON", () => {
+			expect.assertions(1);
+
+			mockedUnlinkSync.mockClear();
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue("{bad");
+
+			clearStaleBuckets("abc123");
 
 			expect(mockedUnlinkSync).toHaveBeenCalledWith(".claude/state/edited-files.json");
 		});
