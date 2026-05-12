@@ -409,6 +409,21 @@ describe(lint, () => {
 			});
 		});
 
+		it("should omit ESLINT_IN_EDITOR when isInEditor=false", () => {
+			expect.assertions(1);
+
+			mockedExecSync.mockClear();
+			mockedExecSync.mockReturnValue("");
+
+			runEslint([testFilePath], [], "pnpm exec", false);
+
+			const callArgs = mockedExecSync.mock.calls[0]!;
+			const options = callArgs[1] as Record<string, unknown>;
+			const environment = options["env"] as Record<string, string | undefined>;
+
+			expect(environment["ESLINT_IN_EDITOR"]).not.toBe("true");
+		});
+
 		it("should capture stdout/stderr/message on error", () => {
 			expect.assertions(1);
 
@@ -1375,6 +1390,56 @@ describe(lint, () => {
 
 			expect(didRunOxlint).toBe(true);
 			expect(didRunEslint).toBe(false);
+
+			vi.restoreAllMocks();
+		});
+
+		it("should omit ESLINT_IN_EDITOR from eslint_d env by default", () => {
+			expect.assertions(1);
+
+			vi.spyOn(process, "exit").mockReturnValue(undefined as never);
+			vi.spyOn(process.stderr, "write").mockReturnValue(true);
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
+			mockedExistsSync.mockReturnValue(false);
+			mockedExecSync.mockClear();
+			mockedExecSync.mockReturnValue("");
+
+			main(["."]);
+
+			const eslintCall = mockedExecSync.mock.calls.find(
+				([command]) => typeof command === "string" && command.includes("eslint_d"),
+			);
+			const environment = (eslintCall?.[1] as Record<string, unknown>)["env"] as Record<
+				string,
+				string | undefined
+			>;
+
+			expect(environment["ESLINT_IN_EDITOR"]).not.toBe("true");
+
+			vi.restoreAllMocks();
+		});
+
+		it("should set ESLINT_IN_EDITOR when isInEditor=true", () => {
+			expect.assertions(1);
+
+			vi.spyOn(process, "exit").mockReturnValue(undefined as never);
+			vi.spyOn(process.stderr, "write").mockReturnValue(true);
+			mockedSpawn.mockReturnValue(fakeSpawnResult());
+			mockedExistsSync.mockReturnValue(false);
+			mockedExecSync.mockClear();
+			mockedExecSync.mockReturnValue("");
+
+			main(["."], undefined, true);
+
+			const eslintCall = mockedExecSync.mock.calls.find(
+				([command]) => typeof command === "string" && command.includes("eslint_d"),
+			);
+			const environment = (eslintCall?.[1] as Record<string, unknown>)["env"] as Record<
+				string,
+				string | undefined
+			>;
+
+			expect(environment["ESLINT_IN_EDITOR"]).toBe("true");
 
 			vi.restoreAllMocks();
 		});

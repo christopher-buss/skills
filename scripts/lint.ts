@@ -811,6 +811,7 @@ export function runEslint(
 	filePaths: Array<string>,
 	extraFlags: Array<string> = [],
 	runner = DEFAULT_SETTINGS.runner,
+	isInEditor = true,
 ): string | undefined {
 	if (filePaths.length === 0) {
 		return undefined;
@@ -821,7 +822,7 @@ export function runEslint(
 	const environment = {
 		...process.env,
 		...(claudePid !== undefined && { ESLINT_D_PPID: claudePid }),
-		ESLINT_IN_EDITOR: "true",
+		...(isInEditor && { ESLINT_IN_EDITOR: "true" }),
 	};
 
 	// On Windows, Node's execSync uses CreateProcess with bInheritHandles=TRUE,
@@ -858,8 +859,13 @@ export function runEslint(
 	return outputs.join("\n");
 }
 
-export function restartDaemon(runner = DEFAULT_SETTINGS.runner, warmupFile?: string): void {
+export function restartDaemon(
+	runner = DEFAULT_SETTINGS.runner,
+	warmupFile?: string,
+	isInEditor = true,
+): void {
 	const markerFile = IS_RESTART_DAEMON_DEBUG ? createMarkerPath() : undefined;
+	const inEditorLine = isInEditor ? ' ESLINT_IN_EDITOR: "true",' : "";
 
 	try {
 		// Spawn a process that runs restart, then warmup lint (sequential)
@@ -878,7 +884,7 @@ try {
     fs.appendFileSync(logFile, \`restart: start \${new Date().toISOString()}\\n\`);
   }
   execSync(\`\${runner} eslint_d restart\`, {
-    env: { ...process.env, ESLINT_D_PPID: process.env.ESLINT_D_PPID, ESLINT_IN_EDITOR: "true" },
+    env: { ...process.env, ESLINT_D_PPID: process.env.ESLINT_D_PPID,${inEditorLine} },
     stdio: "pipe",
   });
   if (debug) {
@@ -891,7 +897,7 @@ try {
       fs.appendFileSync(logFile, \`warmup: start \${warmupFile} \${new Date().toISOString()}\\n\`);
     }
     execSync(\`\${runner} eslint_d "\${warmupFile}"\`, {
-      env: { ...process.env, ESLINT_D_PPID: process.env.ESLINT_D_PPID, ESLINT_IN_EDITOR: "true" },
+      env: { ...process.env, ESLINT_D_PPID: process.env.ESLINT_D_PPID,${inEditorLine} },
       stdio: "pipe",
     });
     if (debug) {
@@ -910,7 +916,7 @@ try {
 		const claudePid = getClaudePid();
 		spawnBackground(restartAndWarmupScript, {
 			...(claudePid !== undefined && { ESLINT_D_PPID: claudePid }),
-			ESLINT_IN_EDITOR: "true",
+			...(isInEditor && { ESLINT_IN_EDITOR: "true" }),
 		});
 
 		if (IS_RESTART_DAEMON_DEBUG && markerFile !== undefined) {
@@ -1235,7 +1241,11 @@ export function lint(
 	return undefined;
 }
 
-export function main(targets: Array<string>, settings: LintSettings = DEFAULT_SETTINGS): void {
+export function main(
+	targets: Array<string>,
+	settings: LintSettings = DEFAULT_SETTINGS,
+	isInEditor = false,
+): void {
 	if (shouldBustCache(settings.cacheBust)) {
 		clearCache();
 	} else {
@@ -1254,7 +1264,7 @@ export function main(targets: Array<string>, settings: LintSettings = DEFAULT_SE
 	}
 
 	if (settings.eslint) {
-		const output = runEslint(targets, ["--color"], settings.runner);
+		const output = runEslint(targets, ["--color"], settings.runner, isInEditor);
 		if (output !== undefined) {
 			outputs.push(output);
 		}
@@ -1273,7 +1283,7 @@ export function main(targets: Array<string>, settings: LintSettings = DEFAULT_SE
 	}
 
 	if (settings.eslint) {
-		restartDaemon(settings.runner);
+		restartDaemon(settings.runner, undefined, isInEditor);
 	}
 
 	if (hasErrors) {
