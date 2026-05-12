@@ -769,32 +769,53 @@ export function invalidateCacheEntries(filePaths: Array<string>): void {
 	cache.reconcile();
 }
 
+const MAX_COMMAND_LENGTH = 32_000;
+
 export function runOxlint(
-	filePath: string,
+	filePaths: Array<string>,
 	extraFlags: Array<string> = [],
 	runner = DEFAULT_SETTINGS.runner,
 ): string | undefined {
-	const flags = extraFlags.length > 0 ? `${extraFlags.join(" ")} ` : "";
-	try {
-		execSync(`${runner} oxlint ${flags}"${filePath}"`, {
-			stdio: "pipe",
-		});
+	if (filePaths.length === 0) {
 		return undefined;
-	} catch (err_) {
-		const err = err_ as { message?: string; stderr?: Buffer; stdout?: Buffer };
-		const stdout = err.stdout?.toString() ?? "";
-		const stderr = err.stderr?.toString() ?? "";
-		const message = err.message ?? "";
-
-		return stdout || stderr || message;
 	}
+
+	const flags = extraFlags.length > 0 ? `${extraFlags.join(" ")} ` : "";
+	const prefix = `${runner} oxlint ${flags}`;
+	const chunks = chunkByCommandLength(filePaths, prefix);
+	const outputs: Array<string> = [];
+
+	for (const chunk of chunks) {
+		try {
+			execSync(`${prefix}${quoteFiles(chunk)}`, {
+				stdio: "pipe",
+			});
+		} catch (err_) {
+			const err = err_ as { message?: string; stderr?: Buffer; stdout?: Buffer };
+			const stdout = err.stdout?.toString() ?? "";
+			const stderr = err.stderr?.toString() ?? "";
+			const message = err.message ?? "";
+
+			outputs.push(stdout || stderr || message);
+		}
+	}
+
+	if (outputs.length === 0) {
+		return undefined;
+	}
+
+	return outputs.join("\n");
 }
 
 export function runEslint(
-	filePath: string,
+	filePaths: Array<string>,
 	extraFlags: Array<string> = [],
 	runner = DEFAULT_SETTINGS.runner,
 ): string | undefined {
+	if (filePaths.length === 0) {
+		return undefined;
+	}
+
 	const flags = ["--cache", ...extraFlags].join(" ");
 	const claudePid = getClaudePid();
 	const environment = {
@@ -810,20 +831,31 @@ export function runEslint(
 	// branch (no -RedirectStandard*) and let cmd.exe handle > / 2> redirection,
 	// so the daemon only inherits the redirect file handles.
 	if (process.platform === "win32") {
-		return runEslintWindows(filePath, flags, runner, environment);
+		return runEslintWindows(filePaths, flags, runner, environment);
 	}
 
-	try {
-		execSync(`${runner} eslint_d ${flags} "${filePath}"`, { env: environment, stdio: "pipe" });
+	const prefix = `${runner} eslint_d ${flags} `;
+	const chunks = chunkByCommandLength(filePaths, prefix);
+	const outputs: Array<string> = [];
+
+	for (const chunk of chunks) {
+		try {
+			execSync(`${prefix}${quoteFiles(chunk)}`, { env: environment, stdio: "pipe" });
+		} catch (err_) {
+			const err = err_ as { message?: string; stderr?: Buffer; stdout?: Buffer };
+			const stdout = err.stdout?.toString() ?? "";
+			const stderr = err.stderr?.toString() ?? "";
+			const message = err.message ?? "";
+
+			outputs.push(stdout || stderr || message);
+		}
+	}
+
+	if (outputs.length === 0) {
 		return undefined;
-	} catch (err_) {
-		const err = err_ as { message?: string; stderr?: Buffer; stdout?: Buffer };
-		const stdout = err.stdout?.toString() ?? "";
-		const stderr = err.stderr?.toString() ?? "";
-		const message = err.message ?? "";
-
-		return stdout || stderr || message;
 	}
+
+	return outputs.join("\n");
 }
 
 export function restartDaemon(runner = DEFAULT_SETTINGS.runner, warmupFile?: string): void {
@@ -910,62 +942,50 @@ setTimeout(() => {
 	}
 }
 
-function readLintAttemptsState(): LintAttemptsState {
-	if (!existsSync(LINT_STATE_PATH)) {
-		return {};
-	}
-
-	try {
-		return JSON.parse(readFileSync(LINT_STATE_PATH, "utf-8")) as LintAttemptsState;
-	} catch {
-		return {};
-	}
+function quoteFiles(filePaths: Array<string>): string {
+	return filePaths.map((file) => `"${file}"`).join(" ");
 }
 
-function writeLintAttemptsState(state: LintAttemptsState): void {
-	mkdirSync(dirname(LINT_STATE_PATH), { recursive: true });
-	writeFileSync(LINT_STATE_PATH, JSON.stringify(state));
-}
+function chunkByCommandLength(filePaths: Array<string>, prefix: string): Array<Array<string>> {
+	const chunks: Array<Array<string>> = [];
+	let current: Array<string> = [];
+	let currentLength = prefix.length;
 
-function readStopAttemptsState(path: string): StopAttemptsState {
-	if (!existsSync(path)) {
-		return {};
+	for (const file of filePaths) {
+		const segment = current.length === 0 ? `"${file}"` : ` "${file}"`;
+		if (current.length > 0 && currentLength + segment.length > MAX_COMMAND_LENGTH) {
+			chunks.push(current);
+			current = [file];
+			currentLength = prefix.length + `"${file}"`.length;
+			continue;
+		}
+
+		current.push(file);
+		currentLength += segment.length;
 	}
 
-	try {
-		return JSON.parse(readFileSync(path, "utf-8")) as StopAttemptsState;
-	} catch {
-		return {};
+	if (current.length > 0) {
+		chunks.push(current);
 	}
-}
 
-function writeStopAttemptsState(path: string, state: StopAttemptsState): void {
-	mkdirSync(dirname(path), { recursive: true });
-	writeFileSync(path, JSON.stringify(state));
+	return chunks;
 }
 
 function psSingleQuote(value: string): string {
 	return `'${value.replaceAll("'", "''")}'`;
 }
 
-function runEslintWindows(
-	filePath: string,
+function runEslintWindowsChunk(
+	filePaths: Array<string>,
 	flags: string,
 	runner: string,
 	environment: NodeJS.ProcessEnv,
 ): string | undefined {
-	// cmd.exe expands %VAR% even inside double-quoted strings, so a path or
-	// runner containing literal '%' would be rewritten before eslint_d sees
-	// it. Reject up front with a clear error rather than silently mis-route.
-	if (filePath.includes("%") || runner.includes("%")) {
-		return `error: lint hook cannot safely run on Windows for paths containing '%' (got filePath=${filePath}, runner=${runner})`;
-	}
-
 	const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 	const outFile = join(tmpdir(), `eslint_d_out_${id}.txt`);
 	const errFile = join(tmpdir(), `eslint_d_err_${id}.txt`);
 
-	const inner = `${runner} eslint_d ${flags} "${filePath}" > "${outFile}" 2> "${errFile}"`;
+	const inner = `${runner} eslint_d ${flags} ${quoteFiles(filePaths)} > "${outFile}" 2> "${errFile}"`;
 	const psCmd =
 		`$p = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', ${psSingleQuote(inner)}) ` +
 		"-WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode";
@@ -1021,6 +1041,72 @@ function runEslintWindows(
 	// Nothing in the redirect files — launcher itself failed.
 	const detail = launcherStderr.length > 0 ? `: ${launcherStderr}` : "";
 	return `error: eslint_d launcher exited with code ${exitCode}${detail}`;
+}
+
+function runEslintWindows(
+	filePaths: Array<string>,
+	flags: string,
+	runner: string,
+	environment: NodeJS.ProcessEnv,
+): string | undefined {
+	// cmd.exe expands %VAR% even inside double-quoted strings, so a path or
+	// runner containing literal '%' would be rewritten before eslint_d sees
+	// it. Reject up front with a clear error rather than silently mis-route.
+	const percentFile = filePaths.find((file) => file.includes("%"));
+	if (percentFile !== undefined || runner.includes("%")) {
+		return `error: lint hook cannot safely run on Windows for paths containing '%' (got filePath=${percentFile ?? ""}, runner=${runner})`;
+	}
+
+	const prefix = `${runner} eslint_d ${flags} `;
+	const chunks = chunkByCommandLength(filePaths, prefix);
+	const outputs: Array<string> = [];
+
+	for (const chunk of chunks) {
+		const result = runEslintWindowsChunk(chunk, flags, runner, environment);
+		if (result !== undefined) {
+			outputs.push(result);
+		}
+	}
+
+	if (outputs.length === 0) {
+		return undefined;
+	}
+
+	return outputs.join("\n");
+}
+
+function readLintAttemptsState(): LintAttemptsState {
+	if (!existsSync(LINT_STATE_PATH)) {
+		return {};
+	}
+
+	try {
+		return JSON.parse(readFileSync(LINT_STATE_PATH, "utf-8")) as LintAttemptsState;
+	} catch {
+		return {};
+	}
+}
+
+function writeLintAttemptsState(state: LintAttemptsState): void {
+	mkdirSync(dirname(LINT_STATE_PATH), { recursive: true });
+	writeFileSync(LINT_STATE_PATH, JSON.stringify(state));
+}
+
+function readStopAttemptsState(path: string): StopAttemptsState {
+	if (!existsSync(path)) {
+		return {};
+	}
+
+	try {
+		return JSON.parse(readFileSync(path, "utf-8")) as StopAttemptsState;
+	} catch {
+		return {};
+	}
+}
+
+function writeStopAttemptsState(path: string, state: StopAttemptsState): void {
+	mkdirSync(dirname(path), { recursive: true });
+	writeFileSync(path, JSON.stringify(state));
 }
 
 const RULE_TOKEN_PATTERN = /([\w-]+\/[\w-]+|[\w-]+)$/;
@@ -1106,14 +1192,14 @@ export function lint(
 	const outputs: Array<string> = [];
 
 	if (settings.oxlint) {
-		const output = runOxlint(filePath, extraFlags, settings.runner);
+		const output = runOxlint([filePath], extraFlags, settings.runner);
 		if (output !== undefined) {
 			outputs.push(output);
 		}
 	}
 
 	if (settings.eslint) {
-		const output = runEslint(filePath, extraFlags, settings.runner);
+		const output = runEslint([filePath], extraFlags, settings.runner);
 		if (output !== undefined) {
 			outputs.push(output);
 		}
@@ -1158,33 +1244,31 @@ export function main(targets: Array<string>, settings: LintSettings = DEFAULT_SE
 	}
 
 	let hasErrors = false;
-	for (const target of targets) {
-		const outputs: Array<string> = [];
+	const outputs: Array<string> = [];
 
-		if (settings.oxlint) {
-			const output = runOxlint(target, ["--color"], settings.runner);
-			if (output !== undefined) {
-				outputs.push(output);
-			}
+	if (settings.oxlint) {
+		const output = runOxlint(targets, ["--color"], settings.runner);
+		if (output !== undefined) {
+			outputs.push(output);
 		}
+	}
 
-		if (settings.eslint) {
-			const output = runEslint(target, ["--color"], settings.runner);
-			if (output !== undefined) {
-				outputs.push(output);
-			}
+	if (settings.eslint) {
+		const output = runEslint(targets, ["--color"], settings.runner);
+		if (output !== undefined) {
+			outputs.push(output);
 		}
+	}
 
-		for (const output of outputs) {
-			hasErrors = true;
-			const filtered = output
-				.split("\n")
-				.filter((line) => !line.startsWith("["))
-				.join("\n")
-				.trim();
-			if (filtered.length > 0) {
-				process.stderr.write(`${filtered}\n`);
-			}
+	for (const output of outputs) {
+		hasErrors = true;
+		const filtered = output
+			.split("\n")
+			.filter((line) => !line.startsWith("["))
+			.join("\n")
+			.trim();
+		if (filtered.length > 0) {
+			process.stderr.write(`${filtered}\n`);
 		}
 	}
 

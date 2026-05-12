@@ -4,11 +4,14 @@ import { existsSync } from "node:fs";
 import process from "node:process";
 
 import {
+	clearCache,
 	getBucketKey,
 	isLintableFile,
-	lint,
 	readEditedFiles,
 	readSettings,
+	runEslint,
+	runOxlint,
+	shouldBustCache,
 } from "../scripts/lint.ts";
 import { readStdinJson } from "./io.ts";
 
@@ -39,6 +42,14 @@ if (lintableFiles.length === 0) {
 	process.exit(0);
 }
 
-for (const file of lintableFiles) {
-	lint(file, ["--fix"], settings, { restart: false });
+if (shouldBustCache(settings.cacheBust)) {
+	clearCache();
+}
+
+if (settings.oxlint) {
+	runOxlint(lintableFiles, ["--fix"], settings.runner);
+}
+
+if (settings.eslint) {
+	runEslint(lintableFiles, ["--fix"], settings.runner);
 }

@@ -396,7 +396,7 @@ describe(lint, () => {
 			mockedExecSync.mockClear();
 			mockedExecSync.mockReturnValue("");
 
-			runEslint(testFilePath);
+			runEslint([testFilePath]);
 
 			const callArgs = mockedExecSync.mock.calls[0]!;
 
@@ -422,7 +422,7 @@ describe(lint, () => {
 				throw error;
 			});
 
-			const result = runEslint(testFilePath);
+			const result = runEslint([testFilePath]);
 
 			expect(result).toContain("no-unused-vars");
 		});
@@ -440,7 +440,7 @@ describe(lint, () => {
 				throw error;
 			});
 
-			expect(runEslint(testFilePath)).toBe("stderr output");
+			expect(runEslint([testFilePath])).toBe("stderr output");
 		});
 
 		it("should fall back to message when error has no stdout/stderr properties", () => {
@@ -450,7 +450,7 @@ describe(lint, () => {
 				throw new Error("plain error");
 			});
 
-			expect(runEslint(testFilePath)).toBe("plain error");
+			expect(runEslint([testFilePath])).toBe("plain error");
 		});
 
 		it("should return empty string when error has no properties", () => {
@@ -461,7 +461,7 @@ describe(lint, () => {
 				throw { stderr: Buffer.from(""), stdout: Buffer.from("") };
 			});
 
-			expect(runEslint(testFilePath)).toBe("");
+			expect(runEslint([testFilePath])).toBe("");
 		});
 
 		it("should fall back to message when stdout and stderr are empty", () => {
@@ -477,7 +477,76 @@ describe(lint, () => {
 				throw error;
 			});
 
-			expect(runEslint(testFilePath)).toBe("error message");
+			expect(runEslint([testFilePath])).toBe("error message");
+		});
+
+		it("should batch multiple files into a single invocation", () => {
+			expect.assertions(2);
+
+			mockedExecSync.mockClear();
+			mockedExecSync.mockReturnValue("");
+
+			runEslint(["/project/src/a.ts", "/project/src/b.ts"]);
+
+			expect(mockedExecSync).toHaveBeenCalledOnce();
+			expect(mockedExecSync.mock.calls[0]![0]).toBe(
+				'pnpm exec eslint_d --cache "/project/src/a.ts" "/project/src/b.ts"',
+			);
+		});
+
+		it("should be a no-op when filePaths is empty", () => {
+			expect.assertions(2);
+
+			mockedExecSync.mockClear();
+
+			const result = runEslint([]);
+
+			expect(result).toBeUndefined();
+			expect(mockedExecSync).not.toHaveBeenCalled();
+		});
+
+		it("should chunk into multiple invocations when command exceeds 32k chars", () => {
+			expect.assertions(2);
+
+			mockedExecSync.mockClear();
+			mockedExecSync.mockReturnValue("");
+
+			// Each path quoted + space is ~110 chars; ~300 paths overflow 32k.
+			const files = Array.from({ length: 500 }, (_, index) => {
+				return `/project/src/some/deeply/nested/directory/file_${String(index).padStart(4, "0")}_with_a_long_name.ts`;
+			});
+
+			runEslint(files);
+
+			expect(mockedExecSync.mock.calls.length).toBeGreaterThan(1);
+			expect(mockedExecSync.mock.calls.every((call) => call[0].length <= 32_000)).toBe(true);
+		});
+
+		it("should concatenate outputs across chunks", () => {
+			expect.assertions(2);
+
+			mockedExecSync.mockClear();
+
+			const files = Array.from({ length: 500 }, (_, index) => {
+				return `/project/src/some/deeply/nested/directory/file_${String(index).padStart(4, "0")}_with_a_long_name.ts`;
+			});
+
+			let callIndex = 0;
+			mockedExecSync.mockImplementation(() => {
+				const error = new Error(`fail-${callIndex}`) as Error & {
+					stderr: Buffer;
+					stdout: Buffer;
+				};
+				error.stdout = Buffer.from(`chunk-${callIndex}-error\n`);
+				error.stderr = Buffer.from("");
+				callIndex += 1;
+				throw error;
+			});
+
+			const result = runEslint(files);
+
+			expect(result).toContain("chunk-0-error");
+			expect(result).toContain("chunk-1-error");
 		});
 	});
 
@@ -501,7 +570,7 @@ describe(lint, () => {
 			mockedReadFileSync.mockReset();
 			mockedExecFileSync.mockReturnValue(Buffer.from(""));
 
-			const result = runEslint(testFilePath);
+			const result = runEslint([testFilePath]);
 
 			expect(result).toBeUndefined();
 
@@ -528,7 +597,7 @@ describe(lint, () => {
 			mockedReadFileSync.mockReset();
 			mockedExecFileSync.mockReturnValue(Buffer.from(""));
 
-			runEslint(testFilePath);
+			runEslint([testFilePath]);
 
 			const psCommand = (findStartProcessCall()![1] as Array<string>)[2]!;
 
@@ -556,7 +625,7 @@ describe(lint, () => {
 				return "";
 			});
 
-			expect(runEslint(testFilePath)).toBe("lint failure output");
+			expect(runEslint([testFilePath])).toBe("lint failure output");
 
 			Object.defineProperty(process, "platform", { value: originalPlatform });
 		});
@@ -580,7 +649,7 @@ describe(lint, () => {
 				return "";
 			});
 
-			expect(runEslint(testFilePath)).toBe("stderr only");
+			expect(runEslint([testFilePath])).toBe("stderr only");
 
 			Object.defineProperty(process, "platform", { value: originalPlatform });
 		});
@@ -596,7 +665,7 @@ describe(lint, () => {
 			mockedReadFileSync.mockReturnValue("");
 			mockedUnlinkSync.mockClear();
 
-			runEslint(testFilePath);
+			runEslint([testFilePath]);
 
 			const unlinkPaths = mockedUnlinkSync.mock.calls.map((call) => String(call[0]));
 
@@ -614,7 +683,42 @@ describe(lint, () => {
 			mockedExecFileSync.mockReset();
 			mockedExecFileSync.mockReturnValue(Buffer.from(""));
 
-			const result = runEslint("C:/repo/config%env%.ts");
+			const result = runEslint(["C:/repo/config%env%.ts"]);
+
+			expect(result).toMatch(/cannot safely run.*'%'/);
+			expect(findStartProcessCall()).toBeUndefined();
+
+			Object.defineProperty(process, "platform", { value: originalPlatform });
+		});
+
+		it("should embed all files in a single cmd.exe invocation on win32", () => {
+			expect.assertions(2);
+
+			const originalPlatform = process.platform;
+			Object.defineProperty(process, "platform", { value: "win32" });
+			mockedExecFileSync.mockReset();
+			mockedReadFileSync.mockReset();
+			mockedExecFileSync.mockReturnValue(Buffer.from(""));
+
+			runEslint(["C:/repo/a.ts", "C:/repo/b.ts"]);
+
+			const psCommand = (findStartProcessCall()![1] as Array<string>)[2]!;
+
+			expect(psCommand).toContain('"C:/repo/a.ts"');
+			expect(psCommand).toContain('"C:/repo/b.ts"');
+
+			Object.defineProperty(process, "platform", { value: originalPlatform });
+		});
+
+		it("should reject the entire batch on win32 if any file contains '%'", () => {
+			expect.assertions(2);
+
+			const originalPlatform = process.platform;
+			Object.defineProperty(process, "platform", { value: "win32" });
+			mockedExecFileSync.mockReset();
+			mockedExecFileSync.mockReturnValue(Buffer.from(""));
+
+			const result = runEslint(["C:/repo/ok.ts", "C:/repo/bad%env%.ts"]);
 
 			expect(result).toMatch(/cannot safely run.*'%'/);
 			expect(findStartProcessCall()).toBeUndefined();
@@ -635,7 +739,7 @@ describe(lint, () => {
 			});
 			mockedReadFileSync.mockReturnValue("");
 
-			expect(runEslint(testFilePath)).toContain("Access denied");
+			expect(runEslint([testFilePath])).toContain("Access denied");
 
 			Object.defineProperty(process, "platform", { value: originalPlatform });
 		});
@@ -971,7 +1075,7 @@ describe(lint, () => {
 
 			mockedExecSync.mockReturnValue("");
 
-			runOxlint("/project/src/foo.ts");
+			runOxlint(["/project/src/foo.ts"]);
 
 			expect(mockedExecSync).toHaveBeenCalledWith(
 				'pnpm exec oxlint "/project/src/foo.ts"',
@@ -984,7 +1088,7 @@ describe(lint, () => {
 
 			mockedExecSync.mockReturnValue("");
 
-			runOxlint("/project/src/foo.ts", ["--fix"]);
+			runOxlint(["/project/src/foo.ts"], ["--fix"]);
 
 			expect(mockedExecSync).toHaveBeenCalledWith(
 				'pnpm exec oxlint --fix "/project/src/foo.ts"',
@@ -1005,7 +1109,7 @@ describe(lint, () => {
 				throw error;
 			});
 
-			expect(runOxlint("/project/src/foo.ts")).toContain("no-unused-vars");
+			expect(runOxlint(["/project/src/foo.ts"])).toContain("no-unused-vars");
 		});
 
 		it("should return undefined on success", () => {
@@ -1013,7 +1117,7 @@ describe(lint, () => {
 
 			mockedExecSync.mockReturnValue("");
 
-			expect(runOxlint("/project/src/foo.ts")).toBeUndefined();
+			expect(runOxlint(["/project/src/foo.ts"])).toBeUndefined();
 		});
 
 		it("should return empty string when error has no properties", () => {
@@ -1024,7 +1128,48 @@ describe(lint, () => {
 				throw { stderr: Buffer.from(""), stdout: Buffer.from("") };
 			});
 
-			expect(runOxlint("/project/src/foo.ts")).toBe("");
+			expect(runOxlint(["/project/src/foo.ts"])).toBe("");
+		});
+
+		it("should batch multiple files into a single invocation", () => {
+			expect.assertions(2);
+
+			mockedExecSync.mockClear();
+			mockedExecSync.mockReturnValue("");
+
+			runOxlint(["/project/src/a.ts", "/project/src/b.ts"]);
+
+			expect(mockedExecSync).toHaveBeenCalledOnce();
+			expect(mockedExecSync.mock.calls[0]![0]).toBe(
+				'pnpm exec oxlint "/project/src/a.ts" "/project/src/b.ts"',
+			);
+		});
+
+		it("should be a no-op when filePaths is empty", () => {
+			expect.assertions(2);
+
+			mockedExecSync.mockClear();
+
+			const result = runOxlint([]);
+
+			expect(result).toBeUndefined();
+			expect(mockedExecSync).not.toHaveBeenCalled();
+		});
+
+		it("should chunk into multiple invocations when command exceeds 32k chars", () => {
+			expect.assertions(2);
+
+			mockedExecSync.mockClear();
+			mockedExecSync.mockReturnValue("");
+
+			const files = Array.from({ length: 500 }, (_, index) => {
+				return `/project/src/some/deeply/nested/directory/file_${String(index).padStart(4, "0")}_with_a_long_name.ts`;
+			});
+
+			runOxlint(files);
+
+			expect(mockedExecSync.mock.calls.length).toBeGreaterThan(1);
+			expect(mockedExecSync.mock.calls.every((call) => call[0].length <= 32_000)).toBe(true);
 		});
 	});
 
@@ -1623,7 +1768,7 @@ describe(lint, () => {
 
 			mockedExecSync.mockReturnValue("");
 
-			runEslint(testFilePath, [], "npx");
+			runEslint([testFilePath], [], "npx");
 
 			expect(mockedExecSync).toHaveBeenCalledWith(
 				`npx eslint_d --cache "${testFilePath}"`,
@@ -1636,7 +1781,7 @@ describe(lint, () => {
 
 			mockedExecSync.mockReturnValue("");
 
-			runOxlint(testFilePath, [], "npx");
+			runOxlint([testFilePath], [], "npx");
 
 			expect(mockedExecSync).toHaveBeenCalledWith(
 				`npx oxlint "${testFilePath}"`,
