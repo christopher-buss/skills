@@ -46,6 +46,9 @@ type PostToolUseHookOutput = SyncHookJSONOutput & {
 	hookSpecificOutput?: PostToolUseHookSpecificOutput;
 };
 
+const POWERSHELL_EXE = "powershell.exe";
+const POWERSHELL_NO_PROFILE = "-NoProfile";
+
 function spawnBackground(script: string, extraEnvironment: Record<string, string> = {}): void {
 	const scriptFile = join(
 		tmpdir(),
@@ -57,9 +60,9 @@ function spawnBackground(script: string, extraEnvironment: Record<string, string
 
 	if (process.platform === "win32") {
 		spawnSync(
-			"powershell.exe",
+			POWERSHELL_EXE,
 			[
-				"-NoProfile",
+				POWERSHELL_NO_PROFILE,
 				"-Command",
 				`Start-Process -FilePath 'node' -ArgumentList '${scriptFile}' -WindowStyle Hidden`,
 			],
@@ -357,11 +360,15 @@ while ($currentPid -and $currentPid -ne 0) {
   if ($p.Name -eq 'claude.exe') { Write-Output $currentPid; exit }
   $currentPid = $p.ParentProcessId
 }`;
-			const result = execFileSync("powershell.exe", ["-NoProfile", "-Command", script], {
-				encoding: "utf-8",
-				stdio: ["pipe", "pipe", "pipe"],
-				timeout: 5_000,
-			}).trim();
+			const result = execFileSync(
+				POWERSHELL_EXE,
+				[POWERSHELL_NO_PROFILE, "-Command", script],
+				{
+					encoding: "utf-8",
+					stdio: ["pipe", "pipe", "pipe"],
+					timeout: 5_000,
+				},
+			).trim();
 			if (result.length > 0) {
 				mkdirSync(dirname(cacheFile), { recursive: true });
 				writeFileSync(cacheFile, result);
@@ -789,16 +796,25 @@ export function runEslint(
 	runner = DEFAULT_SETTINGS.runner,
 ): string | undefined {
 	const flags = ["--cache", ...extraFlags].join(" ");
+	const claudePid = getClaudePid();
+	const environment = {
+		...process.env,
+		...(claudePid !== undefined && { ESLINT_D_PPID: claudePid }),
+		ESLINT_IN_EDITOR: "true",
+	};
+
+	// On Windows, Node's execSync uses CreateProcess with bInheritHandles=TRUE,
+	// duplicating every inheritable parent handle into eslint_d and its forked
+	// daemon. The daemon outlives the hook, holding CCD pipes open forever and
+	// stalling subsequent CCD tool calls. Route through PowerShell's shell-exec
+	// branch (no -RedirectStandard*) and let cmd.exe handle > / 2> redirection,
+	// so the daemon only inherits the redirect file handles.
+	if (process.platform === "win32") {
+		return runEslintWindows(filePath, flags, runner, environment);
+	}
+
 	try {
-		const claudePid = getClaudePid();
-		execSync(`${runner} eslint_d ${flags} "${filePath}"`, {
-			env: {
-				...process.env,
-				...(claudePid !== undefined && { ESLINT_D_PPID: claudePid }),
-				ESLINT_IN_EDITOR: "true",
-			},
-			stdio: "pipe",
-		});
+		execSync(`${runner} eslint_d ${flags} "${filePath}"`, { env: environment, stdio: "pipe" });
 		return undefined;
 	} catch (err_) {
 		const err = err_ as { message?: string; stderr?: Buffer; stdout?: Buffer };
@@ -926,6 +942,85 @@ function readStopAttemptsState(path: string): StopAttemptsState {
 function writeStopAttemptsState(path: string, state: StopAttemptsState): void {
 	mkdirSync(dirname(path), { recursive: true });
 	writeFileSync(path, JSON.stringify(state));
+}
+
+function psSingleQuote(value: string): string {
+	return `'${value.replaceAll("'", "''")}'`;
+}
+
+function runEslintWindows(
+	filePath: string,
+	flags: string,
+	runner: string,
+	environment: NodeJS.ProcessEnv,
+): string | undefined {
+	// cmd.exe expands %VAR% even inside double-quoted strings, so a path or
+	// runner containing literal '%' would be rewritten before eslint_d sees
+	// it. Reject up front with a clear error rather than silently mis-route.
+	if (filePath.includes("%") || runner.includes("%")) {
+		return `error: lint hook cannot safely run on Windows for paths containing '%' (got filePath=${filePath}, runner=${runner})`;
+	}
+
+	const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+	const outFile = join(tmpdir(), `eslint_d_out_${id}.txt`);
+	const errFile = join(tmpdir(), `eslint_d_err_${id}.txt`);
+
+	const inner = `${runner} eslint_d ${flags} "${filePath}" > "${outFile}" 2> "${errFile}"`;
+	const psCmd =
+		`$p = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', ${psSingleQuote(inner)}) ` +
+		"-WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode";
+
+	let exitCode = 0;
+	let launcherStderr = "";
+	try {
+		execFileSync(POWERSHELL_EXE, [POWERSHELL_NO_PROFILE, "-Command", psCmd], {
+			env: environment,
+			stdio: ["ignore", "ignore", "pipe"],
+			windowsHide: true,
+		});
+	} catch (err) {
+		const error = err as { status?: number; stderr?: Buffer };
+		exitCode = error.status ?? 1;
+		launcherStderr = error.stderr?.toString().trim() ?? "";
+	}
+
+	let stdout = "";
+	let stderr = "";
+	try {
+		stdout = readFileSync(outFile, "utf-8");
+	} catch {
+		// daemon crashed before writing
+	}
+
+	try {
+		stderr = readFileSync(errFile, "utf-8");
+	} catch {
+		// daemon crashed before writing
+	}
+
+	try {
+		unlinkSync(outFile);
+	} catch {
+		// best-effort cleanup
+	}
+
+	try {
+		unlinkSync(errFile);
+	} catch {
+		// best-effort cleanup
+	}
+
+	if (exitCode === 0) {
+		return undefined;
+	}
+
+	if (stdout || stderr) {
+		return stdout || stderr;
+	}
+
+	// Nothing in the redirect files — launcher itself failed.
+	const detail = launcherStderr.length > 0 ? `: ${launcherStderr}` : "";
+	return `error: eslint_d launcher exited with code ${exitCode}${detail}`;
 }
 
 const RULE_TOKEN_PATTERN = /([\w-]+\/[\w-]+|[\w-]+)$/;

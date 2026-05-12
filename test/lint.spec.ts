@@ -1,8 +1,8 @@
 import type { BaseHookInput } from "@anthropic-ai/claude-agent-sdk";
 
 import { createFromFile } from "file-entry-cache";
-import type { ChildProcess, execFileSync, spawnSync } from "node:child_process";
-import { execSync, spawn } from "node:child_process";
+import type { ChildProcess, spawnSync } from "node:child_process";
+import { execFileSync, execSync, spawn } from "node:child_process";
 import {
 	existsSync,
 	globSync,
@@ -98,6 +98,7 @@ vi.mock(import("file-entry-cache"), async () => {
 });
 
 const mockedExecSync = vi.mocked(execSync);
+const mockedExecFileSync = vi.mocked(execFileSync);
 const mockedSpawn = vi.mocked(spawn);
 const mockedExistsSync = vi.mocked(existsSync);
 const mockedGlobSync = vi.mocked(globSync) as unknown as ReturnType<
@@ -124,6 +125,11 @@ function fakeSpawnResult(): ChildProcess {
 	});
 	return self;
 }
+
+// Pin platform to linux for the whole file. Some tests cover platform-specific
+// branches (case-insensitive path comparisons, win32 runEslint spawn) — those
+// save/restore inline. See vitest/no-hooks: no beforeEach/afterEach allowed.
+Object.defineProperty(process, "platform", { value: "linux" });
 
 describe(lint, () => {
 	describe(isInProject, () => {
@@ -381,6 +387,9 @@ describe(lint, () => {
 	});
 
 	describe(runEslint, () => {
+		// Outer module-scope sets platform=linux for the whole file; this block
+		// inherits that and exercises the POSIX execSync branch of runEslint.
+
 		it("should run eslint_d with correct args and ESLINT_IN_EDITOR env", () => {
 			expect.assertions(2);
 
@@ -469,6 +478,166 @@ describe(lint, () => {
 			});
 
 			expect(runEslint(testFilePath)).toBe("error message");
+		});
+	});
+
+	describe("runEslint (win32)", () => {
+		function findStartProcessCall(): Parameters<typeof execFileSync> | undefined {
+			return mockedExecFileSync.mock.calls.find((call) => {
+				const args = call[1];
+				return (
+					Array.isArray(args) &&
+					args.some((argument: string) => argument.includes("Start-Process"))
+				);
+			});
+		}
+
+		it("should spawn via powershell.exe Start-Process with cmd.exe redirection", () => {
+			expect.assertions(4);
+
+			const originalPlatform = process.platform;
+			Object.defineProperty(process, "platform", { value: "win32" });
+			mockedExecFileSync.mockReset();
+			mockedReadFileSync.mockReset();
+			mockedExecFileSync.mockReturnValue(Buffer.from(""));
+
+			const result = runEslint(testFilePath);
+
+			expect(result).toBeUndefined();
+
+			// getClaudePid may also call execFileSync(powershell.exe, ...) — pick
+			// the Start-Process call.
+			const psCall = findStartProcessCall();
+
+			expect(psCall?.[0]).toBe("powershell.exe");
+
+			const psCommand = (psCall![1] as Array<string>)[2]!;
+
+			expect(psCommand).toContain("Start-Process -FilePath 'cmd.exe'");
+			expect(psCommand).toMatch(/> "[^"]*eslint_d_out_[^"]*" 2> "[^"]*eslint_d_err_[^"]*"/);
+
+			Object.defineProperty(process, "platform", { value: originalPlatform });
+		});
+
+		it("should not pass -RedirectStandardOutput on Start-Process", () => {
+			expect.assertions(1);
+
+			const originalPlatform = process.platform;
+			Object.defineProperty(process, "platform", { value: "win32" });
+			mockedExecFileSync.mockReset();
+			mockedReadFileSync.mockReset();
+			mockedExecFileSync.mockReturnValue(Buffer.from(""));
+
+			runEslint(testFilePath);
+
+			const psCommand = (findStartProcessCall()![1] as Array<string>)[2]!;
+
+			expect(psCommand).not.toMatch(/-RedirectStandard(Output|Error|Input)/);
+
+			Object.defineProperty(process, "platform", { value: originalPlatform });
+		});
+
+		it("should return stdout content when eslint_d exits non-zero", () => {
+			expect.assertions(1);
+
+			const originalPlatform = process.platform;
+			Object.defineProperty(process, "platform", { value: "win32" });
+			mockedExecFileSync.mockReset();
+			mockedReadFileSync.mockReset();
+			mockedExecFileSync.mockImplementation(() => {
+				// eslint-disable-next-line ts/only-throw-error -- mimic execFileSync error shape
+				throw { status: 1 };
+			});
+			mockedReadFileSync.mockImplementation((path) => {
+				if (typeof path === "string" && path.includes("eslint_d_out_")) {
+					return "lint failure output";
+				}
+
+				return "";
+			});
+
+			expect(runEslint(testFilePath)).toBe("lint failure output");
+
+			Object.defineProperty(process, "platform", { value: originalPlatform });
+		});
+
+		it("should fall back to stderr when stdout is empty", () => {
+			expect.assertions(1);
+
+			const originalPlatform = process.platform;
+			Object.defineProperty(process, "platform", { value: "win32" });
+			mockedExecFileSync.mockReset();
+			mockedReadFileSync.mockReset();
+			mockedExecFileSync.mockImplementation(() => {
+				// eslint-disable-next-line ts/only-throw-error -- mimic execFileSync error shape
+				throw { status: 2 };
+			});
+			mockedReadFileSync.mockImplementation((path) => {
+				if (typeof path === "string" && path.includes("eslint_d_err_")) {
+					return "stderr only";
+				}
+
+				return "";
+			});
+
+			expect(runEslint(testFilePath)).toBe("stderr only");
+
+			Object.defineProperty(process, "platform", { value: originalPlatform });
+		});
+
+		it("should clean up both temp files", () => {
+			expect.assertions(2);
+
+			const originalPlatform = process.platform;
+			Object.defineProperty(process, "platform", { value: "win32" });
+			mockedExecFileSync.mockReset();
+			mockedReadFileSync.mockReset();
+			mockedExecFileSync.mockReturnValue(Buffer.from(""));
+			mockedReadFileSync.mockReturnValue("");
+			mockedUnlinkSync.mockClear();
+
+			runEslint(testFilePath);
+
+			const unlinkPaths = mockedUnlinkSync.mock.calls.map((call) => String(call[0]));
+
+			expect(unlinkPaths.some((entry) => entry.includes("eslint_d_out_"))).toBe(true);
+			expect(unlinkPaths.some((entry) => entry.includes("eslint_d_err_"))).toBe(true);
+
+			Object.defineProperty(process, "platform", { value: originalPlatform });
+		});
+
+		it("should refuse paths containing '%' (would be expanded by cmd.exe)", () => {
+			expect.assertions(2);
+
+			const originalPlatform = process.platform;
+			Object.defineProperty(process, "platform", { value: "win32" });
+			mockedExecFileSync.mockReset();
+			mockedExecFileSync.mockReturnValue(Buffer.from(""));
+
+			const result = runEslint("C:/repo/config%env%.ts");
+
+			expect(result).toMatch(/cannot safely run.*'%'/);
+			expect(findStartProcessCall()).toBeUndefined();
+
+			Object.defineProperty(process, "platform", { value: originalPlatform });
+		});
+
+		it("should surface launcher stderr when execFileSync fails", () => {
+			expect.assertions(1);
+
+			const originalPlatform = process.platform;
+			Object.defineProperty(process, "platform", { value: "win32" });
+			mockedExecFileSync.mockReset();
+			mockedReadFileSync.mockReset();
+			mockedExecFileSync.mockImplementation(() => {
+				// eslint-disable-next-line ts/only-throw-error -- mimic execFileSync error shape
+				throw { status: 9, stderr: Buffer.from("Start-Process: Access denied\n") };
+			});
+			mockedReadFileSync.mockReturnValue("");
+
+			expect(runEslint(testFilePath)).toContain("Access denied");
+
+			Object.defineProperty(process, "platform", { value: originalPlatform });
 		});
 	});
 
