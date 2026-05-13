@@ -621,6 +621,29 @@ describe(lint, () => {
 			Object.defineProperty(process, "platform", { value: originalPlatform });
 		});
 
+		// PowerShell's Start-Process -Wait waits for the process AND all
+		// descendants. eslint_d's forked daemon is a descendant of cmd.exe, so
+		// -Wait blocks until the daemon exits (never). Must use -PassThru +
+		// WaitForExit() so we wait only on cmd.exe.
+		it("should wait via PassThru + WaitForExit, not -Wait", () => {
+			expect.assertions(2);
+
+			const originalPlatform = process.platform;
+			Object.defineProperty(process, "platform", { value: "win32" });
+			mockedExecFileSync.mockReset();
+			mockedReadFileSync.mockReset();
+			mockedExecFileSync.mockReturnValue(Buffer.from(""));
+
+			runEslint([testFilePath]);
+
+			const psCommand = (findStartProcessCall()![1] as Array<string>)[2]!;
+
+			expect(psCommand).not.toMatch(/\s-Wait(\s|$)/);
+			expect(psCommand).toMatch(/-PassThru;\s*\$p\.WaitForExit\(\)/);
+
+			Object.defineProperty(process, "platform", { value: originalPlatform });
+		});
+
 		it("should return stdout content when eslint_d exits non-zero", () => {
 			expect.assertions(1);
 
