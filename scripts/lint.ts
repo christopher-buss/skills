@@ -992,9 +992,14 @@ function runEslintWindowsChunk(
 	const errFile = join(tmpdir(), `eslint_d_err_${id}.txt`);
 
 	const inner = `${runner} eslint_d ${flags} ${quoteFiles(filePaths)} > "${outFile}" 2> "${errFile}"`;
+	// Use -PassThru + WaitForExit() instead of -Wait. PowerShell's -Wait waits
+	// for the started process AND all its descendants; eslint_d's forked daemon
+	// is a descendant of cmd.exe, so -Wait would block until the daemon dies
+	// (never). WaitForExit() calls WaitForSingleObject on just cmd.exe — the
+	// detached daemon is ignored, matching pre-shell-exec execSync semantics.
 	const psCmd =
 		`$p = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', ${psSingleQuote(inner)}) ` +
-		"-WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode";
+		"-WindowStyle Hidden -PassThru; $p.WaitForExit(); exit $p.ExitCode";
 
 	let exitCode = 0;
 	let launcherStderr = "";
