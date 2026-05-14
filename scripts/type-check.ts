@@ -139,6 +139,7 @@ export function runTypeCheck(
 	try {
 		execSync(`${runner} ${args}`, {
 			stdio: "pipe",
+			windowsHide: true,
 		});
 		return undefined;
 	} catch (err_) {

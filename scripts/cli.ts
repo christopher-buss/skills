@@ -34,7 +34,12 @@ interface VendorConfig {
 }
 
 function exec(cmd: string, cwd = ROOT): string {
-	return execSync(cmd, { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+	return execSync(cmd, {
+		cwd,
+		encoding: "utf-8",
+		stdio: ["pipe", "pipe", "pipe"],
+		windowsHide: true,
+	}).trim();
 }
 
 function execSafe(cmd: string, cwd = ROOT): null | string {

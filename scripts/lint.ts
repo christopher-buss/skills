@@ -6,7 +6,13 @@ import type {
 import type { FileEditInput, FileWriteInput } from "@anthropic-ai/claude-agent-sdk/sdk-tools";
 
 import { createFromFile } from "file-entry-cache";
-import { execFileSync, execSync, spawn, spawnSync } from "node:child_process";
+import {
+	execFileSync,
+	execSync,
+	type ExecSyncOptionsWithStringEncoding,
+	spawn,
+	spawnSync,
+} from "node:child_process";
 import {
 	existsSync,
 	globSync,
@@ -367,6 +373,7 @@ while ($currentPid -and $currentPid -ne 0) {
 					encoding: "utf-8",
 					stdio: ["pipe", "pipe", "pipe"],
 					timeout: 5_000,
+					windowsHide: true,
 				},
 			).trim();
 			if (result.length > 0) {
@@ -550,7 +557,11 @@ export function readSettings(): LintSettings {
 }
 
 export function getChangedFiles(): Array<string> {
-	const options = { encoding: "utf-8" as const, stdio: "pipe" as const };
+	const options = {
+		encoding: "utf-8",
+		stdio: "pipe",
+		windowsHide: true,
+	} satisfies ExecSyncOptionsWithStringEncoding;
 	const changed = execSync("git diff --name-only --diff-filter=d HEAD", options);
 	const untracked = execSync("git ls-files --others --exclude-standard", options);
 	return [...changed.trim().split("\n"), ...untracked.trim().split("\n")]
@@ -598,6 +609,7 @@ export function getDependencyGraph(
 		encoding: "utf-8",
 		stdio: ["pipe", "pipe", "pipe"],
 		timeout: 30_000,
+		windowsHide: true,
 	});
 
 	return JSON.parse(output) as DependencyGraph;
@@ -789,6 +801,7 @@ export function runOxlint(
 		try {
 			execSync(`${prefix}${quoteFiles(chunk)}`, {
 				stdio: "pipe",
+				windowsHide: true,
 			});
 		} catch (err_) {
 			const err = err_ as { message?: string; stderr?: Buffer; stdout?: Buffer };
@@ -841,7 +854,11 @@ export function runEslint(
 
 	for (const chunk of chunks) {
 		try {
-			execSync(`${prefix}${quoteFiles(chunk)}`, { env: environment, stdio: "pipe" });
+			execSync(`${prefix}${quoteFiles(chunk)}`, {
+				env: environment,
+				stdio: "pipe",
+				windowsHide: true,
+			});
 		} catch (err_) {
 			const err = err_ as { message?: string; stderr?: Buffer; stdout?: Buffer };
 			const stdout = err.stdout?.toString() ?? "";
@@ -886,6 +903,7 @@ try {
   execSync(\`\${runner} eslint_d restart\`, {
     env: { ...process.env, ESLINT_D_PPID: process.env.ESLINT_D_PPID,${inEditorLine} },
     stdio: "pipe",
+	windowsHide: true,
   });
   if (debug) {
     fs.appendFileSync(logFile, \`restart: end \${new Date().toISOString()}\\n\`);
@@ -899,6 +917,7 @@ try {
     execSync(\`\${runner} eslint_d "\${warmupFile}"\`, {
       env: { ...process.env, ESLINT_D_PPID: process.env.ESLINT_D_PPID,${inEditorLine} },
       stdio: "pipe",
+	  windowsHide: true,
     });
     if (debug) {
       fs.appendFileSync(logFile, \`warmup: end \${new Date().toISOString()}\\n\`);

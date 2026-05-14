@@ -324,7 +324,7 @@ describe(runTypeCheck, () => {
 
 		expect(mockedExecSync).toHaveBeenCalledWith(
 			'pnpm exec tsgo --build --pretty false "/project/tsconfig.json"',
-			{ stdio: "pipe" },
+			{ stdio: "pipe", windowsHide: true },
 		);
 	});
 
@@ -337,7 +337,7 @@ describe(runTypeCheck, () => {
 
 		expect(mockedExecSync).toHaveBeenCalledWith(
 			'pnpm exec tsgo -p "/project/tsconfig.json" --noEmit --pretty false',
-			{ stdio: "pipe" },
+			{ stdio: "pipe", windowsHide: true },
 		);
 	});
 
