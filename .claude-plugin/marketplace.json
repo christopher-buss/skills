@@ -12,7 +12,8 @@
 		{
 			"name": "sentinel",
 			"source": "./",
-			"description": "General development workflows including eslint_d lint hook"
+			"description": "General development workflows including eslint_d lint hook",
+			"skills": ["./no-op/"]
 		}
 	]
 }
