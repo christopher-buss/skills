@@ -31,6 +31,7 @@ ignored.
 | `lintAutoFixOnBatch` | `lint-auto-fix-on-batch` | `boolean`                             | `true`        | Only used when `lintCadence` is `tiered` or `stop-only`. When `true`, the `PostToolBatch` hook runs `eslint --fix` on every file edited in the batch but does not surface results. Disable to skip the silent batch-fix pass. |
 | `cacheBust`          | `cache-bust`             | comma-separated globs                 | `*.config.*, **/tsconfig*.json` | Globs that force a full ESLint cache wipe when their mtime is newer than the cache. User patterns are appended to the defaults; prefix with `!` to exclude. |
 | `typecheckArgs`      | `typecheck-args`         | comma-separated strings               | `[]`          | Extra arguments passed to `tsgo`. When set, replaces the default `-p <tsconfig> --noEmit --pretty false` invocation with `tsgo <args> <tsconfig>`. |
+| `lintGuardAllow`     | `lint-guard-allow`       | comma-separated globs                 | `[]`          | Project-relative globs exempted from the lint guard. See [Lint guard](#lint-guard). |
 
 ### Notes on parsing
 
@@ -40,14 +41,40 @@ ignored.
   `false` disables them.
 - `oxlint` and `debug` default to disabled — only the literal string `true`
   enables them.
-- `cache-bust` and `typecheck-args` are comma-separated; whitespace around each
-  entry is trimmed and empty entries are dropped.
+- `cache-bust`, `typecheck-args`, and `lint-guard-allow` are comma-separated;
+  whitespace around each entry is trimmed and empty entries are dropped.
+- `lint-guard-allow` patterns are project-relative and `/`-separated, resolved
+  against `CLAUDE_PROJECT_DIR` (falling back to the working directory).
+  Comparison is case-insensitive on Windows.
 - `lint-cadence` falls back to `strict` if the value is not one of the three
   recognized strings.
 - `max-lint-attempts` and `max-lint-errors` accept any number; non-numeric
   values fall back to the default (only `max-lint-errors` is guarded against
   `NaN` — invalid `max-lint-attempts` values resolve to `NaN`, which makes the
   per-file loop guard never trip).
+
+## Lint guard
+
+A `PreToolUse` hook blocks `Edit` and `Write` on files whose name matches
+`eslint.config.*`, `oxlint.config.*`, `.eslintrc*`, `.oxlintrc.*`, or
+`sentinel.local.md`. The agent is told to report the offending rule instead of
+editing the config. The settings file is protected too, so an agent cannot
+grant itself a carve-out.
+
+`lint-guard-allow` is the only escape hatch. Patterns are globs matched against
+the file's project-relative path, so a monorepo can open one config while the
+rest stay protected:
+
+```yaml
+---
+lint-guard-allow: packages/app/eslint.config.ts
+---
+```
+
+With that setting, `packages/app/eslint.config.ts` is editable while
+`packages/lib/eslint.config.ts` and the root config remain blocked. Globs work
+too — `tools/**/eslint.config.*` exempts every config under `tools/`. Files
+outside the project directory are never exempt.
 
 ## Cadence modes
 

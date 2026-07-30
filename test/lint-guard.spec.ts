@@ -1,13 +1,31 @@
 import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import process from "node:process";
 import { describe, expect, it } from "vitest";
 
-function runGuard(filePath: string): string {
+const HOOK_PATH = resolve("hooks/lint-guard.ts");
+
+function runGuard(filePath: string, projectDirectory?: string): string {
 	const input = JSON.stringify({ tool_input: { file_path: filePath }, tool_name: "Edit" });
-	const result = spawnSync("node", ["hooks/lint-guard.ts"], {
+	const result = spawnSync("node", [HOOK_PATH], {
+		cwd: projectDirectory,
 		encoding: "utf-8",
+		env: { ...process.env, CLAUDE_PROJECT_DIR: projectDirectory ?? "" },
 		input,
 	});
 	return result.stdout.trim();
+}
+
+function makeProject(allow: string): string {
+	const root = mkdtempSync(join(tmpdir(), "lint-guard-"));
+	mkdirSync(join(root, ".claude"), { recursive: true });
+	writeFileSync(
+		join(root, ".claude", "sentinel.local.md"),
+		`---\nlint-guard-allow: ${allow}\n---\n`,
+	);
+	return root;
 }
 
 describe("lint-guard hook", () => {
@@ -44,5 +62,37 @@ describe("lint-guard hook", () => {
 		const output = runGuard("eslint-plugin/index.ts");
 
 		expect(output).toBe("");
+	});
+
+	it("should allow a config covered by lint-guard-allow", () => {
+		expect.assertions(1);
+
+		const root = makeProject("packages/app/eslint.config.ts");
+
+		const output = runGuard(join(root, "packages", "app", "eslint.config.ts"), root);
+
+		expect(output).toBe("");
+	});
+
+	it("should still block a config outside lint-guard-allow", () => {
+		expect.assertions(1);
+
+		const root = makeProject("packages/app/eslint.config.ts");
+
+		const output = runGuard(join(root, "packages", "lib", "eslint.config.ts"), root);
+		const parsed = JSON.parse(output) as { decision: string };
+
+		expect(parsed.decision).toBe("block");
+	});
+
+	it("should block edits to the sentinel settings file", () => {
+		expect.assertions(1);
+
+		const root = makeProject("packages/app/eslint.config.ts");
+
+		const output = runGuard(join(root, ".claude", "sentinel.local.md"), root);
+		const parsed = JSON.parse(output) as { decision: string };
+
+		expect(parsed.decision).toBe("block");
 	});
 });

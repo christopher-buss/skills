@@ -24,7 +24,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, join, matchesGlob, relative, resolve, sep } from "node:path";
 import process from "node:process";
 
 export type LintCadence = "stop-only" | "strict" | "tiered";
@@ -38,6 +38,7 @@ export interface LintSettings {
 	lint: boolean;
 	lintAutoFixOnBatch: boolean;
 	lintCadence: LintCadence;
+	lintGuardAllow: Array<string>;
 	maxLintAttempts: number;
 	maxLintErrors: number;
 	oxlint: boolean;
@@ -85,12 +86,55 @@ function spawnBackground(script: string, extraEnvironment: Record<string, string
 	}
 }
 
-const PROTECTED_PATTERNS = ["eslint.config.", "oxlint.config.", ".eslintrc", ".oxlintrc."];
+const PROTECTED_PATTERNS = [
+	"eslint.config.",
+	"oxlint.config.",
+	".eslintrc",
+	".oxlintrc.",
+	"sentinel.local.md",
+];
 
 export function isProtectedFile(filename: string): boolean {
 	return PROTECTED_PATTERNS.some(
 		(pattern) => filename.startsWith(pattern) || filename === pattern,
 	);
+}
+
+/**
+ * Checks whether a protected file is exempted by the `lint-guard-allow`
+ * setting. Patterns are globs matched against the file's project-relative,
+ * `/`-separated path, so a monorepo can exempt one package's config while the
+ * other configs stay protected.
+ *
+ * @param filePath - Path of the file being edited, absolute or relative.
+ * @param patterns - Allowlist globs from `LintSettings.lintGuardAllow`.
+ * @returns True when the file is exempt from the lint guard.
+ */
+export function isGuardAllowed(filePath: string, patterns: Array<string>): boolean {
+	if (patterns.length === 0) {
+		return false;
+	}
+
+	const relativePath = toProjectRelative(filePath);
+	if (relativePath.startsWith("../")) {
+		return false;
+	}
+
+	const target = normalizeCase(relativePath);
+	return patterns.some((pattern) => matchesGlob(target, normalizeCase(pattern)));
+}
+
+function normalizeCase(value: string): string {
+	return process.platform === "win32" ? value.toLowerCase() : value;
+}
+
+function toProjectRelative(filePath: string): string {
+	const projectDirectory = process.env["CLAUDE_PROJECT_DIR"];
+	const root =
+		projectDirectory === undefined || projectDirectory === ""
+			? process.cwd()
+			: projectDirectory;
+	return relative(resolve(root), resolve(filePath)).split(sep).join("/");
 }
 
 const LINT_STATE_PATH = ".claude/state/lint-attempts.json";
@@ -472,6 +516,7 @@ const DEFAULT_SETTINGS = {
 	lint: true,
 	lintAutoFixOnBatch: true,
 	lintCadence: DEFAULT_LINT_CADENCE,
+	lintGuardAllow: [],
 	maxLintAttempts: DEFAULT_MAX_LINT_ATTEMPTS,
 	maxLintErrors: DEFAULT_MAX_LINT_ERRORS,
 	oxlint: false,
@@ -510,14 +555,6 @@ export function readSettings(): LintSettings {
 	const content = readFileSync(SETTINGS_FILE, "utf-8");
 	const fields = parseFrontmatter(content);
 
-	const cacheBustRaw = fields.get("cache-bust") ?? "";
-	const userPatterns = cacheBustRaw
-		? cacheBustRaw
-				.split(",")
-				.map((entry) => entry.trim())
-				.filter(Boolean)
-		: [];
-
 	const maxAttemptsRaw = fields.get("max-lint-attempts");
 	const maxAttemptsParsed = maxAttemptsRaw !== undefined ? Number(maxAttemptsRaw) : Number.NaN;
 	const maxLintAttempts = Number.isFinite(maxAttemptsParsed)
@@ -538,21 +575,19 @@ export function readSettings(): LintSettings {
 			: DEFAULT_LINT_CADENCE;
 
 	return {
-		cacheBust: [...DEFAULT_CACHE_BUST, ...userPatterns],
+		cacheBust: [...DEFAULT_CACHE_BUST, ...parseList(fields.get("cache-bust"))],
 		debug: fields.get("debug") === "true",
 		eslint: fields.get("eslint") !== "false",
 		lint: fields.get("lint") !== "false",
 		lintAutoFixOnBatch: parseAutoFixOnBatch(fields.get("lint-auto-fix-on-batch")),
 		lintCadence,
+		lintGuardAllow: parseList(fields.get("lint-guard-allow")),
 		maxLintAttempts,
 		maxLintErrors,
 		oxlint: fields.get("oxlint") === "true",
 		runner: fields.get("runner") ?? DEFAULT_SETTINGS.runner,
 		typecheck: fields.get("typecheck") !== "false",
-		typecheckArgs: (fields.get("typecheck-args") ?? "")
-			.split(",")
-			.map((entry) => entry.trim())
-			.filter(Boolean),
+		typecheckArgs: parseList(fields.get("typecheck-args")),
 	};
 }
 
@@ -625,6 +660,7 @@ export function invertGraph(graph: DependencyGraph, target: string): Array<strin
 
 	return importers;
 }
+
 export function findSourceRoot(filePath: string): string | undefined {
 	let current = dirname(filePath);
 	while (current !== dirname(current)) {
@@ -642,7 +678,6 @@ export function findSourceRoot(filePath: string): string | undefined {
 
 	return undefined;
 }
-
 export function readLintAttempts(sessionId: string): Record<string, number> {
 	const state = readLintAttemptsState();
 	return state[sessionId] ?? {};
@@ -779,6 +814,13 @@ export function invalidateCacheEntries(filePaths: Array<string>): void {
 	}
 
 	cache.reconcile();
+}
+
+function parseList(raw: string | undefined): Array<string> {
+	return (raw ?? "")
+		.split(",")
+		.map((entry) => entry.trim())
+		.filter(Boolean);
 }
 
 const MAX_COMMAND_LENGTH = 32_000;
