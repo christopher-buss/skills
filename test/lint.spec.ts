@@ -35,6 +35,7 @@ import {
 	incrementLintAttempt,
 	invalidateCacheEntries,
 	invertGraph,
+	isGuardAllowed,
 	isInProject,
 	isLintableFile,
 	isProtectedFile,
@@ -961,6 +962,7 @@ describe(lint, () => {
 				lint: true,
 				lintAutoFixOnBatch: true,
 				lintCadence: "strict",
+				lintGuardAllow: [],
 				maxLintAttempts: 1,
 				maxLintErrors: 10,
 				oxlint: false,
@@ -983,6 +985,7 @@ describe(lint, () => {
 				lint: true,
 				lintAutoFixOnBatch: true,
 				lintCadence: "strict",
+				lintGuardAllow: [],
 				maxLintAttempts: 1,
 				maxLintErrors: 10,
 				oxlint: false,
@@ -1016,6 +1019,7 @@ describe(lint, () => {
 				lint: true,
 				lintAutoFixOnBatch: true,
 				lintCadence: "strict",
+				lintGuardAllow: [],
 				maxLintAttempts: 1,
 				maxLintErrors: 10,
 				oxlint: true,
@@ -1362,6 +1366,7 @@ describe(lint, () => {
 				lint: true,
 				lintAutoFixOnBatch: true,
 				lintCadence: "strict",
+				lintGuardAllow: [],
 				maxLintAttempts: 1,
 				maxLintErrors: 10,
 				oxlint: true,
@@ -1403,6 +1408,7 @@ describe(lint, () => {
 				lint: true,
 				lintAutoFixOnBatch: true,
 				lintCadence: "strict",
+				lintGuardAllow: [],
 				maxLintAttempts: 1,
 				maxLintErrors: 10,
 				oxlint: true,
@@ -1671,6 +1677,7 @@ describe(lint, () => {
 				lint: true,
 				lintAutoFixOnBatch: true,
 				lintCadence: "strict",
+				lintGuardAllow: [],
 				maxLintAttempts: 1,
 				maxLintErrors: 10,
 				oxlint: true,
@@ -1726,6 +1733,7 @@ describe(lint, () => {
 				lint: true,
 				lintAutoFixOnBatch: true,
 				lintCadence: "strict",
+				lintGuardAllow: [],
 				maxLintAttempts: 1,
 				maxLintErrors: 10,
 				oxlint: true,
@@ -1763,6 +1771,7 @@ describe(lint, () => {
 				lint: true,
 				lintAutoFixOnBatch: true,
 				lintCadence: "strict",
+				lintGuardAllow: [],
 				maxLintAttempts: 1,
 				maxLintErrors: 10,
 				oxlint: false,
@@ -1798,6 +1807,30 @@ describe(lint, () => {
 			expect(readSettings()).toMatchObject({
 				cacheBust: [...DEFAULT_CACHE_BUST],
 			});
+		});
+	});
+
+	describe("readSettings lintGuardAllow", () => {
+		it("should parse a comma-separated pattern list", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue(
+				"---\nlint-guard-allow: packages/app/eslint.config.ts, tools/**/*.config.ts\n---\n",
+			);
+
+			expect(readSettings()).toMatchObject({
+				lintGuardAllow: ["packages/app/eslint.config.ts", "tools/**/*.config.ts"],
+			});
+		});
+
+		it("should default lintGuardAllow to an empty list", () => {
+			expect.assertions(1);
+
+			mockedExistsSync.mockReturnValue(true);
+			mockedReadFileSync.mockReturnValue("---\neslint: true\n---\n");
+
+			expect(readSettings()).toMatchObject({ lintGuardAllow: [] });
 		});
 	});
 
@@ -2066,6 +2099,7 @@ describe(lint, () => {
 				lint: true,
 				lintAutoFixOnBatch: true,
 				lintCadence: "strict",
+				lintGuardAllow: [],
 				maxLintAttempts: 1,
 				maxLintErrors: 10,
 				oxlint: false,
@@ -2095,6 +2129,7 @@ describe(lint, () => {
 				lint: true,
 				lintAutoFixOnBatch: true,
 				lintCadence: "strict",
+				lintGuardAllow: [],
 				maxLintAttempts: 1,
 				maxLintErrors: 10,
 				oxlint: false,
@@ -2549,6 +2584,109 @@ describe(lint, () => {
 			expect.assertions(1);
 
 			expect(isProtectedFile("eslint-plugin/index.ts")).toBe(false);
+		});
+
+		it("should block the sentinel settings file", () => {
+			expect.assertions(1);
+
+			expect(isProtectedFile("sentinel.local.md")).toBe(true);
+		});
+	});
+
+	describe(isGuardAllowed, () => {
+		it("should deny when no patterns are configured", () => {
+			expect.assertions(1);
+
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "/project");
+
+			expect(isGuardAllowed(join("/project", "eslint.config.ts"), [])).toBe(false);
+
+			vi.unstubAllEnvs();
+		});
+
+		it("should allow an exact project-relative match", () => {
+			expect.assertions(1);
+
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "/project");
+
+			const filePath = join("/project", "packages", "app", "eslint.config.ts");
+
+			expect(isGuardAllowed(filePath, ["packages/app/eslint.config.ts"])).toBe(true);
+
+			vi.unstubAllEnvs();
+		});
+
+		it("should allow a glob match", () => {
+			expect.assertions(1);
+
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "/project");
+
+			const filePath = join("/project", "tools", "lint", "eslint.config.mjs");
+
+			expect(isGuardAllowed(filePath, ["tools/**/eslint.config.*"])).toBe(true);
+
+			vi.unstubAllEnvs();
+		});
+
+		it("should deny a sibling config that no pattern covers", () => {
+			expect.assertions(1);
+
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "/project");
+
+			const filePath = join("/project", "packages", "lib", "eslint.config.ts");
+
+			expect(isGuardAllowed(filePath, ["packages/app/eslint.config.ts"])).toBe(false);
+
+			vi.unstubAllEnvs();
+		});
+
+		it("should deny a file outside the project", () => {
+			expect.assertions(1);
+
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "/project");
+
+			expect(isGuardAllowed("/other/eslint.config.ts", ["**/eslint.config.*"])).toBe(false);
+
+			vi.unstubAllEnvs();
+		});
+
+		it("should resolve against cwd when CLAUDE_PROJECT_DIR is not set", () => {
+			expect.assertions(1);
+
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "");
+
+			const filePath = join(process.cwd(), "packages", "app", "eslint.config.ts");
+
+			expect(isGuardAllowed(filePath, ["packages/app/eslint.config.ts"])).toBe(true);
+
+			vi.unstubAllEnvs();
+		});
+
+		it("should ignore case on windows", () => {
+			expect.assertions(1);
+
+			const originalPlatform = process.platform;
+			Object.defineProperty(process, "platform", { value: "win32" });
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "/project");
+
+			const filePath = join("/project", "Packages", "App", "eslint.config.ts");
+
+			expect(isGuardAllowed(filePath, ["packages/app/eslint.config.ts"])).toBe(true);
+
+			Object.defineProperty(process, "platform", { value: originalPlatform });
+			vi.unstubAllEnvs();
+		});
+
+		it("should respect case on non-windows", () => {
+			expect.assertions(1);
+
+			vi.stubEnv("CLAUDE_PROJECT_DIR", "/project");
+
+			const filePath = join("/project", "Packages", "App", "eslint.config.ts");
+
+			expect(isGuardAllowed(filePath, ["packages/app/eslint.config.ts"])).toBe(false);
+
+			vi.unstubAllEnvs();
 		});
 	});
 
