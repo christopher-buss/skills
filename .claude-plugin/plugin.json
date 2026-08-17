@@ -12,5 +12,22 @@
 	"license": "MIT",
 	"keywords": ["tdd", "typescript", "collaboration", "best-practices", "workflows"],
 	"skills": "./no-op/",
-	"outputStyles": "./output-styles/"
+	"outputStyles": "./output-styles/",
+	"lspServers": {
+		"typescript": {
+			"command": "typescript-language-server",
+			"args": ["--stdio"],
+			"diagnostics": false,
+			"extensionToLanguage": {
+				".cjs": "javascript",
+				".cts": "typescript",
+				".js": "javascript",
+				".jsx": "javascriptreact",
+				".mjs": "javascript",
+				".mts": "typescript",
+				".ts": "typescript",
+				".tsx": "typescriptreact"
+			}
+		}
+	}
 }
