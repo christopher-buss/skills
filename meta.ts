@@ -14,24 +14,10 @@ export const submodules = {
 	"jest-extended": "https://github.com/christopher-buss/rbxts-jest-extended",
 	"pnpm": "https://github.com/pnpm/pnpm.io",
 	"roblox-ts": "https://github.com/roblox-ts/roblox-ts.com",
-	"superpowers": "https://github.com/obra/superpowers",
 };
 
 /** Already generated skills, sync with their `skills/` directory. */
-export const vendors = {
-	humanizer: {
-		skills: {
-			".": "humanizer",
-		},
-		source: "https://github.com/blader/humanizer",
-	},
-	superpowers: {
-		skills: {
-			"writing-skills": "writing-skills",
-		},
-		source: "https://github.com/obra/superpowers",
-	},
-} satisfies Record<string, VendorSkillMeta>;
+export const vendors = {} satisfies Record<string, VendorSkillMeta>;
 
 /** Hand-written skills. */
-export const manual = ["isentinel", "ecs-design", "roblox-ts", "test-driven-development"];
+export const manual = ["ecs-design", "roblox-ts"];
