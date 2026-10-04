@@ -35,9 +35,7 @@ Manually written with personal preferences and best practices.
 
 | Skill                         | Description                                                   |
 | ----------------------------- | ------------------------------------------------------------- |
-| [isentinel](skills/isentinel) | isentinel's opinionated preferences for roblox-ts development |
 | [roblox-ts](skills/roblox-ts) | TypeScript to Roblox Lua transpiler                           |
-| [test-driven-development](skills/test-driven-development) | How to write tests and design for testability in Roblox projects |
 | [ecs-design](skills/ecs-design) | Best practices for designing Entity Component Systems in Roblox    |
 
 ### Generated from documentation
@@ -49,16 +47,6 @@ Generated from official docs.
 | [jecs](skills/jecs)               | Entity Component System for Roblox            | [Ukendio/jecs](https://github.com/Ukendio/jecs)               |
 | [pnpm](skills/pnpm)               | Fast, disk-efficient package manager          | [pnpm/pnpm.io](https://github.com/pnpm/pnpm.io)               |
 | [roblox-ts](skills/robloxTs)      | TypeScript to Roblox Lua transpiler           | [roblox-ts/roblox-ts](https://github.com/roblox-ts/roblox-ts) |
-| [superpowers](skills/superpowers) | Agent workflow skills (customized for Roblox) | [obra/superpowers](https://github.com/obra/superpowers)       |
-
-### Vendored
-
-Synced from external repos that maintain their own skills.
-
-| Skill                                   | Description                          | Source                                                  |
-| --------------------------------------- | ------------------------------------ | ------------------------------------------------------- |
-| [humanizer](skills/humanizer)           | Remove AI writing patterns from text | [blader/humanizer](https://github.com/blader/humanizer) |
-| [writing-skills](skills/writing-skills) | How to write agent skills            | [obra/superpowers](https://github.com/obra/superpowers) |
 
 ## Usage
 

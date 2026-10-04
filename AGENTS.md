@@ -2,9 +2,6 @@
 
 Generate [Agent Skills](https://agentskills.io/home) from project documentation.
 
-PLEASE DO FOLLOW THIS BEST PRACTICES GUIDELINE:
-'skills/writing-skills/anthropic-best-practices.md'
-
 Focus on agents capabilities and practical usage patterns. For user-facing
 guides, introductions, get-started, install guide, or common knowledge that LLM
 agents already know, you can skip those content.
@@ -28,7 +25,7 @@ and generate skills from their documentation.
 For projects that **already maintain their own skills**. We clone their repo as
 a submodule and sync specified skills to ours.
 
-- **Projects:** turborepo, humanizer
+- **Projects:** none currently
 - **Workflow:** Pull updates → Copy specified skills (with optional renaming)
 - **Source:** `vendor/{project}/skills/{skill-name}/`
 - **Config:** Each vendor specifies which skills to sync and their output names
