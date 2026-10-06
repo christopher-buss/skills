@@ -46,6 +46,7 @@
 		"start": "node scripts/cli.ts",
 		"test": "vitest",
 		"test:coverage": "vitest run --coverage",
+		"test:plugins": "claude plugin validate plugins/commitlint-preflight && claude plugin test plugins/commitlint-preflight",
 		"typecheck": "tsgo --noEmit"
 	},
 	"simple-git-hooks": {

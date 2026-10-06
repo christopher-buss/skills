@@ -11,4 +11,4 @@ logs
 node_modules
 temp
 reference
-.claude/state
+.claude/stateplugins/*/.claude-plugin/types/
