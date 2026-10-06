@@ -48,6 +48,41 @@ Generated from official docs.
 | [pnpm](skills/pnpm)               | Fast, disk-efficient package manager          | [pnpm/pnpm.io](https://github.com/pnpm/pnpm.io)               |
 | [roblox-ts](skills/robloxTs)      | TypeScript to Roblox Lua transpiler           | [roblox-ts/roblox-ts](https://github.com/roblox-ts/roblox-ts) |
 
+## Plugins
+
+### commitlint-preflight
+
+A Claude Code mod that checks a PR title before `gh pr create` or `gh pr edit`
+runs. A squash merge makes the PR title the commit message, so the title must
+pass the repository's commitlint config.
+
+For each `gh pr create` or `gh pr edit` in a Bash or PowerShell command, it
+reads the `--title`, `--title=`, or `-t` value and runs the repository's own
+`@commitlint/cli` on it. It denies the call when:
+
+- commitlint rejects the title (the denial holds commitlint's output);
+- the title is not a literal string: it holds a variable, a command
+  substitution, a glob, or a here-document, or its quote does not close;
+- `gh pr create` has no title flag (`--fill`, `--web`, the editor, or the
+  prompt);
+- the repository configures commitlint but `@commitlint/cli` is not installed.
+
+A repository without a commitlint config is not checked. Enable it in
+`settings.json`:
+
+```json
+{
+	"extraKnownMarketplaces": {
+		"isentinel": {
+			"source": { "source": "github", "repo": "christopher-buss/skills" }
+		}
+	},
+	"enabledPlugins": {
+		"commitlint-preflight@isentinel": true
+	}
+}
+```
+
 ## Usage
 
 See [AGENTS.md](AGENTS.md) for how skills are generated and maintained.
