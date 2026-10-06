@@ -1,7 +1,15 @@
 import type { EngineInterface, Register } from "claude-code";
 
 import { errorReason, failedReason, missingCliReason } from "../src/messages.ts";
-import { ancestors, binEntry, CLI_PACKAGE, COMMITLINT_CONFIG_FILES, hasCommitlintKey, join, LOCK_FILES } from "../src/repo.ts";
+import {
+	ancestors,
+	binEntry,
+	CLI_PACKAGE,
+	COMMITLINT_CONFIG_FILES,
+	hasCommitlintKey,
+	join,
+	LOCK_FILES,
+} from "../src/repo.ts";
 import type { Dialect } from "../src/shell.ts";
 import { findTitleChecks, mayHoldTitle } from "../src/titles.ts";
 
@@ -38,7 +46,9 @@ async function usesCommitlint($: EngineInterface, root: string): Promise<boolean
 async function cliEntry($: EngineInterface, root: string): Promise<string | undefined> {
 	const packageDirectory = join(root, CLI_PACKAGE);
 	const entry = binEntry((await readText($, join(packageDirectory, "package.json"))) ?? "");
-	return entry !== undefined && (await $.fs.exists(join(packageDirectory, entry))) ? join(packageDirectory, entry) : undefined;
+	return entry !== undefined && (await $.fs.exists(join(packageDirectory, entry)))
+		? join(packageDirectory, entry)
+		: undefined;
 }
 
 async function installCommand($: EngineInterface, root: string): Promise<string> {
@@ -51,16 +61,29 @@ async function installCommand($: EngineInterface, root: string): Promise<string>
 	return "npm install";
 }
 
-async function lint($: EngineInterface, root: string, cli: string, title: string): Promise<string | undefined> {
+async function lint(
+	$: EngineInterface,
+	root: string,
+	cli: string,
+	title: string,
+): Promise<string | undefined> {
 	try {
-		const { exitCode, stderr, stdout } = await $.process.run(["node", cli], { cwd: root, stdin: title, timeoutMs: TIMEOUT_MS });
+		const { exitCode, stderr, stdout } = await $.process.run(["node", cli], {
+			cwd: root,
+			stdin: title,
+			timeoutMs: TIMEOUT_MS,
+		});
 		return exitCode === 0 ? undefined : failedReason(title, `${stdout}\n${stderr}`.trim());
 	} catch (err) {
 		return errorReason(title, err);
 	}
 }
 
-async function evaluate($: EngineInterface, command: string, dialect: Dialect): Promise<string | undefined> {
+async function evaluate(
+	$: EngineInterface,
+	command: string,
+	dialect: Dialect,
+): Promise<string | undefined> {
 	const checks = findTitleChecks(command, dialect);
 	const titles: Array<string> = [];
 	for (const check of checks) {
@@ -101,7 +124,11 @@ export const register: Register = (on) => {
 			return next(e);
 		}
 
-		const reason = await evaluate($, e.command, e.tool === "Bash" ? "bash" : "powershell").catch((err: unknown) => errorReason(undefined, err));
+		const reason = await evaluate(
+			$,
+			e.command,
+			e.tool === "Bash" ? "bash" : "powershell",
+		).catch((err: unknown) => errorReason(undefined, err));
 		return reason === undefined ? next(e) : { deny: reason };
 	});
 };

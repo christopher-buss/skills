@@ -7,7 +7,8 @@
 		"lib": ["es2023"],
 		"module": "esnext",
 		"moduleResolution": "bundler",
-		"types": [],
+		"typeRoots": ["./.claude-plugin/types"],
+		"types": ["claude-code", "claude-code-tools"],
 		"allowImportingTsExtensions": true,
 		"strict": true,
 		"noPropertyAccessFromIndexSignature": true,
@@ -15,5 +16,5 @@
 		"noEmit": true,
 		"skipLibCheck": true
 	},
-	"include": [".claude-plugin/types", "hooks", "src", "tests"]
+	"include": ["hooks", "src", "tests"]
 }

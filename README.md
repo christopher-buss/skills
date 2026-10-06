@@ -92,6 +92,15 @@ A repository without a commitlint config is not checked. Enable it in
 }
 ```
 
+Its `.claude-plugin/types/` holds the mods API types that Claude Code writes, so
+lint and typecheck work from a clone. After a Claude Code upgrade, refresh them
+and commit the diff:
+
+```bash
+claude -p --plugin-dir plugins/commitlint-preflight "reply ok"
+git add -f plugins/commitlint-preflight/.claude-plugin/types/claude-code{,-tools}/index.d.ts
+```
+
 ## Usage
 
 See [AGENTS.md](AGENTS.md) for how skills are generated and maintained.
