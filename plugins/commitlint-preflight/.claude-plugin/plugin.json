@@ -1,0 +1,14 @@
+{
+	"name": "commitlint-preflight",
+	"description": "Denies gh pr create and gh pr edit when the PR title fails the repository's commitlint config, before gh runs",
+	"version": "0.1.0",
+	"author": {
+		"name": "Christopher Buss",
+		"email": "christopher.buss@pm.me",
+		"url": "https://github.com/christopher-buss"
+	},
+	"homepage": "https://github.com/christopher-buss/skills",
+	"repository": "https://github.com/christopher-buss/skills",
+	"license": "MIT",
+	"keywords": ["commitlint", "github", "pull-request", "conventional-commits"]
+}

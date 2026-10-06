@@ -5,14 +5,18 @@ version: "0.2"
 language: en
 words:
   - cframe
+  - commitlintrc
   - constellos
   - flecs
   - hashery
+  - heredocs
   - hookified
   - jecs
   - lintable
+  - nohup
   - oxlint
   - oxlintrc
+  - pflag
   - pnpmfile
   - regen
   - turborepo

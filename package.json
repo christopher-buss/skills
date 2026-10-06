@@ -46,13 +46,14 @@
 		"start": "node scripts/cli.ts",
 		"test": "vitest",
 		"test:coverage": "vitest run --coverage",
-		"typecheck": "tsgo --noEmit"
+		"test:plugins": "claude plugin validate plugins/commitlint-preflight && claude plugin test plugins/commitlint-preflight",
+		"typecheck": "tsgo --noEmit && tsgo --noEmit -p plugins/commitlint-preflight"
 	},
 	"simple-git-hooks": {
 		"pre-commit": "pnpm lint-staged"
 	},
 	"lint-staged": {
-		"*.{ts,mts}": "eslint --fix"
+		"*.{ts,mts}": "eslint --fix --no-warn-ignored"
 	},
 	"dependencies": {
 		"eslint_d": "catalog:",

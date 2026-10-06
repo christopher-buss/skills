@@ -16,6 +16,7 @@ export default isentinel(
 			"**/sources/**",
 			`**/skills/{${vendorSkillNames.join(",")}}/**`,
 			"skill-test",
+			"plugins/*/.claude-plugin/types/**",
 			"!.claude",
 			".claude/**/*",
 			"!.claude/**/*.json",
@@ -59,6 +60,34 @@ export default isentinel(
 		files: [...GLOB_TESTS],
 		rules: {
 			"sonar/no-duplicate-string": "off",
+		},
+	},
+	{
+		name: "project/plugin-engine",
+		files: ["plugins/*/hooks/**/*.ts", "plugins/*/tests/**/*.test.ts"],
+		rules: {
+			// The engine names its interface `$`.
+			"id-length": [
+				"error",
+				{
+					exceptions: ["_", "$", "x", "y", "z", "a", "b", "e"],
+					max: 30,
+					min: 2,
+					properties: "never",
+				},
+			],
+			// Both run for minutes per file on the engine's `on` overloads.
+			"ts/no-misused-promises": ["error", { checksVoidReturn: { arguments: false } }],
+			"ts/strict-void-return": "off",
+		},
+	},
+	{
+		name: "project/plugin-tests",
+		files: ["plugins/*/tests/**/*.test.ts"],
+		rules: {
+			// `claude plugin test` runs `.test.ts` and supplies `test`/`expect`.
+			"vitest/consistent-test-filename": "off",
+			"vitest/prefer-importing-vitest-globals": "off",
 		},
 	},
 );
