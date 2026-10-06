@@ -11,4 +11,6 @@ logs
 node_modules
 temp
 reference
-.claude/stateplugins/*/.claude-plugin/types/
+.claude/state
+plugins/*/.claude-plugin/types/claude-code-mcp/
+plugins/*/.claude-plugin/types/tsconfig.json
