@@ -65,7 +65,16 @@ reads the `--title`, `--title=`, or `-t` value and runs the repository's own
   substitution, a glob, or a here-document, or its quote does not close;
 - `gh pr create` has no title flag (`--fill`, `--web`, the editor, or the
   prompt);
+- a flag, wrapper, or `bash -c` / `pwsh -Command` script around `gh pr` cannot
+  be parsed;
+- `pwsh` or `powershell` runs an encoded command (`-EncodedCommand`, `-enc`,
+  `-e`, `-ec`, and the other spellings PowerShell takes), which hides its
+  script;
 - the repository configures commitlint but `@commitlint/cli` is not installed.
+
+Each denial says what it could not check and the command to run instead: the
+same `gh pr` command with a literal `--title`, the install command for the
+repository's package manager, or a manual commitlint check.
 
 A repository without a commitlint config is not checked. Enable it in
 `settings.json`:

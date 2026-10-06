@@ -1,9 +1,9 @@
 import type { EngineInterface, Register } from "claude-code";
 
 import { errorReason, failedReason, missingCliReason } from "../src/messages.ts";
-import { ancestors, binEntry, CLI_PACKAGE, COMMITLINT_CONFIG_FILES, hasCommitlintKey, join } from "../src/repo.ts";
+import { ancestors, binEntry, CLI_PACKAGE, COMMITLINT_CONFIG_FILES, hasCommitlintKey, join, LOCK_FILES } from "../src/repo.ts";
 import type { Dialect } from "../src/shell.ts";
-import { findTitleChecks, mentionsGhPr } from "../src/titles.ts";
+import { findTitleChecks, mayHoldTitle } from "../src/titles.ts";
 
 const TIMEOUT_MS = 30_000;
 
@@ -41,6 +41,16 @@ async function cliEntry($: EngineInterface, root: string): Promise<string | unde
 	return entry !== undefined && (await $.fs.exists(join(packageDirectory, entry))) ? join(packageDirectory, entry) : undefined;
 }
 
+async function installCommand($: EngineInterface, root: string): Promise<string> {
+	for (const [lockfile, install] of LOCK_FILES) {
+		if (await $.fs.exists(join(root, lockfile))) {
+			return install;
+		}
+	}
+
+	return "npm install";
+}
+
 async function lint($: EngineInterface, root: string, cli: string, title: string): Promise<string | undefined> {
 	try {
 		const { exitCode, stderr, stdout } = await $.process.run(["node", cli], { cwd: root, stdin: title, timeoutMs: TIMEOUT_MS });
@@ -72,7 +82,7 @@ async function evaluate($: EngineInterface, command: string, dialect: Dialect): 
 
 	const cli = await cliEntry($, root);
 	if (cli === undefined) {
-		return missingCliReason(root);
+		return missingCliReason(root, await installCommand($, root));
 	}
 
 	for (const title of titles) {
@@ -87,11 +97,11 @@ async function evaluate($: EngineInterface, command: string, dialect: Dialect): 
 
 export const register: Register = (on) => {
 	on("tool.call", { tool: ["Bash", "PowerShell"] }, async ($, e, next) => {
-		if (!mentionsGhPr(e.command)) {
+		if (!mayHoldTitle(e.command)) {
 			return next(e);
 		}
 
-		const reason = await evaluate($, e.command, e.tool === "Bash" ? "bash" : "powershell").catch((err: unknown) => errorReason("(unknown)", err));
+		const reason = await evaluate($, e.command, e.tool === "Bash" ? "bash" : "powershell").catch((err: unknown) => errorReason(undefined, err));
 		return reason === undefined ? next(e) : { deny: reason };
 	});
 };

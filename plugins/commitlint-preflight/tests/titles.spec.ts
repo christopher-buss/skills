@@ -1,7 +1,8 @@
+// cspell:ignore encodedcommand encodedc encodeda
 import { describe, expect, it } from "vitest";
 
 import { splitCommands } from "../src/shell.ts";
-import { findTitleChecks, mentionsGhPr } from "../src/titles.ts";
+import { findTitleChecks, mayHoldTitle, mentionsGhPr } from "../src/titles.ts";
 
 function denied(pattern: RegExp): Array<unknown> {
 	return [{ reason: expect.stringMatching(pattern) as unknown }];
@@ -63,23 +64,49 @@ describe("findTitleChecks in bash", () => {
 		expect.assertions(1);
 
 		expect(findTitleChecks(command, "bash")).toStrictEqual(
-			denied(/shell expansion.*literal --title/su),
+			denied(
+				/holds a shell expansion, glob, redirection, or here-document, so commitlint cannot check it\. Run instead:\ngh pr create --title "</u,
+			),
 		);
 	});
 
-	it.for<[string, RegExp]>([
-		["gh pr create --title 'feat: x", /does not close/u],
-		['gh pr create --title "feat: x', /does not close/u],
-		['gh pr create --title "feat: x\\', /does not close/u],
-		["gh pr create --title", /no value/u],
-		["gh pr edit 1 -t", /no value/u],
-		["gh pr create --fill", /not on the command line/u],
-		["gh pr create --web", /not on the command line/u],
-		["gh pr create", /not on the command line/u],
-	])("should deny %j", ([command, pattern]) => {
+	it.for<[string, string]>([
+		["gh pr create --title 'feat: x", "has a quote that does not close"],
+		['gh pr create --title "feat: x', "has a quote that does not close"],
+		['gh pr create --title "feat: x\\', "has a quote that does not close"],
+		["gh pr create --title", "flag has no value"],
+		["gh pr edit 1 -t", "flag has no value"],
+		["gh pr create --fill", "is not written out (--fill takes it from the commit subject)"],
+		["gh pr create --web", "is not written out (--web sets it in the browser)"],
+		["gh pr create", "is not written out (gh would prompt for it)"],
+	])("should deny %j and say why", ([command, problem]) => {
 		expect.assertions(1);
 
-		expect(findTitleChecks(command, "bash")).toStrictEqual(denied(pattern));
+		expect(findTitleChecks(command, "bash")).toStrictEqual([
+			{ reason: expect.stringContaining(`the PR title ${problem}, `) as unknown },
+		]);
+	});
+
+	it.for<[string, string]>([
+		[
+			"gh pr create --title \"$T\" -B main --body 'a b'",
+			"pr create -B main --body 'a b' --title",
+		],
+		["gh -R o/r pr create -f -d", "-R o/r pr create -d --title"],
+		["gh pr create --fill-first --web", "pr create --title"],
+		["gh pr new --fill-verbose -w", "pr new --title"],
+		["gh pr edit 3 -t=$T", "pr edit 3 --title"],
+		['gh pr create --body "$B" --fill -- \'x', "pr create --body $B -- x --title"],
+		['gh pr create --body "it\'s" -t', "pr create --body 'it'\\''s' --title"],
+	])("should keep the other flags of %j in the fix", ([command, fix]) => {
+		expect.assertions(1);
+
+		expect(findTitleChecks(command, "bash")).toStrictEqual([
+			{
+				reason: expect.stringContaining(`Run instead:
+gh ${fix} "<type>(<scope>): <subject>"`) as unknown,
+			},
+		]);
 	});
 
 	it.for([
@@ -175,14 +202,29 @@ describe("findTitleChecks in bash", () => {
 	});
 
 	it.for<[string, RegExp]>([
-		["gh -X pr create -t 'feat: x'", /cannot be parsed/u],
-		["gh pr create --bogus -t 'feat: x'", /cannot be parsed/u],
-		["gh pr create -zt 'feat: x'", /cannot be parsed/u],
-		["gh pr create -t 'feat: x' -b", /cannot be parsed/u],
-		["S='gh pr create -t bad'; bash -c \"$S\"", /cannot be parsed/u],
-		["bash -c # gh pr", /cannot be parsed/u],
-		['pwsh -c "gh pr $x"', /cannot be parsed/u],
-		["sudo -u root gh pr create -t 'feat: x'", /cannot be parsed/u],
+		[
+			"gh -X pr create -t 'feat: x'",
+			/flag `-X` is unknown here.*Check `gh --help`, or drop the flag\.$/u,
+		],
+		[
+			"gh pr create --bogus -t 'feat: x'",
+			/flag `--bogus` is unknown here.*Check `gh pr create --help`, or drop the flag\.$/u,
+		],
+		["gh pr new -zt 'feat: x'", /flag `-zt` is unknown here.*Check `gh pr create --help`/u],
+		[
+			"gh pr create -t 'feat: x' -b",
+			/flag `-b` has no value.*Give `-b` its value, or drop it\.$/u,
+		],
+		[
+			"S='gh pr create -t bad'; bash -c \"$S\"",
+			/script `bash` runs is not a fixed string.*Run `gh pr …` directly, with a literal --title "<type>/u,
+		],
+		["bash -c # gh pr", /script `bash` runs/u],
+		['pwsh -c "gh pr $x"', /script `pwsh` runs/u],
+		[
+			"sudo -u root gh pr create -t 'feat: x'",
+			/`sudo` wraps a `gh pr` command.*Run `gh pr …` directly, without the wrapper, with a literal --title/u,
+		],
 	])("should deny %j, which cannot be parsed", ([command, pattern]) => {
 		expect.assertions(1);
 
@@ -198,6 +240,53 @@ describe("findTitleChecks in bash", () => {
 				{ dynamic: true, text: "<<", unclosed: false },
 			],
 		]);
+	});
+});
+
+describe("encoded PowerShell", () => {
+	it.for([
+		"pwsh -e ZQBjAGgAbwA=",
+		"pwsh -ec ZQBjAGgAbwA=",
+		"pwsh -en ZQBjAGgAbwA=",
+		"pwsh -NoProfile -enc ZQBjAGgAbwA=",
+		"pwsh -EncodedCommand ZQBjAGgAbwA=",
+		"PWSH.EXE -ENCODEDCOMMAND ZQBjAGgAbwA=",
+		"powershell /enc ZQBjAGgAbwA=",
+		"powershell.exe /ec ZQBjAGgAbwA=",
+		"C:/Windows/powershell.exe -encodedc ZQBjAGgAbwA=",
+		"pwsh --encodedcommand ZQBjAGgAbwA=",
+		"git push && pwsh -enc ZQBjAGgAbwA=",
+		"echo $(pwsh -enc ZQBjAGgAbwA=)",
+		"bash -c 'pwsh -enc ZQBjAGgAbwA='",
+		"sudo pwsh -enc ZQBjAGgAbwA=",
+	])("should deny %j", (command) => {
+		expect.assertions(1);
+
+		expect(findTitleChecks(command, "bash")).toStrictEqual(
+			denied(
+				/^commitlint-preflight: `(?:pwsh|powershell)(?:\.exe)? -EncodedCommand` hides its script.*Run the script as plain text: the PowerShell tool, or `(?:pwsh|powershell)(?:\.exe)? -Command "<script>"`\.$/iu,
+			),
+		);
+	});
+
+	it.for([
+		"pwsh -ex Bypass -File x.ps1",
+		"pwsh -ExecutionPolicy Bypass -c echo",
+		"pwsh -ea Stop -c echo",
+		"pwsh -encodeda x",
+		"pwsh -c echo -enc x",
+		"pwsh -File x.ps1 -enc x",
+	])("should allow %j", (command) => {
+		expect.assertions(1);
+
+		expect(findTitleChecks(command, "powershell")).toStrictEqual([]);
+	});
+
+	it("should be worth a look though it names no gh pr", () => {
+		expect.assertions(2);
+
+		expect(mayHoldTitle("pwsh -enc x")).toBe(true);
+		expect(mayHoldTitle("git status")).toBe(false);
 	});
 });
 

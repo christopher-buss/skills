@@ -73,19 +73,40 @@ test("an unparseable title is denied without running commitlint", async ($, on) 
 
 	const result = await $.tool.call({ command: 'gh pr create --title "$(cat t.txt)"', tool: "Bash" });
 
-	expect(result.deny).toMatch(/literal --title/);
+	expect(result.deny).toMatch(/Run instead:\ngh pr create --title "<type>\(<scope>\): <subject>"$/);
 	expect(runs).toEqual([]);
 });
 
-test("a repo without the CLI installed is denied", async ($, on) => {
+function uninstalled(on: On, lockfile: string): void {
 	on("session.cwd", () => ({ value: ROOT }));
-	on("fs.exists", ($, e) => ({ value: posix(e.path) !== `${CLI}/cli.js` && EXISTING.has(posix(e.path)) }));
+	on("fs.exists", ($, e) => ({ value: [`${ROOT}/${lockfile}`, ...EXISTING].includes(posix(e.path)) && posix(e.path) !== `${CLI}/cli.js` }));
 	on("fs.read", () => ({ deny: "ENOENT" }));
 	on("tool.call", () => ({ result: "ok" }));
+}
 
-	const result = await $.tool.call({ command: "gh pr create -t 'feat: x'", tool: "Bash" });
+for (const [lockfile, install] of [
+	["pnpm-lock.yaml", "pnpm install"],
+	["package-lock.json", "npm install"],
+	["yarn.lock", "yarn install"],
+	["bun.lock", "bun install"],
+	["bun.lockb", "bun install"],
+	["none", "npm install"],
+]) {
+	test(`a repo without the CLI installed is told to run ${install} (${lockfile})`, async ($, on) => {
+		uninstalled(on, lockfile);
 
-	expect(result.deny).toMatch(/Install dependencies/);
+		const result = await $.tool.call({ command: "gh pr create -t 'feat: x'", tool: "Bash" });
+
+		expect(result.deny).toMatch(new RegExp(`Run \`${install}\` in .*${ROOT}, then the same command\.$`));
+	});
+}
+
+test("an encoded PowerShell command is denied", async ($, on) => {
+	on("tool.call", () => ({ result: "ok" }));
+
+	const result = await $.tool.call({ command: "pwsh -NoProfile -enc ZQBjAGgAbwA=", tool: "PowerShell" });
+
+	expect(result.deny).toMatch(/`pwsh -EncodedCommand` hides its script/);
 });
 
 test("a rejected run is denied with the error", async ($, on) => {
@@ -93,7 +114,7 @@ test("a rejected run is denied with the error", async ($, on) => {
 
 	const result = await $.tool.call({ command: "gh pr create -t 'feat: x'", tool: "Bash" });
 
-	expect(result.deny).toMatch(/did not run/);
+	expect(result.deny).toMatch(/did not run on the PR title "feat: x": .*timed out\nRetry the command, or check the title by hand: printf '%s\\n' 'feat: x' \| npx commitlint$/);
 });
 
 function stage(on: On, existing: ReadonlySet<string>, files: Partial<Record<string, string>>, runs: Array<string>): void {
@@ -167,5 +188,5 @@ test("a failure while checking is denied", async ($, on) => {
 
 	const result = await $.tool.call({ command: "gh pr create -t 'feat: x'", tool: "Bash" });
 
-	expect(result.deny).toMatch(/did not run on the PR title "\(unknown\)"/);
+	expect(result.deny).toMatch(/did not run on the PR title: .*\n.*'<title>' \| npx commitlint$/);
 });

@@ -72,3 +72,12 @@ function parseObject(text: string): Record<string, unknown> | undefined {
 		return undefined;
 	}
 }
+
+/** Each lockfile with the install command of its package manager. */
+export const LOCK_FILES: ReadonlyArray<readonly [string, string]> = [
+	["pnpm-lock.yaml", "pnpm install"],
+	["package-lock.json", "npm install"],
+	["yarn.lock", "yarn install"],
+	["bun.lock", "bun install"],
+	["bun.lockb", "bun install"],
+];

@@ -1,4 +1,13 @@
-import { titleReason, unparsedReason } from "./messages.ts";
+// cspell:ignore encodedcommand
+import {
+	encodedReason,
+	missingValueReason,
+	quote,
+	scriptReason,
+	titleReason,
+	unknownFlagReason,
+	wrapperReason,
+} from "./messages.ts";
 import type { Dialect, Word } from "./shell.ts";
 import { splitCommands } from "./shell.ts";
 
@@ -23,8 +32,11 @@ const GH = /(?:^|[/\\])gh(?:\.exe)?$/iu;
 const BASH = /(?:^|[/\\])(?:ba)?sh(?:\.exe)?$/iu;
 const BASH_COMMAND = /^-[a-z]*c[a-z]*$/u;
 const POWERSHELL = /(?:^|[/\\])(?:pwsh|powershell)(?:\.exe)?$/iu;
+const POWERSHELL_FILE = /^-f(?:i(?:le?)?)?$/iu;
 const POWERSHELL_COMMAND = /^-c(?:o(?:m(?:m(?:a(?:nd?)?)?)?)?)?$/iu;
-const UNPARSED = { reason: unparsedReason() } satisfies TitleCheck;
+const FILL = new Set(["--fill", "--fill-first", "--fill-verbose", "-f"]);
+const WEB = new Set(["--web", "-w"]);
+const ENCODED = "encodedcommand";
 
 /** The root flags of gh, and the ones every `gh pr` subcommand inherits. */
 const ROOT = "R/repo= help version";
@@ -54,6 +66,17 @@ const ALIASES = new Map<string, keyof typeof SUBCOMMAND_FLAGS>([
  */
 export function mentionsGhPr(command: string): boolean {
 	return /gh[\s\S]*pr/u.test(command);
+}
+
+/**
+ * Cheap test that a command needs a closer look: a `gh pr` invocation, or a
+ * PowerShell call whose script may hide one.
+ *
+ * @param command - The shell command.
+ * @returns True for every command that may hold a title.
+ */
+export function mayHoldTitle(command: string): boolean {
+	return mentionsGhPr(command) || /pwsh|powershell/iu.test(command);
 }
 
 /**
@@ -144,7 +167,7 @@ function isFlag(text: string): boolean {
  *
  * @param args - The words after `gh`.
  * @returns The subcommand and where its arguments start, `undefined` for no
- *   `gh pr create` or `gh pr edit`, or `UNPARSED`.
+ *   `gh pr create` or `gh pr edit`, or why the flags cannot be read.
  */
 function parseRoot(
 	args: ReadonlyArray<Word>,
@@ -156,7 +179,7 @@ function parseRoot(
 			? readFlag(word, args[index + 1] ?? null, ROOT_FLAGS)
 			: { name: "", skip: 1, value: undefined };
 		if (flag === undefined) {
-			return UNPARSED;
+			return { reason: unknownFlagReason(word.text, "gh") };
 		}
 
 		positionals.push(...(isFlag(word.text) ? [] : [word.text]));
@@ -169,41 +192,90 @@ function parseRoot(
 		: undefined;
 }
 
-function checkTitle(subcommand: string, word: null | undefined | Word): TitleCheck | undefined {
+function missingProblem(words: ReadonlyArray<string>): string {
+	const fill = words.find((text) => FILL.has(text));
+	if (fill !== undefined) {
+		return `is not written out (${fill} takes it from the commit subject)`;
+	}
+
+	const web = words.find((text) => WEB.has(text));
+	return web === undefined
+		? "is not written out (gh would prompt for it)"
+		: `is not written out (${web} sets it in the browser)`;
+}
+
+function titleProblem(
+	subcommand: string,
+	word: null | undefined | Word,
+	words: ReadonlyArray<string>,
+): string | undefined {
 	if (word === undefined) {
-		return subcommand === "create"
-			? {
-					reason: titleReason(
-						subcommand,
-						"is not on the command line (--fill, --web, editor, or prompt)",
-					),
-				}
-			: undefined;
+		return subcommand === "create" ? missingProblem(words) : undefined;
 	}
 
 	if (word === null) {
-		return { reason: titleReason(subcommand, "flag has no value") };
+		return "flag has no value";
 	}
 
 	if (word.unclosed) {
-		return { reason: titleReason(subcommand, "has a quote that does not close") };
+		return "has a quote that does not close";
 	}
 
 	return word.dynamic
-		? {
-				reason: titleReason(
-					subcommand,
-					"holds a shell expansion, glob, redirection, or here-document",
-				),
-			}
-		: { title: word.text };
+		? "holds a shell expansion, glob, redirection, or here-document"
+		: undefined;
+}
+
+function render(word: Word): string {
+	return word.dynamic || word.unclosed ? word.text : quote(word.text);
+}
+
+/**
+ * Reads the subcommand's flags as pflag does.
+ *
+ * @param args - The words after `gh`.
+ * @param start - Where the subcommand's arguments start.
+ * @param subcommand - `create` or `edit`, which picks the flag table.
+ * @returns The last title flag's value and every other word, or why the flags
+ *   cannot be read.
+ */
+function readSubcommand(
+	args: ReadonlyArray<Word>,
+	start: number,
+	subcommand: keyof typeof SUBCOMMAND_FLAGS,
+): { kept: Array<string>; title: null | undefined | Word } | { reason: string } {
+	const kept = args.slice(0, start).map(render);
+	let title: null | undefined | Word;
+	let index = start;
+	for (let word = args[index]; word !== undefined && word.text !== "--"; word = args[index]) {
+		const flag = isFlag(word.text)
+			? readFlag(word, args[index + 1] ?? null, SUBCOMMAND_FLAGS[subcommand])
+			: { name: "", skip: 1, value: undefined };
+		if (flag === undefined) {
+			return { reason: unknownFlagReason(word.text, `gh pr ${subcommand}`) };
+		}
+
+		if (flag.value === null && flag.name !== "title") {
+			return { reason: missingValueReason(word.text) };
+		}
+
+		title = flag.name === "title" ? flag.value : title;
+		kept.push(
+			...(flag.name === "title" ? [] : args.slice(index, index + flag.skip).map(render)),
+		);
+		index += flag.skip;
+	}
+
+	kept.push(...args.slice(index).map(render));
+	return { kept, title };
 }
 
 /**
  * Parses the words after `gh` as gh does.
  *
  * @param args - The words after `gh`.
- * @returns The check for its title, `undefined` for none, or `UNPARSED`.
+ * @returns The check for its title, `undefined` for none, or why it cannot be
+ *   read.
  */
 function checkGh(args: ReadonlyArray<Word>): TitleCheck | undefined {
 	const root = parseRoot(args);
@@ -211,21 +283,44 @@ function checkGh(args: ReadonlyArray<Word>): TitleCheck | undefined {
 		return root;
 	}
 
-	let title: null | undefined | Word;
-	let index = root.start;
-	for (let word = args[index]; word !== undefined && word.text !== "--"; word = args[index]) {
-		const flag = isFlag(word.text)
-			? readFlag(word, args[index + 1] ?? null, SUBCOMMAND_FLAGS[root.subcommand])
-			: { name: "", skip: 1, value: undefined };
-		if (flag === undefined || (flag.value === null && flag.name !== "title")) {
-			return UNPARSED;
-		}
-
-		title = flag.name === "title" ? flag.value : title;
-		index += flag.skip;
+	const read = readSubcommand(args, root.start, root.subcommand);
+	if ("reason" in read) {
+		return read;
 	}
 
-	return checkTitle(root.subcommand, title);
+	const { kept, title } = read;
+	const problem = titleProblem(
+		root.subcommand,
+		title,
+		args.map(({ text }) => text),
+	);
+	if (problem !== undefined) {
+		return {
+			reason: titleReason(
+				problem,
+				kept.filter((text) => !FILL.has(text) && !WEB.has(text)),
+			),
+		};
+	}
+
+	return title?.text === undefined ? undefined : { title: title.text };
+}
+
+function basename(path: string): string {
+	return path.replace(/^.*[/\\]/u, "");
+}
+
+/**
+ * Whether a PowerShell argument is `-EncodedCommand` in a spelling it takes:
+ * `-`, `--`, or `/`, then `ec` or any prefix of `encodedcommand`.
+ *
+ * @param text - One argument.
+ * @returns True for the encoded-command parameter.
+ */
+function isEncoded(text: string): boolean {
+	const lower = text.toLowerCase();
+	const name = lower.replace(/^(?:--?|\/)/u, "");
+	return name !== lower && (name === "ec" || (name !== "" && ENCODED.startsWith(name)));
 }
 
 /**
@@ -234,15 +329,17 @@ function checkGh(args: ReadonlyArray<Word>): TitleCheck | undefined {
  * @param script - The words that make up the script, if any.
  * @param dialect - The shell that runs it.
  * @param command - The whole command, raw.
+ * @param shell - The shell that runs it.
  * @returns The script's checks.
  */
 function checkScript(
 	script: ReadonlyArray<Word>,
 	dialect: Dialect,
 	command: string,
+	shell: string,
 ): Array<TitleCheck> {
 	if (script.length === 0 || script.some(({ dynamic, unclosed }) => dynamic || unclosed)) {
-		return mentionsGhPr(command) ? [UNPARSED] : [];
+		return mentionsGhPr(command) ? [{ reason: scriptReason(basename(shell)) }] : [];
 	}
 
 	return findTitleChecks(script.map(({ text }) => text).join(" "), dialect);
@@ -252,12 +349,13 @@ function checkScript(
  * Skips assignments, keywords, and wrapper commands with their options.
  *
  * @param words - One simple command's words.
- * @returns The words from the command name on, and whether a wrapper came first.
+ * @returns The words from the command name on, and the first wrapper, if any.
  */
-function unwrap(words: ReadonlyArray<Word>): { isWrapped: boolean; rest: Array<Word> } {
-	let isWrapped = false;
+function unwrap(words: ReadonlyArray<Word>): { rest: Array<Word>; wrapper: string | undefined } {
+	let wrapper: string | undefined;
 	const start = words.findIndex(({ text }) => {
-		isWrapped ||= WRAPPERS.has(text);
+		wrapper ??= WRAPPERS.has(text) ? text : undefined;
+		const isWrapped = wrapper !== undefined;
 		return (
 			!WRAPPERS.has(text) &&
 			!ASSIGNMENT.test(text) &&
@@ -265,7 +363,7 @@ function unwrap(words: ReadonlyArray<Word>): { isWrapped: boolean; rest: Array<W
 			(!isWrapped || !isFlag(text))
 		);
 	});
-	return { isWrapped, rest: start === -1 ? [] : words.slice(start) };
+	return { rest: start === -1 ? [] : words.slice(start), wrapper };
 }
 
 function checkShell(name: string, args: ReadonlyArray<Word>, command: string): Array<TitleCheck> {
@@ -273,15 +371,26 @@ function checkShell(name: string, args: ReadonlyArray<Word>, command: string): A
 		const option = args.findIndex(({ text }) => BASH_COMMAND.test(text));
 		return option === -1
 			? []
-			: checkScript(args.slice(option + 1, option + 2), "bash", command);
+			: checkScript(args.slice(option + 1, option + 2), "bash", command, name);
 	}
 
-	const option = args.findIndex(({ text }) => POWERSHELL_COMMAND.test(text));
-	return option === -1 ? [] : checkScript(args.slice(option + 1), "powershell", command);
+	const option = args.findIndex(
+		({ text }) => POWERSHELL_COMMAND.test(text) || POWERSHELL_FILE.test(text),
+	);
+	const flag = args[option];
+	if (
+		args.slice(0, flag === undefined ? args.length : option).some(({ text }) => isEncoded(text))
+	) {
+		return [{ reason: encodedReason(basename(name)) }];
+	}
+
+	return flag === undefined || POWERSHELL_FILE.test(flag.text)
+		? []
+		: checkScript(args.slice(option + 1), "powershell", command, name);
 }
 
 function checkCommand(words: ReadonlyArray<Word>, command: string): Array<TitleCheck> {
-	const { isWrapped, rest } = unwrap(words);
+	const { rest, wrapper } = unwrap(words);
 	const [name, ...args] = rest;
 	if (name === undefined || name.dynamic) {
 		return [];
@@ -294,7 +403,7 @@ function checkCommand(words: ReadonlyArray<Word>, command: string): Array<TitleC
 	if (!GH.test(name.text)) {
 		const hasHiddenGh =
 			args.some(({ text }) => GH.test(text)) && args.some(({ text }) => text === "pr");
-		return isWrapped && hasHiddenGh ? [UNPARSED] : [];
+		return wrapper !== undefined && hasHiddenGh ? [{ reason: wrapperReason(wrapper) }] : [];
 	}
 
 	const check = checkGh(args);
