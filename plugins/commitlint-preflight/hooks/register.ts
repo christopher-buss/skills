@@ -1,14 +1,13 @@
-import type { Hook, Register } from "claude-code";
+import type { EngineInterface, Register } from "claude-code";
 
-import { ancestors, binEntry, CLI_PACKAGE, COMMITLINT_CONFIG_FILES, errorReason, failedReason, hasCommitlintKey, join, missingCliReason } from "../src/repo.ts";
+import { errorReason, failedReason, missingCliReason } from "../src/messages.ts";
+import { ancestors, binEntry, CLI_PACKAGE, COMMITLINT_CONFIG_FILES, hasCommitlintKey, join } from "../src/repo.ts";
 import type { Dialect } from "../src/shell.ts";
 import { findTitleChecks, mentionsGhPr } from "../src/titles.ts";
 
-type Api = Parameters<Hook<"tool.call">>[0];
-
 const TIMEOUT_MS = 30_000;
 
-async function findRoot($: Api): Promise<string | undefined> {
+async function findRoot($: EngineInterface): Promise<string | undefined> {
 	for (const directory of ancestors(await $.session.cwd())) {
 		if (await $.fs.exists(join(directory, ".git"))) {
 			return directory;
@@ -18,7 +17,7 @@ async function findRoot($: Api): Promise<string | undefined> {
 	return undefined;
 }
 
-async function readText($: Api, path: string): Promise<string | undefined> {
+async function readText($: EngineInterface, path: string): Promise<string | undefined> {
 	try {
 		return await $.fs.read(path);
 	} catch {
@@ -26,7 +25,7 @@ async function readText($: Api, path: string): Promise<string | undefined> {
 	}
 }
 
-async function usesCommitlint($: Api, root: string): Promise<boolean> {
+async function usesCommitlint($: EngineInterface, root: string): Promise<boolean> {
 	for (const name of COMMITLINT_CONFIG_FILES) {
 		if (await $.fs.exists(join(root, name))) {
 			return true;
@@ -36,13 +35,13 @@ async function usesCommitlint($: Api, root: string): Promise<boolean> {
 	return hasCommitlintKey((await readText($, join(root, "package.json"))) ?? "");
 }
 
-async function cliEntry($: Api, root: string): Promise<string | undefined> {
+async function cliEntry($: EngineInterface, root: string): Promise<string | undefined> {
 	const packageDirectory = join(root, CLI_PACKAGE);
 	const entry = binEntry((await readText($, join(packageDirectory, "package.json"))) ?? "");
 	return entry !== undefined && (await $.fs.exists(join(packageDirectory, entry))) ? join(packageDirectory, entry) : undefined;
 }
 
-async function lint($: Api, root: string, cli: string, title: string): Promise<string | undefined> {
+async function lint($: EngineInterface, root: string, cli: string, title: string): Promise<string | undefined> {
 	try {
 		const { exitCode, stderr, stdout } = await $.process.run(["node", cli], { cwd: root, stdin: title, timeoutMs: TIMEOUT_MS });
 		return exitCode === 0 ? undefined : failedReason(title, `${stdout}\n${stderr}`.trim());
@@ -51,7 +50,7 @@ async function lint($: Api, root: string, cli: string, title: string): Promise<s
 	}
 }
 
-async function evaluate($: Api, command: string, dialect: Dialect): Promise<string | undefined> {
+async function evaluate($: EngineInterface, command: string, dialect: Dialect): Promise<string | undefined> {
 	const checks = findTitleChecks(command, dialect);
 	const titles: Array<string> = [];
 	for (const check of checks) {
@@ -88,7 +87,7 @@ async function evaluate($: Api, command: string, dialect: Dialect): Promise<stri
 
 export const register: Register = (on) => {
 	on("tool.call", { tool: ["Bash", "PowerShell"] }, async ($, e, next) => {
-		if ((e.tool !== "Bash" && e.tool !== "PowerShell") || !mentionsGhPr(e.command)) {
+		if (!mentionsGhPr(e.command)) {
 			return next(e);
 		}
 

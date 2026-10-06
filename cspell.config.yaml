@@ -13,8 +13,10 @@ words:
   - hookified
   - jecs
   - lintable
+  - nohup
   - oxlint
   - oxlintrc
+  - pflag
   - pnpmfile
   - regen
   - turborepo

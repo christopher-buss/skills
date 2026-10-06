@@ -11,19 +11,26 @@ export interface Word {
 
 interface Lexer {
 	commands: Array<Array<Word>>;
+	depth: number;
+	dialect: Dialect;
 	heredocs: Array<string>;
 	index: number;
 	isBash: boolean;
 	source: string;
+	syntax: Syntax;
 	word: undefined | Word;
 	words: Array<Word>;
 }
 
+interface Syntax {
+	dynamic: ReadonlySet<string>;
+	escape: string;
+	readSingle: (lexer: Lexer, word: Word) => void;
+	separators: ReadonlySet<string>;
+}
+
 const SEPARATORS = new Set(["\n", "&", "(", ")", ";", "|"]);
-const POWERSHELL_SEPARATORS = new Set([...SEPARATORS, "{", "}"]);
 const BLANKS = new Set(["\t", "\r", " "]);
-const BASH_DYNAMIC = new Set(["$", "*", "<", ">", "?", "[", "`", "{", "~"]);
-const POWERSHELL_DYNAMIC = new Set(["$", "<", ">", "@"]);
 const BASH_DOUBLE_ESCAPES = new Set(["\n", '"', "$", "\\", "`"]);
 const POWERSHELL_ESCAPES = new Set(['"', "$", "'", "`"]);
 const HEREDOC = /^<<-?[\t ]*(?:'([^\n']*)'|"([^\n"]*)"|([^\s&();<>|]+))/u;
@@ -38,15 +45,8 @@ const HEREDOC = /^<<-?[\t ]*(?:'([^\n']*)'|"([^\n"]*)"|([^\s&();<>|]+))/u;
  * @returns Each simple command's words, in order.
  */
 export function splitCommands(source: string, dialect: Dialect): Array<Array<Word>> {
-	const lexer = createLexer(source, dialect);
-	while (lexer.index < source.length) {
-		const char = source.charAt(lexer.index);
-		if (!readLayout(lexer, char) && !readQuoted(lexer, char)) {
-			readPlain(lexer, char);
-		}
-	}
-
-	endCommand(lexer);
+	const lexer = createLexer(source, dialect, 0, []);
+	lex(lexer, false);
 	return lexer.commands;
 }
 
@@ -99,7 +99,7 @@ function readLayout(lexer: Lexer, char: string): boolean {
 	} else if (BLANKS.has(char)) {
 		endWord(lexer);
 		lexer.index += 1;
-	} else if ((lexer.isBash ? SEPARATORS : POWERSHELL_SEPARATORS).has(char)) {
+	} else if (lexer.syntax.separators.has(char)) {
 		endCommand(lexer);
 		lexer.index += 1;
 		if (char === "\n") {
@@ -115,6 +115,40 @@ function readLayout(lexer: Lexer, char: string): boolean {
 function current(lexer: Lexer): Word {
 	lexer.word ??= { dynamic: false, text: "", unclosed: false };
 	return lexer.word;
+}
+
+function readPlain(lexer: Lexer, char: string): void {
+	const word = current(lexer);
+	word.dynamic ||= lexer.syntax.dynamic.has(char);
+	word.text += char;
+	lexer.index += 1;
+}
+
+/**
+ * Reads commands until the source ends or, when nested, until the `)` that
+ * closes the substitution.
+ *
+ * @param lexer - The lexer state.
+ * @param isNested - Whether the lexer reads a `$( … )` body.
+ * @returns Whether a nested body closes.
+ */
+function lex(lexer: Lexer, isNested: boolean): boolean {
+	while (lexer.index < lexer.source.length) {
+		const char = lexer.source.charAt(lexer.index);
+		if (isNested && char === ")" && lexer.depth === 0) {
+			endCommand(lexer);
+			lexer.index += 1;
+			return true;
+		}
+
+		lexer.depth = Math.max(0, lexer.depth + Number(char === "(") - Number(char === ")"));
+		if (!readLayout(lexer, char) && !readQuoted(lexer, char)) {
+			readPlain(lexer, char);
+		}
+	}
+
+	endCommand(lexer);
+	return !isNested;
 }
 
 function readHeredocMarker(lexer: Lexer): void {
@@ -186,9 +220,69 @@ function readDoubleUnit(lexer: Lexer, word: Word, index: number): number {
 		return 2;
 	}
 
-	word.dynamic ||= char === "$" || (lexer.isBash && char === "`");
+	if (char === "$" && next === "(") {
+		return readSubstitution(lexer, word, index);
+	}
+
+	if (lexer.isBash && char === "`") {
+		return readBackticks(lexer, word, index);
+	}
+
+	word.dynamic ||= char === "$";
 	word.text += char;
 	return 1;
+}
+
+/**
+ * Reads `$(( … ))` as arithmetic, or `$( … )`, whose commands join the list.
+ *
+ * @param lexer - The lexer state.
+ * @param word - The word the substitution is part of.
+ * @param index - Where the `$` is.
+ * @returns How many characters the substitution took.
+ */
+function readSubstitution(lexer: Lexer, word: Word, index: number): number {
+	word.dynamic = true;
+	if (lexer.isBash && lexer.source.startsWith("$((", index)) {
+		let depth = 2;
+		let end = index + 3;
+		for (; depth > 0 && end < lexer.source.length; end++) {
+			const char = lexer.source.charAt(end);
+			depth += Number(char === "(") - Number(char === ")");
+		}
+
+		word.unclosed ||= depth > 0;
+		return end - index;
+	}
+
+	const body = createLexer(lexer.source, lexer.dialect, index + 2, lexer.commands);
+	word.unclosed ||= !lex(body, true);
+	return body.index - index;
+}
+
+/**
+ * Reads a backtick substitution, whose commands join the list.
+ *
+ * @param lexer - The lexer state.
+ * @param word - The word the substitution is part of.
+ * @param index - Where the opening backtick is.
+ * @returns How many characters the substitution took.
+ */
+function readBackticks(lexer: Lexer, word: Word, index: number): number {
+	let body = "";
+	let end = index + 1;
+	while (end < lexer.source.length && lexer.source.charAt(end) !== "`") {
+		const char = lexer.source.charAt(end);
+		const next = lexer.source.charAt(end + 1);
+		const isEscape = char === "\\" && ["$", "\\", "`"].includes(next);
+		body += isEscape ? next : char;
+		end += isEscape ? 2 : 1;
+	}
+
+	word.dynamic = true;
+	word.unclosed ||= end >= lexer.source.length;
+	lexer.commands.push(...splitCommands(body, "bash"));
+	return end + 1 - index;
 }
 
 function isDoubleClose(lexer: Lexer, index: number): boolean {
@@ -254,17 +348,19 @@ function readQuoted(lexer: Lexer, char: string): boolean {
 			break;
 		}
 		case "'": {
-			(lexer.isBash ? readBashSingle : readPowerShellSingle)(lexer, current(lexer));
+			lexer.syntax.readSingle(lexer, current(lexer));
 
 			break;
 		}
-		case lexer.isBash ? "\\" : "`": {
+		case lexer.syntax.escape: {
 			readEscape(lexer);
 
 			break;
 		}
 		default: {
-			if (lexer.isBash && lexer.source.startsWith("<<", lexer.index)) {
+			if (lexer.source.startsWith("$(", lexer.index) || (lexer.isBash && char === "`")) {
+				lexer.index += readDoubleUnit(lexer, current(lexer), lexer.index);
+			} else if (lexer.isBash && lexer.source.startsWith("<<", lexer.index)) {
 				readHeredocMarker(lexer);
 			} else if (isHereString(lexer, char)) {
 				readHereString(lexer, current(lexer));
@@ -277,20 +373,36 @@ function readQuoted(lexer: Lexer, char: string): boolean {
 	return true;
 }
 
-function readPlain(lexer: Lexer, char: string): void {
-	const word = current(lexer);
-	word.dynamic ||= (lexer.isBash ? BASH_DYNAMIC : POWERSHELL_DYNAMIC).has(char);
-	word.text += char;
-	lexer.index += 1;
-}
+const SYNTAX = {
+	bash: {
+		dynamic: new Set(["$", "*", "<", ">", "?", "[", "`", "{", "~"]),
+		escape: "\\",
+		readSingle: readBashSingle,
+		separators: SEPARATORS,
+	},
+	powershell: {
+		dynamic: new Set(["$", "<", ">", "@"]),
+		escape: "`",
+		readSingle: readPowerShellSingle,
+		separators: new Set([...SEPARATORS, "{", "}"]),
+	},
+} satisfies Record<Dialect, Syntax>;
 
-function createLexer(source: string, dialect: Dialect): Lexer {
+function createLexer(
+	source: string,
+	dialect: Dialect,
+	index: number,
+	commands: Array<Array<Word>>,
+): Lexer {
 	return {
-		commands: [],
+		commands,
+		depth: 0,
+		dialect,
 		heredocs: [],
-		index: 0,
+		index,
 		isBash: dialect === "bash",
 		source,
+		syntax: SYNTAX[dialect],
 		word: undefined,
 		words: [],
 	};

@@ -1,5 +1,3 @@
-export const NAME = "commitlint-preflight";
-
 /** The config file names commitlint reads at a repository root. */
 export const COMMITLINT_CONFIG_FILES: ReadonlyArray<string> = [
 	".commitlintrc",
@@ -62,19 +60,6 @@ export function binEntry(packageJson: string): string | undefined {
 			? (bin as Record<string, unknown>)["commitlint"]
 			: undefined;
 	return typeof named === "string" ? named : undefined;
-}
-
-export function missingCliReason(root: string): string {
-	return `${NAME}: ${root} configures commitlint but @commitlint/cli is not installed. Install dependencies, then run the command again.`;
-}
-
-export function failedReason(title: string, output: string): string {
-	return `${NAME}: commitlint rejects the PR title "${title}". A squash merge makes it the commit message.\n${output}`;
-}
-
-export function errorReason(title: string, error: unknown): string {
-	const message = error instanceof Error ? error.message : String(error);
-	return `${NAME}: commitlint did not run on the PR title "${title}": ${message}`;
 }
 
 function parseObject(text: string): Record<string, unknown> | undefined {

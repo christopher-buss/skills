@@ -1,15 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { splitCommands } from "../src/shell.ts";
-import type { Dialect } from "../src/shell.ts";
 import { findTitleChecks, mentionsGhPr } from "../src/titles.ts";
 
-function onlyReason(command: string, dialect: Dialect): string {
-	const checks = findTitleChecks(command, dialect);
-	const [check] = checks;
-	return checks.length === 1 && check !== undefined && "reason" in check
-		? check.reason
-		: "(not one denial)";
+function denied(pattern: RegExp): Array<unknown> {
+	return [{ reason: expect.stringMatching(pattern) as unknown }];
 }
 
 describe(mentionsGhPr, () => {
@@ -67,7 +62,9 @@ describe("findTitleChecks in bash", () => {
 	])("should deny the expansion in %j", (command) => {
 		expect.assertions(1);
 
-		expect(onlyReason(command, "bash")).toMatch(/shell expansion.*literal --title/su);
+		expect(findTitleChecks(command, "bash")).toStrictEqual(
+			denied(/shell expansion.*literal --title/su),
+		);
 	});
 
 	it.for<[string, RegExp]>([
@@ -82,7 +79,7 @@ describe("findTitleChecks in bash", () => {
 	])("should deny %j", ([command, pattern]) => {
 		expect.assertions(1);
 
-		expect(onlyReason(command, "bash")).toMatch(pattern);
+		expect(findTitleChecks(command, "bash")).toStrictEqual(denied(pattern));
 	});
 
 	it.for([
@@ -95,6 +92,10 @@ describe("findTitleChecks in bash", () => {
 		"gh pr",
 		"$GH pr create",
 		"FOO=bar",
+		"bash -c",
+		"gh -R",
+		"bash script.sh",
+		"pwsh -File x.ps1",
 		"git status",
 		"cat <<EOF\ngh pr create --fill\nEOF\necho done",
 		"cat <<-'EOF'\n\tgh pr create --fill\n\tEOF",
@@ -112,6 +113,80 @@ describe("findTitleChecks in bash", () => {
 		expect(
 			findTitleChecks("gh pr edit 1 -t 'feat: a' && gh pr edit 2 -t 'fix: b'", "bash"),
 		).toStrictEqual([{ title: "feat: a" }, { title: "fix: b" }]);
+	});
+
+	it.for<[string, string]>([
+		["gh -R o/r pr create -t 'feat: x'", "feat: x"],
+		["gh --repo o/r pr edit 3 -t 'feat: x'", "feat: x"],
+		["gh --repo=o/r pr create -t 'feat: x'", "feat: x"],
+		["gh -Ro/r pr create -t 'feat: x'", "feat: x"],
+		["gh pr -R o/r create -t 'feat: x'", "feat: x"],
+		["gh pr new -t 'feat: x'", "feat: x"],
+		["gh pr create -t 'feat: x' --body '--title=fix: no'", "feat: x"],
+		["gh pr create -t 'feat: x' -b '-tests pass'", "feat: x"],
+		["gh pr create -t=feat:x", "feat:x"],
+		["gh pr create -dt 'feat: x'", "feat: x"],
+		["gh pr create -dt'feat: x'", "feat: x"],
+		["gh pr create --draft=true -t 'feat: x'", "feat: x"],
+		["gh pr create -d=true -t 'feat: x'", "feat: x"],
+		["gh pr create -t 'feat: x' -B main -H b -a @me -l l -m m -p p -r r -T t -F f", "feat: x"],
+		[
+			"gh pr create -t 'feat: x' --recover r --dry-run -w -e -f --fill-first --fill-verbose --no-maintainer-edit",
+			"feat: x",
+		],
+		[
+			"gh pr edit 3 -t 'feat: x' --add-label a --remove-label b --remove-milestone --add-assignee c --remove-assignee d --add-project e --remove-project f --add-reviewer g --remove-reviewer h",
+			"feat: x",
+		],
+		["gh pr create -t 'feat: x' - --help", "feat: x"],
+		["env A=b gh pr create -t 'feat: x'", "feat: x"],
+		["env -i A=b gh pr create -t 'feat: x'", "feat: x"],
+		["sudo gh pr create -t 'feat: x'", "feat: x"],
+		["command gh pr create -t 'feat: x'", "feat: x"],
+		["exec gh pr create -t 'feat: x'", "feat: x"],
+		["time gh pr create -t 'feat: x'", "feat: x"],
+		["nohup gh pr create -t 'feat: x'", "feat: x"],
+		["bash -c \"gh pr create -t 'feat: x'\"", "feat: x"],
+		["sh -lc 'gh pr create -t \"feat: x\"'", "feat: x"],
+		["pwsh -Command \"gh pr create -t 'feat: x'\"", "feat: x"],
+		["powershell.exe -c gh pr create -t feat:x", "feat:x"],
+		["echo $((1<<2))\ngh pr create -t 'feat: x'", "feat: x"],
+		["echo $(( (1+2)<<1 ))\ngh pr create -t 'feat: x'", "feat: x"],
+	])("should read the title gh gets from %j", ([command, title]) => {
+		expect.assertions(1);
+
+		expect(findTitleChecks(command, "bash")).toStrictEqual([{ title }]);
+	});
+
+	it.for<[string, string]>([
+		["echo \"$(gh pr create -t 'bad')\"", "bad"],
+		['echo "`gh pr create -t bad`"', "bad"],
+		["echo `gh pr create -t bad`", "bad"],
+		['echo "$(echo ")"; gh pr create -t bad)"', "bad"],
+		["echo $(gh pr create -t bad)x", "bad"],
+		["echo `gh pr create -t b\\ad`", "bad"],
+		["echo `gh pr create -t \\\\\\\\b`", "\\b"],
+		["echo `gh pr create -t 'a\\$'`", "a$"],
+		["echo `gh pr create -t bad", "bad"],
+	])("should read the title of the substitution in %j", ([command, title]) => {
+		expect.assertions(1);
+
+		expect(findTitleChecks(command, "bash")).toContainEqual({ title });
+	});
+
+	it.for<[string, RegExp]>([
+		["gh -X pr create -t 'feat: x'", /cannot be parsed/u],
+		["gh pr create --bogus -t 'feat: x'", /cannot be parsed/u],
+		["gh pr create -zt 'feat: x'", /cannot be parsed/u],
+		["gh pr create -t 'feat: x' -b", /cannot be parsed/u],
+		["S='gh pr create -t bad'; bash -c \"$S\"", /cannot be parsed/u],
+		["bash -c # gh pr", /cannot be parsed/u],
+		['pwsh -c "gh pr $x"', /cannot be parsed/u],
+		["sudo -u root gh pr create -t 'feat: x'", /cannot be parsed/u],
+	])("should deny %j, which cannot be parsed", ([command, pattern]) => {
+		expect.assertions(1);
+
+		expect(findTitleChecks(command, "bash")).toStrictEqual(denied(pattern));
 	});
 
 	it("should treat a stray heredoc marker as an expansion", () => {
@@ -155,7 +230,9 @@ describe("findTitleChecks in PowerShell", () => {
 	])("should deny %j", (command) => {
 		expect.assertions(1);
 
-		expect(onlyReason(command, "powershell")).toMatch(/shell expansion|no value/u);
+		expect(findTitleChecks(command, "powershell")).toStrictEqual(
+			denied(/shell expansion|no value/u),
+		);
 	});
 
 	it.for([
@@ -166,7 +243,15 @@ describe("findTitleChecks in PowerShell", () => {
 	])("should deny the unclosed quote in %j", (command) => {
 		expect.assertions(1);
 
-		expect(onlyReason(command, "powershell")).toMatch(/does not close/u);
+		expect(findTitleChecks(command, "powershell")).toStrictEqual(denied(/does not close/u));
+	});
+
+	it("should read the title of a $( … ) in a string", () => {
+		expect.assertions(1);
+
+		expect(
+			findTitleChecks('Write-Output "$(gh pr create -t bad)"', "powershell"),
+		).toContainEqual({ title: "bad" });
 	});
 
 	it("should not read a quoted gh pr as an invocation", () => {

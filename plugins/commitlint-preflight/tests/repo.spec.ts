@@ -4,11 +4,8 @@ import {
 	ancestors,
 	binEntry,
 	COMMITLINT_CONFIG_FILES,
-	errorReason,
-	failedReason,
 	hasCommitlintKey,
 	join,
-	missingCliReason,
 } from "../src/repo.ts";
 
 describe(ancestors, () => {
@@ -85,16 +82,5 @@ describe(binEntry, () => {
 		expect.assertions(1);
 
 		expect(binEntry(text)).toBe(expected);
-	});
-});
-
-describe("reasons", () => {
-	it("should name the title, root, and output", () => {
-		expect.assertions(4);
-
-		expect(missingCliReason("/r")).toMatch(/\/r .*Install dependencies/u);
-		expect(failedReason("bad", "out")).toMatch(/"bad"[\s\S]*\nout$/u);
-		expect(errorReason("t", new Error("timed out"))).toMatch(/"t": timed out$/u);
-		expect(errorReason("t", "boom")).toMatch(/"t": boom$/u);
 	});
 });
