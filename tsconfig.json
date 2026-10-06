@@ -5,5 +5,13 @@
 		"types": ["node"],
 		"allowImportingTsExtensions": true
 	},
-	"exclude": ["node_modules", "**/.*/", "sources/**", "vendor/**", "reference/**"]
+	"exclude": [
+		"node_modules",
+		"**/.*/",
+		"sources/**",
+		"vendor/**",
+		"reference/**",
+		"plugins/*/hooks/**",
+		"plugins/*/tests/**/*.test.ts"
+	]
 }

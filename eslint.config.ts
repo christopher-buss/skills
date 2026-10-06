@@ -16,6 +16,10 @@ export default isentinel(
 			"**/sources/**",
 			`**/skills/{${vendorSkillNames.join(",")}}/**`,
 			"skill-test",
+			// Typed by the Claude Code engine, not this project; `claude plugin
+			// validate` checks them.
+			"plugins/*/hooks/**",
+			"plugins/*/tests/**/*.test.ts",
 			"!.claude",
 			".claude/**/*",
 			"!.claude/**/*.json",
