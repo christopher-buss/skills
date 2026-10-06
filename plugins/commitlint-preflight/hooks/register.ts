@@ -1,6 +1,7 @@
 import type { Hook, Register } from "claude-code";
 
 import { ancestors, binEntry, CLI_PACKAGE, COMMITLINT_CONFIG_FILES, errorReason, failedReason, hasCommitlintKey, join, missingCliReason } from "../src/repo.ts";
+import type { Dialect } from "../src/shell.ts";
 import { findTitleChecks, mentionsGhPr } from "../src/titles.ts";
 
 type Api = Parameters<Hook<"tool.call">>[0];
@@ -50,7 +51,7 @@ async function lint($: Api, root: string, cli: string, title: string): Promise<s
 	}
 }
 
-async function evaluate($: Api, command: string, dialect: "bash" | "powershell"): Promise<string | undefined> {
+async function evaluate($: Api, command: string, dialect: Dialect): Promise<string | undefined> {
 	const checks = findTitleChecks(command, dialect);
 	const titles: Array<string> = [];
 	for (const check of checks) {

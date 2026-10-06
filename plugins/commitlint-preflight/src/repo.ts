@@ -1,4 +1,4 @@
-const NAME = "commitlint-preflight";
+export const NAME = "commitlint-preflight";
 
 /** The config file names commitlint reads at a repository root. */
 export const COMMITLINT_CONFIG_FILES: ReadonlyArray<string> = [

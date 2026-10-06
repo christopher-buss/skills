@@ -1,9 +1,9 @@
+import { NAME } from "./repo.ts";
 import type { Dialect, Word } from "./shell.ts";
 import { splitCommands } from "./shell.ts";
 
 export type TitleCheck = { reason: string } | { title: string };
 
-const NAME = "commitlint-preflight";
 const ASSIGNMENT = /^[A-Z_a-z]\w*=/u;
 const PREFIXES = new Set(["!", "command", "do", "else", "exec", "then", "time", "{"]);
 const GH = /(?:^|[/\\])gh(?:\.exe)?$/iu;
