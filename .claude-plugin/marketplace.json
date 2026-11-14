@@ -19,6 +19,11 @@
 			"name": "commitlint-preflight",
 			"source": "./plugins/commitlint-preflight",
 			"description": "Denies gh pr create and gh pr edit when the PR title fails the repository's commitlint config"
+		},
+		{
+			"name": "lazy-typescript-lsp",
+			"source": "./plugins/lazy-typescript-lsp",
+			"description": "TypeScript language server that starts on demand and stops when idle"
 		}
 	]
 }

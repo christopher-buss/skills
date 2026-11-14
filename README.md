@@ -101,6 +101,37 @@ claude -p --plugin-dir plugins/commitlint-preflight "reply ok"
 git add -f plugins/commitlint-preflight/.claude-plugin/types/claude-code{,-tools}/index.d.ts
 ```
 
+### lazy-typescript-lsp
+
+A TypeScript language server for Claude Code's LSP tool that starts only when
+the tool sends a request. Claude Code starts `lsp/main.ts`, a stdio proxy. It
+answers `initialize` from a cache keyed by the server's version and the client
+capabilities, and starts the real server on the first LSP request. File opens
+and edits only update the proxy's copy of each document; a new server gets them
+replayed. After 10 minutes with no request in flight, the proxy stops the server.
+The first request after a stop waits for the server to load the project.
+Diagnostics are off: run the project's type check for errors.
+
+The server sees Edit and Write changes, but not files that another process
+creates or changes, such as a shell edit or a `git checkout`; start a new
+session after one.
+
+By default it runs TypeScript 7 from the project: `@typescript/native`, then
+`@typescript/native-preview`, with `--lsp --stdio`. To run a different server,
+set the plugin's `server` option to a command line, such as
+`tsrs --lsp --stdio`. The command runs through the shell in the project
+directory, with `node_modules/.bin` on `PATH`. When the command's first word is
+not a package in `node_modules`, the proxy cannot tell the server's version, so
+it does not cache `initialize` and starts the server at session start.
+
+```json
+{
+	"enabledPlugins": {
+		"lazy-typescript-lsp@isentinel": true
+	}
+}
+```
+
 ## Usage
 
 See [AGENTS.md](AGENTS.md) for how skills are generated and maintained.

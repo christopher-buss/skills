@@ -1,0 +1,11 @@
+{
+	"name": "lazy-typescript-lsp",
+	"private": true,
+	"description": "TypeScript language server for the Claude Code LSP tool that starts on demand and stops when idle",
+	"keywords": [
+		"claude-code",
+		"lsp",
+		"typescript"
+	],
+	"type": "module"
+}

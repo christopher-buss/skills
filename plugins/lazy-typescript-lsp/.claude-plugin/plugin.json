@@ -1,0 +1,39 @@
+{
+	"name": "lazy-typescript-lsp",
+	"description": "TypeScript language server for the LSP tool that starts only on an LSP request and stops when idle",
+	"version": "0.1.0",
+	"author": {
+		"name": "Christopher Buss",
+		"email": "christopher.buss@pm.me",
+		"url": "https://github.com/christopher-buss"
+	},
+	"homepage": "https://github.com/christopher-buss/skills",
+	"repository": "https://github.com/christopher-buss/skills",
+	"license": "MIT",
+	"keywords": ["typescript", "lsp", "language-server"],
+	"userConfig": {
+		"server": {
+			"type": "string",
+			"title": "Language server command",
+			"description": "Command that starts an LSP server over stdio, such as `tsrs --lsp --stdio`. It runs in the project directory with node_modules/.bin on PATH. Leave empty to start TypeScript 7 from the project (@typescript/native, then @typescript/native-preview).",
+			"default": ""
+		}
+	},
+	"lspServers": {
+		"typescript": {
+			"command": "node",
+			"args": ["${CLAUDE_PLUGIN_ROOT}/lsp/main.ts", "${user_config.server}"],
+			"diagnostics": false,
+			"extensionToLanguage": {
+				".cjs": "javascript",
+				".cts": "typescript",
+				".js": "javascript",
+				".jsx": "javascriptreact",
+				".mjs": "javascript",
+				".mts": "typescript",
+				".ts": "typescript",
+				".tsx": "typescriptreact"
+			}
+		}
+	}
+}

@@ -19,5 +19,7 @@ words:
   - pflag
   - pnpmfile
   - regen
+  - taskkill
+  - tsrs
   - turborepo
   - udim
