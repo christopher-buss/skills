@@ -46,8 +46,8 @@
 		"start": "node scripts/cli.ts",
 		"test": "vitest",
 		"test:coverage": "vitest run --coverage",
-		"test:plugins": "claude plugin validate plugins/commitlint-preflight && claude plugin test plugins/commitlint-preflight",
-		"typecheck": "tsgo --noEmit && tsgo --noEmit -p plugins/commitlint-preflight"
+		"test:plugins": "claude plugin validate plugins/commitlint-preflight && claude plugin test plugins/commitlint-preflight && claude plugin validate plugins/lazy-typescript-lsp",
+		"typecheck": "tsgo --noEmit && tsgo --noEmit -p plugins/commitlint-preflight && tsgo --noEmit -p plugins/lazy-typescript-lsp"
 	},
 	"simple-git-hooks": {
 		"pre-commit": "pnpm lint-staged"

@@ -1,0 +1,9 @@
+{
+	"extends": "@isentinel/tsconfig/typescript",
+	"compilerOptions": {
+		"types": ["node"],
+		"allowImportingTsExtensions": true,
+		"noEmit": true
+	},
+	"include": ["lsp", "src", "tests"]
+}
