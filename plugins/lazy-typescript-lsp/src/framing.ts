@@ -4,6 +4,7 @@ import { type Fields, isFields, isRequestId } from "./guards.ts";
 
 const CONTENT_LENGTH = /^content-length:\s*(\d+)\s*$/im;
 const HEADER_END = Buffer.from("\r\n\r\n", "ascii");
+const LOGGED_BODY_LENGTH = 200;
 
 export interface Message extends Fields {
 	id?: null | number | string;
@@ -24,34 +25,15 @@ export function encodeMessage(message: Message): Buffer {
 	return Buffer.concat([Buffer.from(`Content-Length: ${body.length}\r\n\r\n`, "ascii"), body]);
 }
 
-export function createReader({ onError, onMessage }: ReaderEvents): (chunk: Buffer) => void {
-	let buffer = Buffer.alloc(0);
+export function createReader(events: ReaderEvents): (chunk: Buffer) => void {
+	let buffer: Buffer = Buffer.alloc(0);
 
 	return (chunk) => {
 		buffer = Buffer.concat([buffer, chunk]);
-		let headerEnd = buffer.indexOf(HEADER_END);
-		while (headerEnd !== -1) {
-			const bodyStart = headerEnd + HEADER_END.length;
-			const length = CONTENT_LENGTH.exec(
-				buffer.subarray(0, headerEnd).toString("ascii"),
-			)?.[1];
-			if (length === undefined) {
-				onError("an LSP message has no Content-Length header");
-				buffer = buffer.subarray(bodyStart);
-			} else {
-				const bodyEnd = bodyStart + Number(length);
-				if (buffer.length < bodyEnd) {
-					return;
-				}
-
-				readBody(buffer.subarray(bodyStart, bodyEnd).toString("utf8"), {
-					onError,
-					onMessage,
-				});
-				buffer = buffer.subarray(bodyEnd);
-			}
-
-			headerEnd = buffer.indexOf(HEADER_END);
+		let rest = readFrame(buffer, events);
+		while (rest !== undefined) {
+			buffer = rest;
+			rest = readFrame(buffer, events);
 		}
 	};
 }
@@ -78,9 +60,31 @@ function readBody(body: string, { onError, onMessage }: ReaderEvents): void {
 	}
 
 	if (!isMessage(message)) {
-		onError(`an LSP message is not JSON-RPC 2.0: ${body}`);
+		onError(`an LSP message is not JSON-RPC 2.0: ${body.slice(0, LOGGED_BODY_LENGTH)}`);
 		return;
 	}
 
 	onMessage(message);
+}
+
+function readFrame(buffer: Buffer, events: ReaderEvents): Buffer | undefined {
+	const headerEnd = buffer.indexOf(HEADER_END);
+	if (headerEnd === -1) {
+		return undefined;
+	}
+
+	const bodyStart = headerEnd + HEADER_END.length;
+	const length = CONTENT_LENGTH.exec(buffer.subarray(0, headerEnd).toString("ascii"))?.[1];
+	if (length === undefined) {
+		events.onError("an LSP message has no Content-Length header");
+		return buffer.subarray(bodyStart);
+	}
+
+	const bodyEnd = bodyStart + Number(length);
+	if (buffer.length < bodyEnd) {
+		return undefined;
+	}
+
+	readBody(buffer.subarray(bodyStart, bodyEnd).toString("utf8"), events);
+	return buffer.subarray(bodyEnd);
 }

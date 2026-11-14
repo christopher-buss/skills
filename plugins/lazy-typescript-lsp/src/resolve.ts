@@ -5,6 +5,8 @@ const TYPESCRIPT_7 = [
 	{ name: "@typescript/native-preview", bin: "bin/tsgo.js" },
 ];
 
+const UNSET_OPTION = /^\$\{user_config\.\w+\}$/;
+
 export interface ServerCommand {
 	args: Array<string>;
 	command: string;
@@ -22,7 +24,7 @@ export function resolveServer(
 	{ execPath, findPackage }: ResolveContext,
 ): ServerCommand | undefined {
 	const command = setting.trim();
-	if (command !== "") {
+	if (command !== "" && !UNSET_OPTION.test(command)) {
 		const [program = ""] = command.split(/\s/, 1);
 		const root = findPackage(program);
 		return {

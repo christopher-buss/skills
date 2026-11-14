@@ -86,6 +86,15 @@ describe(createReader, () => {
 		expect(onMessage).toHaveBeenCalledWith({ jsonrpc: "2.0", method: "ok" });
 	});
 
+	it("should report only the start of a long body", () => {
+		expect.assertions(1);
+
+		const { onError, read } = createHarness();
+		read(frame(JSON.stringify({ text: "x".repeat(1000) })));
+
+		expect(onError.mock.calls[0]![0].length).toBeLessThan(300);
+	});
+
 	it("should report a non-Error throw from the parser", () => {
 		expect.assertions(1);
 

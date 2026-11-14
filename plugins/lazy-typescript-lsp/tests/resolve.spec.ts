@@ -49,6 +49,18 @@ describe(resolveServer, () => {
 		});
 	});
 
+	it("should treat an unreplaced option placeholder as no option", () => {
+		expect.assertions(1);
+
+		expect(
+			// eslint-disable-next-line no-template-curly-in-string -- the unreplaced placeholder
+			resolveServer("${user_config.server}", {
+				execPath: NODE,
+				findPackage: lookup("@typescript/native"),
+			}),
+		).toMatchObject({ command: NODE, shell: false });
+	});
+
 	it("should find no server when TypeScript 7 is not installed", () => {
 		expect.assertions(1);
 

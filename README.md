@@ -109,14 +109,20 @@ answers `initialize` from a cache keyed by the server's version and the client
 capabilities, and starts the real server on the first LSP request. File opens
 and edits only update the proxy's copy of each document; a new server gets them
 replayed. After 10 minutes with no request in flight, the proxy stops the server.
-While it is stopped, edits bring no diagnostics, and the first request after a
-stop waits for the server to load the project.
+The first request after a stop waits for the server to load the project.
+Diagnostics are off: run the project's type check for errors.
+
+The server sees Edit and Write changes, but not files that another process
+creates or changes, such as a shell edit or a `git checkout`; start a new
+session after one.
 
 By default it runs TypeScript 7 from the project: `@typescript/native`, then
 `@typescript/native-preview`, with `--lsp --stdio`. To run a different server,
 set the plugin's `server` option to a command line, such as
 `tsrs --lsp --stdio`. The command runs through the shell in the project
-directory, with `node_modules/.bin` on `PATH`.
+directory, with `node_modules/.bin` on `PATH`. When the command's first word is
+not a package in `node_modules`, the proxy cannot tell the server's version, so
+it does not cache `initialize` and starts the server at session start.
 
 ```json
 {

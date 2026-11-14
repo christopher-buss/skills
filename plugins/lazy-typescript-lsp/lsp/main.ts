@@ -6,7 +6,7 @@ import process from "node:process";
 import { createReader, encodeMessage } from "../src/framing.ts";
 import { LazyLspProxy } from "../src/proxy.ts";
 import { resolveServer, type ServerCommand } from "../src/resolve.ts";
-import { createInitializeCache } from "./initialize-cache.ts";
+import { createInitializeCache, type InitializeCache } from "./initialize-cache.ts";
 import { startServer } from "./server.ts";
 
 const IDLE_STOP = 10 * 60 * 1000;
@@ -41,9 +41,25 @@ function serverEnvironment(projectDirectory: string): NodeJS.ProcessEnv {
 	};
 }
 
-function serverIdentity(server: ServerCommand): string {
-	const manifest = server.manifest === undefined ? "" : fs.readFileSync(server.manifest, "utf8");
-	return JSON.stringify([server.command, server.args, manifest]);
+function skipCache(): undefined {
+	return undefined;
+}
+
+function createCache(server: ServerCommand): InitializeCache {
+	if (server.manifest === undefined) {
+		return { read: skipCache, write: skipCache };
+	}
+
+	return createInitializeCache({
+		directory:
+			process.env["CLAUDE_PLUGIN_DATA"] ?? path.join(os.tmpdir(), "lazy-typescript-lsp"),
+		log,
+		serverIdentity: JSON.stringify([
+			server.command,
+			server.args,
+			fs.readFileSync(server.manifest, "utf8"),
+		]),
+	});
 }
 
 const PROJECT_DIRECTORY = process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd();
@@ -58,11 +74,7 @@ if (server === undefined) {
 	process.exit(1);
 }
 
-const cache = createInitializeCache({
-	directory: process.env["CLAUDE_PLUGIN_DATA"] ?? path.join(os.tmpdir(), "lazy-typescript-lsp"),
-	log,
-	serverIdentity: serverIdentity(server),
-});
+const cache = createCache(server);
 const environment = serverEnvironment(PROJECT_DIRECTORY);
 
 const proxy: LazyLspProxy = new LazyLspProxy({

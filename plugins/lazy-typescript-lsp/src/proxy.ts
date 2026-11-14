@@ -6,6 +6,8 @@ const INITIALIZE_ID = "lazy-lsp:initialize";
 const REQUEST_CANCELLED = -32_800;
 const REQUEST_FAILED = -32_803;
 const INVALID_PARAMS = -32_602;
+const EXITED_BEFORE_ANSWER = "the language server exited before it answered";
+const EXITED_BEFORE_START = "the language server exited before it started";
 const REGISTRATION_METHODS = new Set(["client/registerCapability", "client/unregisterCapability"]);
 
 export interface InitializeResult extends Fields {
@@ -70,18 +72,11 @@ export class LazyLspProxy {
 		} else if (method === "initialize" && isRequestId(id)) {
 			this.initialize(id, params);
 		} else if (method === "shutdown" && isRequestId(id)) {
-			this.failQueue("the client shut down the server");
-			this.stopServer();
-			this.ports.sendToClient({ id, jsonrpc: "2.0", result: null });
+			this.shutdown(id);
 		} else if (method === "exit") {
 			this.close();
 		} else if (isDocumentSync(method)) {
-			const problem = trackDocument(this.documents, { method, params });
-			if (problem !== undefined) {
-				this.ports.log(`${method}: ${problem}`);
-			}
-
-			this.sendWhenRunning(message);
+			this.syncDocument(method, message);
 		} else if (method === "$/cancelRequest") {
 			this.cancel(message);
 		} else if (isRequestId(id)) {
@@ -114,24 +109,9 @@ export class LazyLspProxy {
 		const { kind } = this.phase;
 		this.phase = { kind: "stopped" };
 		this.clearIdle();
-		for (const id of this.pendingRequests) {
-			this.fail(id, {
-				code: REQUEST_FAILED,
-				message: "the language server exited before it answered",
-			});
-		}
-
-		this.pendingRequests.clear();
-		if (this.pendingInitializeId !== undefined) {
-			this.fail(this.pendingInitializeId, {
-				code: REQUEST_FAILED,
-				message: "the language server exited before it started",
-			});
-			this.pendingInitializeId = undefined;
-		}
-
+		this.failInFlight();
 		if (kind === "starting") {
-			this.failQueue("the language server exited before it started");
+			this.failQueue(EXITED_BEFORE_START);
 		} else if (this.queue.length > 0) {
 			this.start();
 		}
@@ -167,6 +147,21 @@ export class LazyLspProxy {
 
 	private fail(id: RequestId, error: { code: number; message: string }): void {
 		this.ports.sendToClient({ id, error, jsonrpc: "2.0" });
+	}
+
+	private failInFlight(): void {
+		for (const id of this.pendingRequests) {
+			this.fail(id, { code: REQUEST_FAILED, message: EXITED_BEFORE_ANSWER });
+		}
+
+		this.pendingRequests.clear();
+		if (this.pendingInitializeId !== undefined) {
+			this.fail(this.pendingInitializeId, {
+				code: REQUEST_FAILED,
+				message: EXITED_BEFORE_START,
+			});
+			this.pendingInitializeId = undefined;
+		}
 	}
 
 	private failQueue(text: string): void {
@@ -230,10 +225,13 @@ export class LazyLspProxy {
 	}
 
 	private isLive(server: ServerHandle): boolean {
-		return (
-			(this.phase.kind === "running" || this.phase.kind === "starting") &&
-			this.phase.server === server
-		);
+		return this.liveServer() === server;
+	}
+
+	private liveServer(): ServerHandle | undefined {
+		return this.phase.kind === "running" || this.phase.kind === "starting"
+			? this.phase.server
+			: undefined;
 	}
 
 	private relayInitializeResult(id: RequestId, result: unknown): void {
@@ -273,9 +271,7 @@ export class LazyLspProxy {
 	}
 
 	private sendToLiveServer(message: Message): void {
-		if (this.phase.kind === "running" || this.phase.kind === "starting") {
-			this.phase.server.send(message);
-		}
+		this.liveServer()?.send(message);
 	}
 
 	private sendWhenRunning(message: Message): void {
@@ -301,6 +297,12 @@ export class LazyLspProxy {
 		}
 	}
 
+	private shutdown(id: RequestId): void {
+		this.failQueue("the client shut down the server");
+		this.stopServer();
+		this.ports.sendToClient({ id, jsonrpc: "2.0", result: null });
+	}
+
 	private start(): void {
 		this.starts += 1;
 		const server = this.ports.startServer();
@@ -315,10 +317,20 @@ export class LazyLspProxy {
 
 	private stopServer(): void {
 		this.clearIdle();
-		if (this.phase.kind === "running" || this.phase.kind === "starting") {
-			this.phase = { kind: "stopping", server: this.phase.server };
-			this.phase.server.stop();
+		const server = this.liveServer();
+		if (server !== undefined) {
+			this.phase = { kind: "stopping", server };
+			server.stop();
 		}
+	}
+
+	private syncDocument(method: string, message: Message): void {
+		const problem = trackDocument(this.documents, { method, params: message.params });
+		if (problem !== undefined) {
+			this.ports.log(`${method}: ${problem}`);
+		}
+
+		this.sendWhenRunning(message);
 	}
 }
 
